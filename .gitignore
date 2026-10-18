@@ -1,0 +1,19 @@
+# never commit bot secrets
+.env
+*.env
+.env.*
+*.key
+*.pem
+secrets*
+# local test artifacts
+supabase/local-test/*.log
+supabase/local-test/data/
+*.log
+test-results/
+playwright-report/
+__pycache__/
+*.pyc
+node_modules/
+.DS_Store
+*.zip
+*.tar.gz

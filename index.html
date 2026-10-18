@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
+  <title>Scott's Calendars</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- FullCalendar v6 is vendored locally (vendor/) so the app works offline and on GitHub Pages. -->
+  <script src="vendor/fullcalendar.min.js"></script>
+  <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
+  <script src="vendor/supabase.min.js"></script>
+</head>
+<body>
+  <!-- Sign-in gate (only shown when Supabase sync is configured) -->
+  <div id="authGate" class="auth-gate" hidden>
+    <div class="auth-card">
+      <h1>📅 Scott's Calendars</h1>
+      <p id="authMsg" class="muted"></p>
+      <form id="authForm">
+        <label>Email <input id="authEmail" type="email" required autocomplete="email"></label>
+        <button type="submit" class="primary">Email me a sign-in link</button>
+      </form>
+      <button id="authSignOut" hidden>Sign out</button>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <button id="menuBtn" class="icon-btn" aria-label="Show calendars and tasks">☰</button>
+    <h1>Scott's Calendars</h1>
+    <button id="addBtn" class="primary">+ New</button>
+  </header>
+
+  <div class="layout">
+    <aside id="sidebar" class="sidebar">
+      <section>
+        <h2>Calendars</h2>
+        <label class="cal-toggle all"><input type="checkbox" id="toggleAll"> <span>All calendars</span></label>
+        <div id="calToggles"></div>
+      </section>
+
+      <section>
+        <h2>Tasks / to-dos <small id="taskCount"></small></h2>
+        <div class="scope-tabs" id="scopeTabs">
+          <button data-scope="day" class="active">Today</button>
+          <button data-scope="week">Week</button>
+          <button data-scope="month">Month</button>
+          <button data-scope="season">Season</button>
+        </div>
+        <ul id="taskList" class="task-list"></ul>
+        <button id="addTaskBtn" class="link-btn">+ Add task</button>
+      </section>
+
+      <section>
+        <h2>Data</h2>
+        <div class="data-btns">
+          <button id="exportBtn">Export JSON</button>
+          <button id="importBtn">Import JSON</button>
+          <input type="file" id="importFile" accept="application/json,.json" hidden>
+        </div>
+        <button id="clearExamplesBtn" class="link-btn danger">Remove example events</button>
+        <div id="migrateBox" class="migrate-box" hidden>
+          <p class="small" id="migrateText"></p>
+          <div class="data-btns">
+            <button id="migrateBtn" class="primary">Import my local events</button>
+            <button id="migrateSkipBtn">Not now</button>
+          </div>
+        </div>
+        <p class="muted small" id="storageNote"></p>
+        <div id="syncBtns" class="data-btns" hidden>
+          <button id="syncNowBtn">Refresh now</button>
+          <button id="signOutBtn">Sign out</button>
+        </div>
+        <p class="muted small">All times are Central (America/Chicago).</p>
+      </section>
+    </aside>
+    <div id="scrim" class="scrim"></div>
+
+    <main class="main">
+      <div id="calendar"></div>
+    </main>
+  </div>
+
+  <!-- Event editor -->
+  <dialog id="eventDialog">
+    <form id="eventForm" method="dialog">
+      <h2 id="dialogTitle">New event</h2>
+
+      <div class="kind-switch apply-to" id="applyToWrap" hidden>
+        <label><input type="radio" name="applyTo" value="one" checked> Only this occurrence</label>
+        <label><input type="radio" name="applyTo" value="all"> Whole series</label>
+      </div>
+
+      <div class="kind-switch" id="kindSwitch">
+        <label><input type="radio" name="kind" value="event" checked> Event</label>
+        <label><input type="radio" name="kind" value="task"> Task / to-do</label>
+      </div>
+
+      <label>Title <input name="title" required placeholder="e.g. Film study – Maryville"></label>
+
+      <div class="row">
+        <label>Calendar <select name="calendar" id="fCalendar"></select></label>
+        <label>Category <select name="category" id="fCategory"></select></label>
+      </div>
+      <label id="customCatWrap" hidden>Custom category <input name="customCategory" placeholder="Type a category"></label>
+
+      <div id="taskFields" hidden>
+        <div class="row">
+          <label>Scope
+            <select name="scope">
+              <option value="day">Day</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+              <option value="season">Season</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" name="done"> Done</label>
+        </div>
+      </div>
+
+      <label class="check"><input type="checkbox" name="allDay" id="fAllDay"> All day</label>
+      <div class="row">
+        <label><span id="startLabel">Start</span> <input type="date" name="startDate" required></label>
+        <label class="time-field">&nbsp;<input type="time" name="startTime" value="09:00"></label>
+      </div>
+      <div class="row" id="endRow">
+        <label>End <input type="date" name="endDate"></label>
+        <label class="time-field">&nbsp;<input type="time" name="endTime" value="10:00"></label>
+      </div>
+
+      <fieldset class="recur" id="recurFieldset">
+        <legend>Repeat</legend>
+        <div class="row">
+          <label>
+            <select name="freq" id="fFreq">
+              <option value="none">Does not repeat</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </label>
+          <label class="inline" id="intervalWrap">every <input type="number" name="interval" min="1" value="1" class="num"> <span id="intervalUnit">week(s)</span></label>
+        </div>
+        <div id="weekdayWrap" class="weekdays"></div>
+        <label id="untilWrap">Until (optional) <input type="date" name="until"></label>
+      </fieldset>
+
+      <label>Location <input name="location" placeholder="e.g. Maryville University gym"></label>
+      <label>Notes <textarea name="notes" rows="3"></textarea></label>
+
+      <p id="occurrenceNote" class="muted small" hidden></p>
+
+      <div class="dialog-actions">
+        <button type="button" id="deleteBtn" class="danger" hidden>Delete…</button>
+        <button type="button" id="restoreBtn" hidden>Restore to series</button>
+        <span class="spacer"></span>
+        <button type="button" id="cancelBtn">Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Delete choice for repeating items -->
+  <dialog id="deleteDialog">
+    <form method="dialog">
+      <h2>Delete repeating item</h2>
+      <p>Delete just this occurrence, or the whole series?</p>
+      <div class="dialog-actions">
+        <button value="cancel">Cancel</button>
+        <span class="spacer"></span>
+        <button value="one">This one</button>
+        <button value="all" class="danger">All</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="config.js"></script>
+  <script src="storage.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
