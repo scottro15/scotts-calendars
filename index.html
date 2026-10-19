@@ -147,7 +147,17 @@
         <label id="untilWrap">Until (optional) <input type="date" name="until"></label>
       </fieldset>
 
-      <label>Location <input name="location" placeholder="e.g. Maryville University gym"></label>
+      <div class="field loc-field">
+        <label for="fLocation">Location</label>
+        <div class="ac-wrap">
+          <input id="fLocation" name="location" type="text" placeholder="e.g. Maryville University gym" autocomplete="off" spellcheck="false" enterkeyhint="done">
+          <div class="ac-pop" hidden>
+            <ul id="fLocationList" class="ac-list" role="listbox" aria-label="Location suggestions"></ul>
+            <p class="ac-attrib"></p>
+          </div>
+          <span class="ac-status sr-only" role="status" aria-live="polite"></span>
+        </div>
+      </div>
       <label>Notes <textarea name="notes" rows="3"></textarea></label>
 
       <p id="occurrenceNote" class="muted small" hidden></p>
@@ -180,6 +190,7 @@
 
   <script src="config.js"></script>
   <script src="storage.js"></script>
+  <script src="places.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -12,4 +12,8 @@ window.CALENDAR_CONFIG = {
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuc2locXBkamZsc3dicGFoenZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzMzQ3NjcsImV4cCI6MjEwNzkxMDc2N30.o5F7__bJdWZDBsR1g8KXUJcOYgqfwS4aOS5DKWIVnt0',
   SITE_URL: 'https://scottro15.github.io/scotts-calendars/', // magic-link redirect when hosted
   OWNER_EMAIL: 'scottro1522@gmail.com', // only this account can sign in and see the calendars
+  // Optional: Google Maps browser key for Location autocomplete (see README "Location autocomplete").
+  // Leave empty to use free OpenStreetMap suggestions. Browser keys are public by design; the key's
+  // website + API restrictions in Google Cloud are what protect it.
+  GOOGLE_MAPS_API_KEY: '',
 };

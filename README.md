@@ -22,6 +22,8 @@ Static single-page calendar app with three calendars. It runs on GitHub Pages an
 - Export and Import a JSON backup (merge or replace).
 - Deep links: `?cals=mam`, `?cals=msc,lifetime`, `?view=timeGridWeek`, `&date=2026-10-20`.
 
+- **Location autocomplete.** Start typing in an event's Location field (e.g. "Maryville University gym") and pick a suggestion to fill in the place name plus full address. Typing anything you like still works. See [Location autocomplete](#location-autocomplete).
+
 ## Storage modes
 - **Local (default):** if `config.js` has no Supabase keys, data stays in this browser's localStorage and example events are seeded.
 - **Shared (Supabase):** if `config.js` has `SUPABASE_URL` and `SUPABASE_ANON_KEY`, the app:
@@ -127,11 +129,47 @@ Dates accept `YYYY-MM-DD`, `today`, `tomorrow` or a weekday name (`fri`). Times 
 | `is_task`, `task_scope`, `done`, `completed_dates` | tasks. `done` for one-offs, `completed_dates` per occurrence for repeating tasks |
 | `example`, `source`, `created_at`, `updated_at` | `source` = `app` / bot name |
 
+## Location autocomplete
+
+As you type 3+ letters in **Location**, a dropdown of matching places appears (arrow keys + Enter, or tap). Picking one fills in the name and full address, e.g. `Maryville University, 650 Maryville University Dr, St. Louis, MO 63141`. You can always ignore the suggestions and type whatever you want. Suggestions favor the St. Louis / Augusta, MO area.
+
+Two sources, chosen automatically (`places.js`):
+
+| `GOOGLE_MAPS_API_KEY` in `config.js` | Suggestions come from | Cost |
+|---|---|---|
+| empty (today) | **OpenStreetMap** via [Photon](https://photon.komoot.io) | free, no account. Photon asks for fair use; one person's typing is fine. OSM sometimes uses the official city name (e.g. "Town and Country" instead of "St. Louis") and has fewer business names than Google. |
+| a key | **Google Maps** (Places API (New)) | free up to Google's monthly allowance, see below. If the key is wrong or blocked, the app quietly falls back to OpenStreetMap. |
+
+How it keeps Google cost low: the Google script loads only when you open the event form; it waits until you pause typing (0.3 s) and have typed 3 letters; each search uses a **session token**, so all the typing plus your pick count as one session; and the pick only asks Google for the address (a cheaper "Essentials" field).
+
+### Turning on Google suggestions (Scott, one time, ~15 minutes)
+
+1. Go to <https://console.cloud.google.com/> and sign in with your Google account. At the top, click the project picker → **New project**, name it `SANDY`, click **Create**, and make sure it's selected.
+2. **Billing:** left menu → **Billing** → link or create a billing account (Google requires a card on file even for the free allowance).
+3. **Turn on the two APIs:** left menu → **APIs & Services → Library**. Search **Maps JavaScript API** → **Enable**. Search **Places API (New)** → **Enable**. (Not "Places API" without "(New)".)
+4. **Make the key:** **APIs & Services → Credentials → + Create credentials → API key**. Copy it.
+5. **Lock the key down** (click the key's name to edit it):
+   - **Application restrictions:** choose **Websites**, and add `https://scottro15.github.io/scotts-calendars/*`
+   - **API restrictions:** choose **Restrict key**, tick **Maps JavaScript API** and **Places API (New)** only.
+   - Click **Save**. (Changes can take a few minutes to take effect.)
+6. **Spending guardrails:**
+   - **Billing → Budgets & alerts → Create budget**, e.g. $5/month, with email alerts at 50%, 90% and 100%. (A budget only *emails* you; it doesn't stop usage.)
+   - **Hard cap:** **APIs & Services → Places API (New) → Quotas & system limits**, and lower the per-day request limits (e.g. Autocomplete requests to 300/day). Do the same for Maps JavaScript API if you like.
+7. **Give the key to the app:** paste it into `config.js` as `GOOGLE_MAPS_API_KEY: 'AIza…'` and push (or just send it to Grok Bot / Chief of Staff and it'll do this).
+
+**Is it safe to put the key in `config.js`?** Yes. Browser map keys are public by design (anyone can see them in the page). The website restriction in step 5 means the key only works on your SANDY site, and the API restriction means it can only do these two things.
+
+**Price check (verified 2026-10-19 on [Google Maps Platform pricing](https://developers.google.com/maps/billing-and-pricing/pricing)):** Places API (New) "Autocomplete Requests" includes 10,000 free per month; "Autocomplete Session Usage" is unlimited/free; "Place Details Essentials" (the address lookup on a pick) includes 10,000 free per month. With session tokens, a typical search + pick is billed as one address lookup, so personal use should stay at $0. Google changes prices from time to time, so check that page if you add many users.
+
+To test without a key: `node tests/location_autocomplete.test.js http://127.0.0.1:8766/` (OpenStreetMap path) and `node tests/google_provider_mock.test.js http://127.0.0.1:8766/` (Google path with a mocked Google script), against a copy served with an empty `config.js`.
+
 ## Files
 - `index.html`, `styles.css`: layout and UI
 - `app.js`: calendars, Chicago time handling, repeat logic, views, editor (occurrence vs series), tasks, sync UI, seed data
 - `storage.js`: the only code that touches storage. `LocalStorageAdapter`, `SupabaseAdapter`, the `Store` cache, the magic-link auth helpers and the local → Supabase migration.
-- `config.js`: Supabase URL and anon key (empty = local mode)
+- `config.js`: Supabase URL and anon key (empty = local mode), and the optional `GOOGLE_MAPS_API_KEY`
+- `places.js`: Location autocomplete (Google Places API (New) when a key is set, otherwise OpenStreetMap/Photon), accessible combobox UI
+- `tests/location_autocomplete.test.js`, `tests/google_provider_mock.test.js`: browser tests for Location autocomplete
 - `supabase/schema.sql`: tables, RLS, trigger, realtime
 - `tools/cal.py`: bot CLI
 - `tests/local_mode.test.js`: browser test of local mode (device time zones Chicago, Tokyo and LA, occurrence edits, restore, categories)

@@ -352,6 +352,8 @@
   fCal.innerHTML = CALENDARS.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
   weekdayWrap.innerHTML = DOW.map((d, i) => `<label><input type="checkbox" name="wd" value="${i}"><span>${d}</span></label>`).join('');
   let editing = null; // {id, occKey, recurring, exception}
+  const locAC = window.Places ? Places.attach(f('location')) : null; // location autocomplete (places.js)
+  dlg.addEventListener('close', () => locAC && locAC.reset());
 
   function fillCategories(calId, selected) {
     const presets = [...CAL[calId].categories, ...((customCats[calId] || []).filter(c => !CAL[calId].categories.includes(c)))];
@@ -432,6 +434,7 @@
     applyWrap.hidden = !(recurring && occKey);
     form.querySelector('input[name=applyTo][value=one]').checked = true;
     syncFormUI();
+    if (locAC) { locAC.reset(); Places.warm(); } // lazy-load Google Places only once the form opens
     dlg.showModal();
     if (!ev) f('title').focus();
   }
