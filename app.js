@@ -25,8 +25,8 @@
   // FullCalendar runs with timeZone 'UTC' and `now` = current Chicago time.
   const TZ = 'America/Chicago';
   const pad = n => String(n).padStart(2, '0');
-  const W = (y, m, d, h = 0, mi = 0) => new Date(Date.UTC(y, m, d, h, mi));
-  const ymd = d => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  const W = (y, m, d, h = 0, mi = 0) => { const x = new Date(Date.UTC(2000, 0, 1, h, mi)); x.setUTCFullYear(y, m, d); return x; }; // any year, incl. < 100
+  const ymd = d => `${String(d.getUTCFullYear()).padStart(4, '0')}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
   const hm = d => `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
   function parseLocal(s) { // 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:MM'
     const [date, time = '00:00'] = s.split('T');
@@ -54,7 +54,27 @@
   }
   function seasonName(ref = nowWall()) {
     const m = ref.getUTCMonth();
-    return m === 11 || m < 2 ? 'Winter' : m < 5 ? 'Spring' : m < 8 ? 'Summer' : 'Fall';
+    return m === 11 || m < 2 ? 'Winter' : m < 5 ? 'Spring' : m < 8 ? 'Summer' : 'Autumn';
+  }
+  // Seasons are meteorological: Spring Mar–May, Summer Jun–Aug, Autumn Sep–Nov,
+  // Winter Dec of year Y + Jan–Feb of Y+1. "Winter" seen from a Jan/Feb date is the
+  // winter that contains it (i.e. it started the December before).
+  const SEASONS = ['spring', 'summer', 'autumn', 'winter'];
+  const SEASON_LABEL = { spring: 'Spring', summer: 'Summer', autumn: 'Autumn', winter: 'Winter' };
+  const seasonOf = ref => { const m = ref.getUTCMonth(); return m >= 2 && m <= 4 ? 'spring' : m >= 5 && m <= 7 ? 'summer' : m >= 8 && m <= 10 ? 'autumn' : 'winter'; };
+  const WY = (y, m, d = 1) => W(y, m, d);
+  function seasonPeriod(name, ref) {
+    const y = ref.getUTCFullYear();
+    if (name === 'spring') return [WY(y, 2), WY(y, 5)];
+    if (name === 'summer') return [WY(y, 5), WY(y, 8)];
+    if (name === 'autumn') return [WY(y, 8), WY(y, 11)];
+    const wy = ref.getUTCMonth() < 2 ? y - 1 : y; // winter
+    return [WY(wy, 11), WY(wy + 1, 2)];
+  }
+  function seasonTitle(name, ref) {
+    const [s] = seasonPeriod(name, ref); const y = s.getUTCFullYear();
+    const range = { spring: 'Mar–May', summer: 'Jun–Aug', autumn: 'Sep–Nov', winter: 'Dec–Feb' }[name];
+    return `${SEASON_LABEL[name]} ${name === 'winter' ? `${y}–${String(y + 1).slice(-2)}` : y} (${range})`;
   }
 
   // ---------- Recurrence expansion ----------
@@ -186,6 +206,7 @@
   });
 
   // ---------- FullCalendar ----------
+  let briefReady = false; // set once the briefing panel is wired up (datesSet fires during render)
   const narrow = window.matchMedia('(max-width: 600px)').matches;
   const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
     timeZone: 'UTC',          // see "Date helpers": UTC fields == Chicago wall clock
@@ -219,6 +240,7 @@
       calendar.unselect();
     },
     eventDrop: info => moveEvent(info), eventResize: info => moveEvent(info),
+    datesSet: () => { markTitle(); if (briefReady) renderBriefing(); },
     eventDidMount: info => {
       const p = info.event.extendedProps;
       const bits = [CAL[p.calendar]?.short, p.category, p.location, p.exception ? 'Changed occurrence' : '', p.example ? 'Example' : ''].filter(Boolean);
@@ -293,6 +315,156 @@
     } catch (err) { info.revert(); fail(err); return; }
     refresh();
   }
+
+  // ---------- Briefing panel ----------
+  // Previews the events (and tasks of the matching scope) for Day / Week / Month / Season,
+  // only from the calendars that are toggled on. Week/Month/Season follow the calendar's
+  // current view date; Day is today when today is in view, otherwise the view's first day.
+  const briefScopeEl = document.getElementById('briefScope');
+  const briefSeasonsEl = document.getElementById('briefSeasons');
+  const briefListEl = document.getElementById('briefList');
+  const briefCollapse = document.getElementById('briefCollapse');
+  const briefBody = document.getElementById('briefBody');
+  let briefScope = 'day';
+  let briefToken = 0;
+  let briefSeason = null; // null = the season containing the view date
+  function viewRef() {
+    const v = calendar.view; const t = startOfDay(nowWall());
+    return t >= v.currentStart && t < v.currentEnd ? t : startOfDay(v.currentStart);
+  }
+  function briefPeriod(scope = briefScope, ref = viewRef()) {
+    if (scope === 'day') return [ref, addDays(ref, 1)];
+    if (scope === 'season') return seasonPeriod(briefSeason || seasonOf(ref), ref);
+    return periodFor(scope, ref);
+  }
+  const fmtTime = d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+  const fmtLong = d => d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  const fmtShort = (d, yr) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(yr ? { year: 'numeric' } : {}), timeZone: 'UTC' });
+  function periodTitle(scope, ps, pe, ref) {
+    if (scope === 'day') return fmtLong(ps);
+    if (scope === 'week') { const last = addDays(pe, -1); return `Week of ${fmtShort(ps)} – ${fmtShort(last, true)}`; }
+    if (scope === 'month') return ps.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    return seasonTitle(briefSeason || seasonOf(ref), ref);
+  }
+  /** Pure: the briefing rows for [ps, pe) from a list of stored items. */
+  function briefingItems(all, ps, pe, scope, visible) {
+    const rows = [];
+    for (const ev of all) {
+      if (!visible[ev.calendar]) continue;
+      if (ev.kind === 'task' && (ev.scope || 'day') !== scope) continue;
+      for (const o of occurrences(ev, ps, pe)) {
+        const day = o.start < ps ? ps : startOfDay(o.start);
+        rows.push({ ev, key: o.key, start: o.start, end: o.end, day: ymd(day), carried: o.start < ps });
+      }
+    }
+    rows.sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0) || (!!b.ev.allDay - !!a.ev.allDay) || (a.ev.kind === 'task') - (b.ev.kind === 'task') || a.start - b.start || a.ev.title.localeCompare(b.ev.title));
+    return rows;
+  }
+  function timeText(r) {
+    if (r.ev.allDay) return 'All day';
+    if (r.carried) return `until ${fmtTime(r.end)}`;
+    return `${fmtTime(r.start)} – ${fmtTime(r.end)}`;
+  }
+  async function renderBriefing() {
+    for (const b of briefScopeEl.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.scope === briefScope));
+    const ref = viewRef();
+    const season = briefSeason || seasonOf(ref);
+    briefSeasonsEl.hidden = briefScope !== 'season';
+    for (const b of briefSeasonsEl.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.season === season));
+    const [ps, pe] = briefPeriod(briefScope, ref);
+    document.getElementById('briefPeriod').textContent = periodTitle(briefScope, ps, pe, ref);
+    const token = ++briefToken; const all = await Store.list(); if (token !== briefToken) return; // a newer render won
+    const rows = briefingItems(all, ps, pe, briefScope, settings.visible);
+    const anyVisible = CALENDARS.some(c => settings.visible[c.id]);
+    const evRows = rows.filter(r => r.ev.kind !== 'task'), taskRows = rows.filter(r => r.ev.kind === 'task');
+    const counts = CALENDARS.filter(c => settings.visible[c.id]).map(c => `${c.short} ${evRows.filter(r => r.ev.calendar === c.id).length}`);
+    const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+    document.getElementById('briefSummary').textContent = anyVisible
+      ? `${plural(evRows.length, 'event')}${taskRows.length ? ` · ${plural(taskRows.length, 'task')}` : ''}${evRows.length ? ` (${counts.join(' · ')})` : ''}`
+      : '';
+    briefListEl.innerHTML = '';
+    if (!anyVisible) { briefListEl.innerHTML = '<p class="empty">All calendars are hidden. Turn one on under Calendars.</p>'; return; }
+    if (!rows.length) { briefListEl.innerHTML = `<p class="empty">Nothing scheduled for this ${briefScope}.</p>`; return; }
+    const today = ymd(nowWall());
+    let ul = null, lastDay = null;
+    for (const r of rows) {
+      if (r.day !== lastDay) {
+        lastDay = r.day;
+        if (briefScope !== 'day') {
+          const h = document.createElement('h3'); h.className = 'brief-day' + (r.day === today ? ' is-today' : '');
+          h.textContent = fmtDay(parseLocal(r.day)) + (r.day === today ? ' · Today' : '');
+          briefListEl.appendChild(h);
+        }
+        ul = document.createElement('ul'); ul.className = 'brief-items'; briefListEl.appendChild(ul);
+      }
+      const c = CAL[r.ev.calendar] || CALENDARS[0];
+      const isTask = r.ev.kind === 'task'; const done = isTask && isDone(r.ev, r.key);
+      const li = document.createElement('li');
+      li.innerHTML = `<button type="button" class="brief-item${done ? ' done' : ''}"><span class="bi-time"></span><span class="bi-main"><span class="bi-title"></span><span class="bi-meta"><span class="swatch" aria-hidden="true"></span><span class="bi-cal"></span><span class="bi-loc"></span></span></span></button>`;
+      const btn = li.firstChild; btn.style.setProperty('--c', c.color);
+      btn.querySelector('.bi-time').textContent = isTask ? (done ? '✓ Done' : '☐ Task') : timeText(r);
+      btn.querySelector('.bi-title').textContent = r.ev.title;
+      const calEl = btn.querySelector('.bi-cal'); calEl.textContent = c.short; calEl.title = c.name;
+      btn.querySelector('.bi-loc').textContent = [isTask ? `${SCOPE_LABEL[r.ev.scope] || 'Day'} task` : '', r.ev.location].filter(Boolean).map(x => ' · ' + x).join('');
+      btn.setAttribute('aria-label', `${btn.querySelector('.bi-time').textContent}, ${r.ev.title}, ${c.name}${r.ev.location ? ', ' + r.ev.location : ''}${briefScope !== 'day' ? ', ' + fmtDay(parseLocal(r.day)) : ''}`);
+      btn.addEventListener('click', () => openEditor(r.ev.id, r.key));
+      ul.appendChild(li);
+    }
+  }
+  briefScopeEl.addEventListener('click', e => {
+    const b = e.target.closest('button[data-scope]'); if (!b) return;
+    briefScope = b.dataset.scope; renderBriefing();
+  });
+  briefSeasonsEl.addEventListener('click', e => {
+    const b = e.target.closest('button[data-season]'); if (!b) return;
+    briefSeason = b.dataset.season; renderBriefing();
+  });
+  const setBriefOpen = open => {
+    briefBody.hidden = !open; briefCollapse.setAttribute('aria-expanded', String(open));
+    briefCollapse.setAttribute('aria-label', open ? 'Hide briefing' : 'Show briefing'); briefCollapse.textContent = open ? '▾' : '▸';
+    document.getElementById('briefing').classList.toggle('collapsed', !open);
+  };
+  setBriefOpen(settings.briefOpen !== false);
+  briefCollapse.addEventListener('click', () => { settings.briefOpen = briefBody.hidden; saveSettings(); setBriefOpen(settings.briefOpen); });
+  briefReady = true;
+
+  // ---------- Month + year picker (tap the calendar title) ----------
+  const calEl = document.getElementById('calendar');
+  const mp = document.getElementById('monthPicker');
+  const mpYear = document.getElementById('mpYear');
+  const mpMonths = document.getElementById('mpMonths');
+  const MONTHS = Array.from({ length: 12 }, (_, i) => new Date(Date.UTC(2000, i, 1)).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }));
+  mpMonths.innerHTML = MONTHS.map((m, i) => `<button type="button" data-month="${i}" aria-pressed="false">${m}</button>`).join('');
+  function markTitle() {
+    const t = document.querySelector('#calendar .fc-toolbar-title'); if (!t) return; // runs during first render too
+    t.setAttribute('role', 'button'); t.setAttribute('tabindex', '0'); t.setAttribute('aria-haspopup', 'dialog');
+    t.setAttribute('aria-label', `${t.textContent}. Change month and year`); t.title = 'Change month and year';
+    t.classList.add('title-picker');
+  }
+  function syncPicker() {
+    const ref = viewRef(); const y = +mpYear.value;
+    for (const b of mpMonths.querySelectorAll('button')) b.setAttribute('aria-pressed', String(y === ref.getUTCFullYear() && +b.dataset.month === ref.getUTCMonth()));
+  }
+  function openPicker() {
+    mpYear.value = viewRef().getUTCFullYear(); syncPicker(); mp.showModal();
+    (mpMonths.querySelector('[aria-pressed=true]') || mpMonths.firstChild).focus();
+  }
+  const validYear = () => { const y = Number(mpYear.value); return Number.isInteger(y) && y >= 1 && y <= 9999 ? y : null; };
+  function gotoMonth(y, m) { calendar.gotoDate(WY(y, m, 1)); briefSeason = null; renderBriefing(); }
+  calEl.addEventListener('click', e => { if (e.target.closest('.fc-toolbar-title')) openPicker(); if (e.target.closest('.fc-today-button')) { briefSeason = null; renderBriefing(); } });
+  calEl.addEventListener('keydown', e => { if (e.target.closest('.fc-toolbar-title') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openPicker(); } });
+  const stepYear = n => { const y = validYear() || viewRef().getUTCFullYear(); mpYear.value = Math.min(9999, Math.max(1, y + n)); syncPicker(); };
+  document.getElementById('mpPrevYear').addEventListener('click', () => stepYear(-1));
+  document.getElementById('mpNextYear').addEventListener('click', () => stepYear(1));
+  mpYear.addEventListener('input', syncPicker);
+  mpMonths.addEventListener('click', e => {
+    const b = e.target.closest('button[data-month]'); if (!b) return;
+    const y = validYear(); if (y === null) { mpYear.reportValidity(); mpYear.focus(); return; }
+    mp.close(); gotoMonth(y, +b.dataset.month);
+  });
+  mpYear.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const y = validYear(); if (y === null) { mpYear.reportValidity(); return; } mp.close(); gotoMonth(y, viewRef().getUTCMonth()); } });
+  document.getElementById('mpToday').addEventListener('click', () => { mp.close(); calendar.today(); briefSeason = null; renderBriefing(); });
+  markTitle();
 
   // ---------- Tasks panel ----------
   const taskListEl = document.getElementById('taskList');
@@ -617,9 +789,9 @@
   function fail(err) { console.error(err); toast('Could not save: ' + (err && err.message ? err.message : err), 5000); }
   let refreshTimer;
   function scheduleRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 250); }
-  async function refresh() { renderToggles(await Store.list()); calendar.refetchEvents(); renderTasks(); }
+  async function refresh() { renderToggles(await Store.list()); calendar.refetchEvents(); renderTasks(); renderBriefing(); }
   refresh();
-  window.__app = { calendar, Store, occurrences, nowWall, parseLocal, ymd, hm }; // handy for debugging / tests
+  window.__app = { calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef }; // handy for debugging / tests
 
   // ---------- Example seed data (relative to the current week) ----------
   function seedExamples() {

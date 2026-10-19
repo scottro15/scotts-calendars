@@ -78,6 +78,30 @@
     <div id="scrim" class="scrim"></div>
 
     <main class="main">
+      <!-- Briefing: preview of the selected period (respects the calendar toggles) -->
+      <section id="briefing" class="briefing" aria-labelledby="briefTitle">
+        <div class="brief-head">
+          <h2 id="briefTitle">Briefing</h2>
+          <div class="seg" id="briefScope" role="group" aria-label="Briefing period">
+            <button type="button" data-scope="day" aria-pressed="true">Day</button>
+            <button type="button" data-scope="week" aria-pressed="false">Week</button>
+            <button type="button" data-scope="month" aria-pressed="false">Month</button>
+            <button type="button" data-scope="season" aria-pressed="false">Season</button>
+          </div>
+          <button type="button" id="briefCollapse" class="icon-btn brief-collapse" aria-expanded="true" aria-controls="briefBody" aria-label="Hide briefing">▾</button>
+        </div>
+        <div id="briefBody">
+          <div class="seg seasons" id="briefSeasons" role="group" aria-label="Season" hidden>
+            <button type="button" data-season="spring" aria-pressed="false">Spring</button>
+            <button type="button" data-season="summer" aria-pressed="false">Summer</button>
+            <button type="button" data-season="autumn" aria-pressed="false">Autumn</button>
+            <button type="button" data-season="winter" aria-pressed="false">Winter</button>
+          </div>
+          <p id="briefPeriod" class="brief-period" aria-live="polite"></p>
+          <p id="briefSummary" class="brief-summary muted small"></p>
+          <div id="briefList" class="brief-list"></div>
+        </div>
+      </section>
       <div id="calendar"></div>
     </main>
   </div>
@@ -168,6 +192,24 @@
         <span class="spacer"></span>
         <button type="button" id="cancelBtn">Cancel</button>
         <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Month + year picker (opened from the calendar title) -->
+  <dialog id="monthPicker" aria-labelledby="mpTitle">
+    <form method="dialog" id="mpForm">
+      <h2 id="mpTitle">Go to month</h2>
+      <div class="mp-year">
+        <button type="button" id="mpPrevYear" aria-label="Previous year">‹</button>
+        <label class="mp-year-label">Year <input id="mpYear" type="number" inputmode="numeric" min="1" max="9999" step="1" required></label>
+        <button type="button" id="mpNextYear" aria-label="Next year">›</button>
+      </div>
+      <div id="mpMonths" class="mp-months" role="group" aria-label="Month"></div>
+      <div class="dialog-actions">
+        <button type="button" id="mpToday">This month</button>
+        <span class="spacer"></span>
+        <button value="cancel" formnovalidate>Cancel</button>
       </div>
     </form>
   </dialog>

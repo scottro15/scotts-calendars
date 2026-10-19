@@ -24,6 +24,21 @@ Static single-page calendar app with three calendars. It runs on GitHub Pages an
 
 - **Location autocomplete.** Start typing in an event's Location field (e.g. "Maryville University gym") and pick a suggestion to fill in the place name plus full address. Typing anything you like still works. See [Location autocomplete](#location-autocomplete).
 
+- **Briefing.** A panel above the calendar previews what's coming up, for the calendars that are switched on. It shows each item's time, title, calendar (color + name) and location, and you tap one to open it. A Day / Week / Month / Season switch changes the period. Day is the default: today when today is in view, otherwise the first day in view. Week, Month and Season follow the date the calendar is showing. Tasks are listed in the period that matches their scope (Day-scope tasks in Day, Week-scope in Week, and so on). The ▾ button hides or shows the panel, and the choice is remembered per device. See [Briefing seasons](#briefing-seasons).
+- **Jump to any month and year.** Tap the title at the top of the calendar (e.g. "October 2026 ▾"), or focus it and press Enter. Pick a month, change the year with ‹ › or type any year from 1 to 9999. "This month" goes back to today.
+
+### Briefing seasons
+Seasons are **meteorological**, by whole months:
+
+| Season | Months |
+|---|---|
+| Spring | March – May |
+| Summer | June – August |
+| Autumn | September – November |
+| Winter | December of the year + January – February of the next year |
+
+In Season mode the panel shows Spring, Summer, Autumn and Winter as buttons. It starts on the season that contains the calendar's date. Tapping another season shows that season **in the year the calendar is showing**. If the calendar is on January or February, "Winter" means the winter that started the December before (e.g. viewing Jan 2027 shows Winter 2026–27). Your season pick sticks when you change the year with the title picker. "Today" and "This month" reset it to the current season. The sidebar's task tab for the season scope uses the same definition, so it now says "Autumn" instead of "Fall".
+
 ## Storage modes
 - **Local (default):** if `config.js` has no Supabase keys, data stays in this browser's localStorage and example events are seeded.
 - **Shared (Supabase):** if `config.js` has `SUPABASE_URL` and `SUPABASE_ANON_KEY`, the app:
@@ -165,13 +180,14 @@ To test without a key: `node tests/location_autocomplete.test.js http://127.0.0.
 
 ## Files
 - `index.html`, `styles.css`: layout and UI
-- `app.js`: calendars, Chicago time handling, repeat logic, views, editor (occurrence vs series), tasks, sync UI, seed data
+- `app.js`: calendars, Chicago time handling, repeat logic, views, editor (occurrence vs series), tasks, Briefing panel, month/year picker, sync UI, seed data
 - `storage.js`: the only code that touches storage. `LocalStorageAdapter`, `SupabaseAdapter`, the `Store` cache, the magic-link auth helpers and the local → Supabase migration.
 - `config.js`: Supabase URL and anon key (empty = local mode), and the optional `GOOGLE_MAPS_API_KEY`
 - `places.js`: Location autocomplete (Google Places API (New) when a key is set, otherwise OpenStreetMap/Photon), accessible combobox UI
 - `tests/location_autocomplete.test.js`, `tests/google_provider_mock.test.js`: browser tests for Location autocomplete
 - `supabase/schema.sql`: tables, RLS, trigger, realtime
 - `tools/cal.py`: bot CLI
+- `tests/briefing_and_picker.test.js`: browser test of the Briefing panel (Day/Week/Month/Season, season buttons, calendar toggles, tasks by scope, collapse) and the month/year picker (tap and keyboard, prev/next year, any year, invalid year), on desktop and phone sizes. Run it like the other local tests, against a copy served with an empty `config.js`: `node tests/briefing_and_picker.test.js http://127.0.0.1:8766/`
 - `tests/local_mode.test.js`: browser test of local mode (device time zones Chicago, Tokyo and LA, occurrence edits, restore, categories)
 - `tests/supabase_mode.test.js` + `supabase/local-test/`: end-to-end test against a **local stand-in** (Postgres 17 + PostgREST + `dev_proxy.py`, with stub `auth.*` functions and locally-minted test tokens). It covers sign-in gating, migration, app→bot and bot→app sync, and exceptions. It never talks to a real Supabase project, and none of its files are used in production.
 

@@ -122,3 +122,53 @@ dialog .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px
 .ac-attrib { margin: 0; padding: 4px 12px 6px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); text-align: right; }
 .ac-attrib a { color: inherit; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* ---- briefing panel ---- */
+.briefing { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
+.brief-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.brief-head h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0; }
+.brief-collapse { margin-left: auto; font-size: 16px; min-width: 36px; min-height: 36px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; padding: 2px; gap: 2px; background: #f3f4f6; }
+.seg button { border: none; background: transparent; border-radius: 8px; padding: 6px 12px; font-size: 13px; min-height: 36px; color: #374151; }
+.seg button[aria-pressed="true"] { background: var(--primary); color: #fff; }
+.seg button:focus-visible, .brief-item:focus-visible, .title-picker:focus-visible, .mp-months button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.seg.seasons { margin-top: 8px; }
+.seg.seasons button[aria-pressed="true"] { background: var(--lifetime); }
+.brief-period { margin: 8px 0 0; font-weight: 600; }
+.brief-summary { margin: 2px 0 6px; }
+.brief-list { max-height: 340px; overflow-y: auto; }
+.brief-list .empty { color: var(--muted); font-size: 13px; margin: 4px 0; }
+.brief-day { font-size: 12px; font-weight: 600; color: var(--muted); margin: 10px 0 2px; position: sticky; top: 0; background: var(--panel); padding: 2px 0; }
+.brief-day.is-today { color: var(--text); }
+.brief-items { list-style: none; margin: 0; padding: 0; }
+.brief-item { display: flex; gap: 10px; width: 100%; text-align: left; border: none; border-left: 4px solid var(--c); border-radius: 6px; background: #fff;
+  padding: 6px 8px; margin: 2px 0; align-items: baseline; min-height: 44px; }
+.brief-item:hover { background: #f9fafb; }
+.brief-item .bi-time { flex: none; width: 150px; font-size: 13px; color: #374151; font-variant-numeric: tabular-nums; }
+.brief-item .bi-main { display: flex; flex-direction: column; min-width: 0; }
+.brief-item .bi-title { font-weight: 500; }
+.brief-item .bi-meta { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.brief-item .swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex: none; }
+.brief-item.done .bi-title { text-decoration: line-through; color: var(--muted); }
+.briefing.collapsed .seg#briefScope { display: none; }
+
+/* ---- month + year picker ---- */
+.fc .fc-toolbar-title.title-picker { cursor: pointer; border-radius: 8px; padding: 2px 8px; }
+.fc .fc-toolbar-title.title-picker:hover { background: #f3f4f6; }
+.fc .fc-toolbar-title.title-picker::after { content: ' ▾'; font-size: .7em; color: var(--muted); }
+#monthPicker { width: min(380px, 96vw); }
+.mp-year { display: flex; align-items: flex-end; gap: 8px; }
+.mp-year button { min-width: 44px; min-height: 40px; font-size: 18px; }
+.mp-year-label { flex: 1; }
+.mp-months { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.mp-months button { min-height: 44px; }
+.mp-months button[aria-pressed="true"] { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+@media (max-width: 800px) {
+  .briefing { padding: 8px; border-radius: 8px; margin-bottom: 6px; }
+  .brief-head .seg#briefScope { order: 3; width: 100%; }
+  .seg { display: flex; } .seg button { flex: 1; padding: 6px 4px; }
+  .brief-list { max-height: 45vh; }
+  .brief-item { flex-direction: column; gap: 2px; }
+  .brief-item .bi-time { width: auto; font-size: 12px; }
+}
