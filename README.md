@@ -206,3 +206,8 @@ To test without a key: `node tests/location_autocomplete.test.js http://127.0.0.
 - The line updates on every minute boundary, and again when you return to the tab. After midnight it moves to the new day. The minute updates never scroll the page, so your own scrolling isn't interrupted.
 - This is display only. Calendar data is never changed.
 - Test, run against a copy served with an empty `config.js` and a mocked clock: `node tests/list_today_nowline.test.js http://127.0.0.1:8766/ [screenshotDir]`
+
+## Animations
+
+`motion.js` + the "motion" section of `styles.css` add small animations (150–300 ms, ease-out in, ease-in out): dialogs (event editor, delete choice) scale up from where you tapped with a fading backdrop and reverse on close; the month/year picker drops from the title; the Briefing panel slides/fades open and closed with a rotating ▾; Day/Week/Month/Season and season switches crossfade; location suggestions and toasts drop in; the phone sidebar slides with a fading scrim; buttons press in slightly. Exit animations finish before a dialog actually closes or a panel is hidden; Escape and focus return still work. With the OS "reduce motion" setting on, everything is instant.
+Test: `node tests/motion.test.js http://127.0.0.1:8766/` (also checks reduced motion).

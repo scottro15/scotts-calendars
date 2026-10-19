@@ -119,11 +119,11 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
     assert(await p.textContent('#briefPeriod') === thisMonth, `${N} "This month" goes back (${thisMonth})`);
 
     // ---- collapse persists
-    await p.click('#briefCollapse');
+    await p.click('#briefCollapse'); await p.waitForTimeout(350); // collapse animates (~200ms) before hiding
     assert(!(await p.isVisible('#briefBody')) && await p.getAttribute('#briefCollapse', 'aria-expanded') === 'false', `${N} collapse hides body`);
     await p.reload(); await p.waitForSelector('.fc-event');
     assert(!(await p.isVisible('#briefBody')), `${N} collapsed state persists`);
-    await p.click('#briefCollapse'); assert(await p.isVisible('#briefBody'), `${N} expand again`);
+    await p.click('#briefCollapse'); await p.waitForTimeout(350); assert(await p.isVisible('#briefBody'), `${N} expand again`);
 
     // ---- clicking a briefing item opens the editor (no save)
     await p.click('#briefScope [data-scope=week]');

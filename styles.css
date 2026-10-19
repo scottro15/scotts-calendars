@@ -189,3 +189,35 @@ dialog .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px
 .sandy-now-label { position: absolute; right: 8px; top: -10px; background: #ef4444; color: #fff; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 9px; line-height: 18px; }
 .fc-list tr.sandy-today-emptyrow > td { padding: 8px 14px; }
 .sandy-today-empty-block { width: 100%; border-collapse: collapse; }
+
+/* ---- motion (see motion.js). ease-out on enter, ease-in on exit; 150–300ms ---- */
+@keyframes dlg-in { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes dlg-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(.96); } }
+@keyframes bd-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bd-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(-10px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes pop-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-10px) scale(.97); } }
+dialog.anim-in { animation: dlg-in 220ms cubic-bezier(.2,.8,.2,1); }
+dialog.anim-in::backdrop { animation: bd-in 220ms ease-out; }
+dialog.closing { animation: dlg-out 160ms cubic-bezier(.4,0,1,1) forwards; pointer-events: none; }
+dialog.closing::backdrop { animation: bd-out 160ms ease-in forwards; }
+/* month/year picker drops from the calendar title */
+#monthPicker.anim-in { animation-name: pop-in; transform-origin: 50% 0 !important; }
+#monthPicker.closing { animation-name: pop-out; transform-origin: 50% 0 !important; }
+.brief-collapse { transition: transform 220ms cubic-bezier(.2,.8,.2,1); }
+.briefing.collapsed .brief-collapse { transform: rotate(-90deg); }
+button { transition: transform 120ms ease-out, background-color 150ms, color 150ms, border-color 150ms; }
+button:active:not(:disabled), .title-picker:active { transform: scale(.96); }
+.briefing.collapsed .brief-collapse:active { transform: rotate(-90deg) scale(.92); }
+.seg button:active { transform: scale(.94); }
+.toast { transition: opacity 150ms; }
+@media (max-width: 800px) {
+  .sidebar { transition: transform 260ms cubic-bezier(.2,.8,.2,1); }
+  .sidebar:not(.open) { transition-timing-function: cubic-bezier(.4,0,1,1); transition-duration: 200ms; }
+  .scrim { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 40; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 220ms ease-out, visibility 0s 220ms; }
+  .scrim.open { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 220ms ease-out; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after, dialog::backdrop { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; transition-delay: 0s !important; }
+  button:active, .seg button:active, .title-picker:active { transform: none; }
+}

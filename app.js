@@ -499,19 +499,20 @@
   }
   briefScopeEl.addEventListener('click', e => {
     const b = e.target.closest('button[data-scope]'); if (!b) return;
-    briefScope = b.dataset.scope; renderBriefing();
+    const order = ['day', 'week', 'month', 'season'], dir = Math.sign(order.indexOf(b.dataset.scope) - order.indexOf(briefScope));
+    briefScope = b.dataset.scope; renderBriefing().then(() => window.Motion && Motion.swap(briefBody, dir));
   });
   briefSeasonsEl.addEventListener('click', e => {
     const b = e.target.closest('button[data-season]'); if (!b) return;
-    briefSeason = b.dataset.season; renderBriefing();
+    briefSeason = b.dataset.season; renderBriefing().then(() => window.Motion && Motion.swap(briefBody, 0));
   });
-  const setBriefOpen = open => {
-    briefBody.hidden = !open; briefCollapse.setAttribute('aria-expanded', String(open));
-    briefCollapse.setAttribute('aria-label', open ? 'Hide briefing' : 'Show briefing'); briefCollapse.textContent = open ? '▾' : '▸';
+  const setBriefOpen = (open, animate) => {
+    if (animate && window.Motion) Motion.slide(briefBody, open); else briefBody.hidden = !open; briefCollapse.setAttribute('aria-expanded', String(open));
+    briefCollapse.setAttribute('aria-label', open ? 'Hide briefing' : 'Show briefing'); briefCollapse.textContent = '▾'; // rotated by CSS when collapsed
     document.getElementById('briefing').classList.toggle('collapsed', !open);
   };
   setBriefOpen(settings.briefOpen !== false);
-  briefCollapse.addEventListener('click', () => { settings.briefOpen = briefBody.hidden; saveSettings(); setBriefOpen(settings.briefOpen); });
+  briefCollapse.addEventListener('click', () => { settings.briefOpen = briefCollapse.getAttribute('aria-expanded') !== 'true'; saveSettings(); setBriefOpen(settings.briefOpen, true); });
   briefReady = true;
 
   // ---------- Month + year picker (tap the calendar title) ----------
