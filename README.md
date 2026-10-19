@@ -211,3 +211,6 @@ To test without a key: `node tests/location_autocomplete.test.js http://127.0.0.
 
 `motion.js` + the "motion" section of `styles.css` add small animations (150–300 ms, ease-out in, ease-in out): dialogs (event editor, delete choice) scale up from where you tapped with a fading backdrop and reverse on close; the month/year picker drops from the title; the Briefing panel slides/fades open and closed with a rotating ▾; Day/Week/Month/Season and season switches crossfade; location suggestions and toasts drop in; the phone sidebar slides with a fading scrim; buttons press in slightly. Exit animations finish before a dialog actually closes or a panel is hidden; Escape and focus return still work. With the OS "reduce motion" setting on, everything is instant.
 Test: `node tests/motion.test.js http://127.0.0.1:8766/` (also checks reduced motion).
+
+### List View calendar tint
+Each List View row is tinted with its calendar's color mixed 12% into white (hover 20%; an event happening now gets 24%, bold text, and a calendar-colored left accent next to today's blue border). The tint comes from the calendar color in `CALENDARS`, so it follows color changes. Test: `node tests/list_tint.test.js http://127.0.0.1:8766/ [screenshotDir]` (checks msc/mam/lifetime colors, whole row, AA contrast, hover, ongoing).

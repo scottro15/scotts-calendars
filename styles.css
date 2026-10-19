@@ -183,6 +183,13 @@ dialog .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px
 .fc-list tr.sandy-today-first .fc-list-day-cushion { background: #dbeafe; }
 .fc-list tr.sandy-today-last > * { border-bottom: 3px solid var(--today) !important; }
 .fc-list tr.sandy-ongoing > td { background: #eff6ff; }
+/* List View: each row tinted with a faded version of its calendar color (follows CAL color) */
+.fc-list tr.sandy-tint > td { background: color-mix(in srgb, var(--cal) 12%, #fff); transition: background-color .15s ease-out; }
+.fc-list tr.sandy-tint:hover > td { background: color-mix(in srgb, var(--cal) 20%, #fff); }
+.fc-list tr.sandy-tint.sandy-ongoing > td { background: color-mix(in srgb, var(--cal) 24%, #fff); font-weight: 600; }
+.fc-list tr.sandy-tint.sandy-ongoing > :first-child { box-shadow: inset 3px 0 0 var(--today), inset 7px 0 0 var(--cal); }
+.fc-list tr.sandy-tint.sandy-ongoing:hover > td { background: color-mix(in srgb, var(--cal) 30%, #fff); }
+@media (prefers-reduced-motion: reduce) { .fc-list tr.sandy-tint > td { transition: none; } }
 .fc-list tr.sandy-now-row > td { padding: 0 !important; height: 0; }
 .sandy-now-line { position: relative; height: 2px; background: #ef4444; margin: 9px 3px; }
 .sandy-now-line::before { content: ''; position: absolute; left: -1px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: #ef4444; }

@@ -249,7 +249,9 @@
       const bits = [CAL[p.calendar]?.short, p.category, p.location, p.exception ? 'Changed occurrence' : '', p.example ? 'Example' : ''].filter(Boolean);
       info.el.title = `${info.event.title}\n${bits.join(' · ')}`;
       if (info.view.type.startsWith('list')) { // remember times so the now-line can find its spot
-        const e = info.event; info.el.dataset.allDay = e.allDay ? '1' : '';
+        const e = info.event; const cc = CAL[info.event.extendedProps.calendar]?.color;
+        if (cc) { info.el.style.setProperty('--cal', cc); info.el.classList.add('sandy-tint'); info.el.dataset.cal = info.event.extendedProps.calendar; }
+        info.el.dataset.allDay = e.allDay ? '1' : '';
         info.el.dataset.start = e.start ? `${ymd(e.start)}T${hm(e.start)}` : '';
         info.el.dataset.end = e.end ? `${ymd(e.end)}T${hm(e.end)}` : info.el.dataset.start;
       }
