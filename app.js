@@ -207,6 +207,8 @@
 
   // ---------- FullCalendar ----------
   let briefReady = false; // set once the briefing panel is wired up (datesSet fires during render)
+  // List View now-line state (declared before the calendar: datesSet fires during render)
+  let listScrollPending = false, lastViewType = null, listDecoTimer = 0, listDecorating = false;
   const narrow = window.matchMedia('(max-width: 600px)').matches;
   const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
     timeZone: 'UTC',          // see "Date helpers": UTC fields == Chicago wall clock
@@ -240,14 +242,98 @@
       calendar.unselect();
     },
     eventDrop: info => moveEvent(info), eventResize: info => moveEvent(info),
-    datesSet: () => { markTitle(); if (briefReady) renderBriefing(); },
+    datesSet: info => { markTitle(); if (briefReady) renderBriefing(); listDatesSet(info.view); },
+    eventsSet: () => scheduleListDecorate(),
     eventDidMount: info => {
       const p = info.event.extendedProps;
       const bits = [CAL[p.calendar]?.short, p.category, p.location, p.exception ? 'Changed occurrence' : '', p.example ? 'Example' : ''].filter(Boolean);
       info.el.title = `${info.event.title}\n${bits.join(' · ')}`;
+      if (info.view.type.startsWith('list')) { // remember times so the now-line can find its spot
+        const e = info.event; info.el.dataset.allDay = e.allDay ? '1' : '';
+        info.el.dataset.start = e.start ? `${ymd(e.start)}T${hm(e.start)}` : '';
+        info.el.dataset.end = e.end ? `${ymd(e.end)}T${hm(e.end)}` : info.el.dataset.start;
+      }
+      scheduleListDecorate();
     },
   });
   calendar.render();
+
+  // ---------- List View: today's border, now-line, scroll-to-today ----------
+  // Today's section gets a border; a line marks the current Chicago time and moves every minute.
+  // Scrolls to today only when List View is opened, never on the minute ticks.
+  function listDatesSet(view) {
+    const isList = view.type.startsWith('list');
+    if (isList && lastViewType !== view.type) listScrollPending = true;
+    lastViewType = view.type; scheduleListDecorate();
+  }
+  function scheduleListDecorate() { cancelAnimationFrame(listDecoTimer); listDecoTimer = requestAnimationFrame(decorateList); }
+  const fmtNow = d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+  function decorateList() {
+    const root = document.getElementById('calendar');
+    if (listDecorating) return; listDecorating = true;
+    try {
+      root.querySelectorAll('.sandy-now-row, .sandy-today-placeholder, .sandy-today-empty-block').forEach(n => n.remove());
+      root.querySelectorAll('.sandy-today, .sandy-today-first, .sandy-today-last, .sandy-ongoing').forEach(n => n.classList.remove('sandy-today', 'sandy-today-first', 'sandy-today-last', 'sandy-ongoing'));
+      const view = calendar.view; if (!view.type.startsWith('list')) return;
+      const now = nowWall(), today = ymd(now), nowKey = `${today}T${hm(now)}`;
+      if (!(ymd(view.activeStart) <= today && today < ymd(view.activeEnd))) { listScrollPending = false; return; }
+      const dayLabel = startOfDay(now).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+      const lineRow = () => {
+        const tr = document.createElement('tr'); tr.className = 'sandy-now-row sandy-today';
+        tr.innerHTML = `<td colspan="3"><div class="sandy-now-line" role="separator" aria-label="Current time ${fmtNow(now)}"><span class="sandy-now-label">${fmtNow(now)}</span></div></td>`;
+        return tr;
+      };
+      let header = root.querySelector(`tr.fc-list-day[data-date="${today}"]`);
+      const tbody = root.querySelector('.fc-list-table tbody');
+      if (!header) { // FullCalendar leaves out empty days: add a placeholder for today
+        const mk = () => {
+          const h = document.createElement('tr'); h.className = 'fc-list-day sandy-today-placeholder'; h.dataset.date = today;
+          h.innerHTML = `<th colspan="3"><div class="fc-list-day-cushion fc-cell-shaded"><span class="fc-list-day-text">${escapeHtml(dayLabel)}</span></div></th>`;
+          const e = document.createElement('tr'); e.className = 'sandy-today-placeholder sandy-today-emptyrow';
+          e.innerHTML = '<td colspan="3" class="muted">No events today</td>';
+          return [h, e];
+        };
+        if (tbody) {
+          const next = [...tbody.querySelectorAll('tr.fc-list-day')].find(r => r.dataset.date > today);
+          for (const r of mk()) tbody.insertBefore(r, next || null);
+        } else { // whole range is empty: FullCalendar shows a message instead of a table
+          const box = root.querySelector('.fc-list'); if (!box) return;
+          const t = document.createElement('table'); t.className = 'fc-list-table sandy-today-empty-block';
+          const b = document.createElement('tbody'); mk().forEach(r => b.appendChild(r)); t.appendChild(b);
+          box.insertBefore(t, box.firstChild);
+        }
+        header = root.querySelector(`tr.fc-list-day[data-date="${today}"]`);
+      }
+      // today's rows = header + rows until the next day header
+      const rows = [header];
+      for (let r = header.nextElementSibling; r && !r.classList.contains('fc-list-day'); r = r.nextElementSibling) rows.push(r);
+      const evRows = rows.filter(r => r.classList.contains('fc-list-event'));
+      let before = null;
+      for (const r of evRows) {
+        if (r.dataset.allDay) continue;
+        const st = r.dataset.start || '', en = r.dataset.end || st;
+        if (st > nowKey) { before = r; break; }
+        if (st <= nowKey && nowKey < en) r.classList.add('sandy-ongoing');
+      }
+      const line = lineRow();
+      if (before) before.parentNode.insertBefore(line, before);
+      else { const last = rows[rows.length - 1]; last.parentNode.insertBefore(line, last.nextElementSibling); }
+      const all = [header, ...rows.slice(1), line].filter((r, i, a) => a.indexOf(r) === i);
+      const ordered = [header]; for (let r = header.nextElementSibling; r && all.includes(r); r = r.nextElementSibling) ordered.push(r);
+      ordered.forEach(r => r.classList.add('sandy-today'));
+      ordered[0].classList.add('sandy-today-first'); ordered[ordered.length - 1].classList.add('sandy-today-last');
+      if (listScrollPending) {
+        listScrollPending = false;
+        const top = document.querySelector('.topbar'); const stuck = top && /sticky|fixed/.test(getComputedStyle(top).position); const off = (stuck ? top.getBoundingClientRect().height : 0) + 4;
+        const y = header.getBoundingClientRect().top + window.scrollY - off;
+        if (Math.abs(y - window.scrollY) > 4 && y > 0) setTimeout(() => window.scrollTo({ top: y, behavior: 'smooth' }), 60);
+      }
+    } finally { listDecorating = false; }
+  }
+  (function minuteTick() { // aligned to the minute boundary; also handles midnight (today is recomputed)
+    setTimeout(() => { decorateList(); minuteTick(); }, 60000 - (Date.now() % 60000) + 20);
+  })();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) decorateList(); });
 
   async function buildFcEvents(rs, re) {
     const all = await Store.list();
@@ -791,7 +877,7 @@
   function scheduleRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 250); }
   async function refresh() { renderToggles(await Store.list()); calendar.refetchEvents(); renderTasks(); renderBriefing(); }
   refresh();
-  window.__app = { calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef }; // handy for debugging / tests
+  window.__app = { calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList }; // handy for debugging / tests
 
   // ---------- Example seed data (relative to the current week) ----------
   function seedExamples() {

@@ -172,3 +172,20 @@ dialog .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px
   .brief-item { flex-direction: column; gap: 2px; }
   .brief-item .bi-time { width: auto; font-size: 12px; }
 }
+
+/* List View: today's border + current-time line */
+:root { --today: #2563eb; }
+.fc-list tr.sandy-today > * { border-left: 0; border-right: 0; }
+.fc-list tr.sandy-today > :first-child { box-shadow: inset 3px 0 0 var(--today); }
+.fc-list tr.sandy-today > :last-child { box-shadow: inset -3px 0 0 var(--today); }
+.fc-list tr.sandy-today > :only-child { box-shadow: inset 3px 0 0 var(--today), inset -3px 0 0 var(--today); }
+.fc-list tr.sandy-today-first > * { border-top: 3px solid var(--today) !important; }
+.fc-list tr.sandy-today-first .fc-list-day-cushion { background: #dbeafe; }
+.fc-list tr.sandy-today-last > * { border-bottom: 3px solid var(--today) !important; }
+.fc-list tr.sandy-ongoing > td { background: #eff6ff; }
+.fc-list tr.sandy-now-row > td { padding: 0 !important; height: 0; }
+.sandy-now-line { position: relative; height: 2px; background: #ef4444; margin: 9px 3px; }
+.sandy-now-line::before { content: ''; position: absolute; left: -1px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: #ef4444; }
+.sandy-now-label { position: absolute; right: 8px; top: -10px; background: #ef4444; color: #fff; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 9px; line-height: 18px; }
+.fc-list tr.sandy-today-emptyrow > td { padding: 8px 14px; }
+.sandy-today-empty-block { width: 100%; border-collapse: collapse; }

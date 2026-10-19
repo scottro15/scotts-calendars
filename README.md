@@ -196,3 +196,13 @@ To test without a key: `node tests/location_autocomplete.test.js http://127.0.0.
 - Realtime is untested against real Supabase because no project exists yet. Refresh-on-focus, the 5-minute poll and "Refresh now" are tested and cover it either way.
 - Offline edits aren't queued. In sync mode a save made with no connection shows "Could not save" and has to be redone.
 - Two people editing the same event at the same moment: the last save wins.
+
+## List View: today highlight and current-time line
+
+- In List View, today's section has a blue border, and its date header is tinted.
+- When you open or switch to List View, the page starts at the top and then smoothly scrolls so today's header is at the top of the screen. It only scrolls if it needs to, and only when the week on screen includes today.
+- A red line with the exact time (for example "6:15 PM", Chicago time) runs across today's section at the current time. It sits between events by start time. Events happening right now are tinted, and the line sits right after them. All-day items always stay above the line.
+- If today has no events, or your calendar toggles hide all of them, today still shows with "No events today" and the line.
+- The line updates on every minute boundary, and again when you return to the tab. After midnight it moves to the new day. The minute updates never scroll the page, so your own scrolling isn't interrupted.
+- This is display only. Calendar data is never changed.
+- Test, run against a copy served with an empty `config.js` and a mocked clock: `node tests/list_today_nowline.test.js http://127.0.0.1:8766/ [screenshotDir]`
