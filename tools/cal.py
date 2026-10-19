@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-cal.py: command-line access to Scott's Calendars (Supabase) for the bots.
+cal.py: command-line access to SANDY (Supabase) for the bots.
 
 Python 3.9+, standard library only. Talks to Supabase's REST API (PostgREST)
 with the service-role key, which bypasses Row Level Security. Keep that key

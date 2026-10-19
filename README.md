@@ -1,4 +1,4 @@
-# Scott's Calendars
+# SANDY — the scheduling app
 
 Static single-page calendar app with three calendars. It runs on GitHub Pages and can sync through Supabase, so Scott's phone, his laptop and the bots (Chief of Staff, Scheduler) all see the same events.
 

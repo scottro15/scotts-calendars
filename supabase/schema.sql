@@ -1,5 +1,5 @@
 -- =====================================================================
--- Scott's Calendars: Supabase schema
+-- SANDY: Supabase schema
 -- Run once in the Supabase dashboard: SQL Editor -> New query -> paste -> Run.
 -- It's safe to re-run (idempotent).
 --
