@@ -52,6 +52,34 @@
         <button id="addTaskBtn" class="link-btn">+ Add task</button>
       </section>
 
+      <section id="reviewSection" class="review" aria-labelledby="reviewTitle">
+        <h2 id="reviewTitle">Notes Review <small id="reviewCount"></small></h2>
+        <div class="seg review-scope" id="reviewScope" role="group" aria-label="Review period">
+          <button type="button" data-scope="day" aria-pressed="true">Day</button>
+          <button type="button" data-scope="week" aria-pressed="false">Week</button>
+          <button type="button" data-scope="month" aria-pressed="false">Month</button>
+          <button type="button" data-scope="season" aria-pressed="false">Season</button>
+          <button type="button" data-scope="year" aria-pressed="false">Year</button>
+        </div>
+        <div class="review-nav">
+          <button type="button" id="reviewPrev" class="icon-btn" aria-label="Previous period">‹</button>
+          <span id="reviewPeriod" class="review-period" aria-live="polite"></span>
+          <button type="button" id="reviewNext" class="icon-btn" aria-label="Next period">›</button>
+        </div>
+        <div id="reviewDayPick" class="review-daypick">
+          <input type="date" id="reviewDate" aria-label="Pick a day">
+          <div id="reviewChips" class="review-chips" role="group" aria-label="Days this week"></div>
+        </div>
+        <details class="review-filters" id="reviewFilters">
+          <summary>Filters <span id="reviewFilterSummary" class="muted small"></span></summary>
+          <fieldset><legend>Calendars</legend><div id="reviewCals"></div></fieldset>
+          <label class="review-field">Event <select id="reviewEvent"><option value="">All events</option></select></label>
+          <label class="review-field">Search <input type="search" id="reviewSearch" placeholder="Words in the note"></label>
+          <button type="button" id="reviewClear" class="link-btn">Clear filters</button>
+        </details>
+        <div id="reviewList" class="review-list"></div>
+      </section>
+
       <section>
         <h2>Data</h2>
         <div class="data-btns">
@@ -182,7 +210,20 @@
           <span class="ac-status sr-only" role="status" aria-live="polite"></span>
         </div>
       </div>
-      <label>Notes <textarea name="notes" rows="3"></textarea></label>
+      <label><span id="notesLabel">Notes</span> <textarea name="notes" rows="3"></textarea></label>
+
+      <section id="dayNoteBox" class="day-note" aria-labelledby="dayNoteTitle" hidden>
+        <div class="day-note-head">
+          <span class="day-note-icon" aria-hidden="true">📌</span>
+          <div>
+            <h3 id="dayNoteTitle">Today's Note — this date only</h3>
+            <p id="dayNoteDate" class="day-note-date"></p>
+          </div>
+          <span id="dayNoteStatus" class="day-note-status muted small" role="status" aria-live="polite"></span>
+        </div>
+        <textarea id="dayNote" rows="3" aria-labelledby="dayNoteTitle dayNoteDate" placeholder="Only shows on this date, e.g. how practice went, who was out, what to fix next time"></textarea>
+        <p id="dayNoteHelp" class="muted small">Saves automatically. Other dates of this event won't show it. Clear the text to delete it.</p>
+      </section>
 
       <p id="occurrenceNote" class="muted small" hidden></p>
 

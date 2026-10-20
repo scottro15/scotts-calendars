@@ -789,6 +789,86 @@ def merge(row, ch):
     return out
 
 
+
+# ---------------------------------------------------------------- day notes ("Today's Note")
+def note_target(client, ev_id, date_iso):
+    """(series_or_event_row, date) a day note belongs to. A changed occurrence maps to its series + original date."""
+    row = client.get_event(ev_id)
+    if row.get('series_id'):
+        return client.get_event(row['series_id']), row['original_date']
+    if (row.get('recur_freq') or 'none') == 'none':
+        d = row['start_at'][:10]
+        if date_iso and date_iso != d:
+            raise CalError(f'That event is on {d}, not {date_iso}.')
+        return row, d
+    if not date_iso:
+        raise CalError('Repeating event: give --date YYYY-MM-DD for the occurrence.')
+    if not occurs_on(row, date_iso, include_skipped=True):
+        raise CalError(f'"{row["title"]}" does not occur on {date_iso}.')
+    return row, date_iso
+
+
+def note_view(client, row, date_iso, note, exc=None):
+    d = dt.date.fromisoformat(date_iso)
+    a = dt.datetime.combine(d, dt.time())
+    src = exc or dict(row, exdates=[])
+    occ = occurrences(src, a - dt.timedelta(days=400) if exc else a, a + dt.timedelta(days=400) if exc else a + dt.timedelta(days=1))
+    p = present(src, occ[0]) if occ else present(src)
+    out = {'date': (occ[0][2].isoformat() if (occ and exc) else date_iso), 'event_id': row['id'], 'title': p['title'],
+           'calendar': p['calendar'], 'calendar_name': p['calendar_name'], 'all_day': p['all_day'],
+           'start': p['start'], 'end': p['end'], 'time': p['display'], 'note': note['body'] if note else None}
+    if exc:
+        out['changed_occurrence_id'] = exc['id']
+    if note:
+        out['updated_at'] = note.get('updated_at')
+    return out
+
+
+def get_note(client, ev_id, date_iso):
+    rows = client.request('GET', 'occurrence_notes', {'select': '*', 'event_id': f'eq.{ev_id}', 'occurrence_date': f'eq.{date_iso}'})
+    return rows[0] if rows else None
+
+
+def cmd_note_get(client, args):
+    row, d = note_target(client, args.id, args.date)
+    return note_view(client, row, d, get_note(client, row['id'], d))
+
+
+def cmd_note_set(client, args):
+    row, d = note_target(client, args.id, args.date)
+    body = (args.text or '').strip()
+    if not body:
+        gone = client.delete('occurrence_notes', {'event_id': f'eq.{row["id"]}', 'occurrence_date': f'eq.{d}'})
+        return dict(note_view(client, row, d, None), deleted=bool(gone))
+    saved = client.request('POST', 'occurrence_notes', {'on_conflict': 'event_id,occurrence_date'},
+                           [{'event_id': row['id'], 'occurrence_date': d, 'body': body}],
+                           prefer='return=representation,resolution=merge-duplicates', write=True)
+    return dict(note_view(client, row, d, saved[0] if saved else {'body': body}), saved=True)
+
+
+def cmd_note_list(client, args):
+    rs, re_ = date_range(args)
+    cals = parse_calendars(args.calendar) if args.calendar else list(CALENDARS)
+    a, b = rs.date().isoformat(), (re_ - dt.timedelta(days=1)).date().isoformat()
+    notes = client.select('occurrence_notes', {'select': '*', 'and': f'(occurrence_date.gte.{a},occurrence_date.lte.{b})', 'order': 'occurrence_date.asc'})
+    ids = sorted({n['event_id'] for n in notes})
+    rows, excs = {}, {}
+    for i in range(0, len(ids), 100):
+        chunk = ','.join(ids[i:i + 100])
+        for r in client.select('events', {'select': '*', 'id': f'in.({chunk})'}):
+            rows[r['id']] = r
+        for r in client.select('events', {'select': '*', 'series_id': f'in.({chunk})'}):
+            excs[(r['series_id'], r['original_date'])] = r
+    out = []
+    for n in notes:
+        row = rows.get(n['event_id'])
+        if not row or row['calendar'] not in cals:
+            continue
+        out.append(note_view(client, row, n['occurrence_date'], n, excs.get((row['id'], n['occurrence_date']))))
+    out.sort(key=lambda x: (x['date'], x['start'] or ''))
+    return {'range': {'from': a, 'to': b, 'time_zone': TZ_NAME}, 'calendars': cals, 'count': len(out), 'notes': out}
+
+
 # ---------------------------------------------------------------- CLI
 def add_time_args(p, editing=False):
     p.add_argument('--start', help='start, e.g. "2026-10-20 6:30pm" (Chicago). All-day: just the date')
@@ -866,6 +946,13 @@ def build_parser():
     g = p.add_mutually_exclusive_group()
     g.add_argument('--occurrence', help='YYYY-MM-DD: skip just that occurrence')
     g.add_argument('--series', action='store_true', help='delete the whole repeating series')
+    p = sub.add_parser('note-get', help="read Today's Note (day-specific note) for one occurrence")
+    p.add_argument('id'); p.add_argument('--date', help='YYYY-MM-DD occurrence (required for repeating events)')
+    p = sub.add_parser('note-set', help="write Today's Note for one occurrence (empty text deletes it); never edits the event")
+    p.add_argument('id'); p.add_argument('--date'); p.add_argument('--text', required=True)
+    p = sub.add_parser('note-list', help="all Today's Notes in a date range (JSON)")
+    p.add_argument('--from', dest='from_'); p.add_argument('--to'); p.add_argument('--days', type=int)
+    p.add_argument('--calendar', help='msc | mam | lifetime | all | comma list (default all)')
     return ap
 
 
@@ -886,11 +973,12 @@ def main(argv=None):
     client = Client(dry_run=dry)
     try:
         fn = {'list': cmd_list, 'find': cmd_find, 'get': cmd_get, 'categories': cmd_categories,
-              'add': cmd_add, 'edit': cmd_edit, 'delete': cmd_delete}[args.cmd]
+              'add': cmd_add, 'edit': cmd_edit, 'delete': cmd_delete,
+              'note-get': cmd_note_get, 'note-set': cmd_note_set, 'note-list': cmd_note_list}[args.cmd]
         result = fn(client, args)
         out = {'ok': True, 'dry_run': dry}
         out.update(result if isinstance(result, dict) else {'result': result})
-        if dry and args.cmd in ('add', 'edit', 'delete'):
+        if dry and args.cmd in ('add', 'edit', 'delete', 'note-set'):
             for a, b in (('created', 'would_create'), ('after', 'would_be'), ('deleted', 'would_delete'),
                          ('created_exception', 'would_create_exception'), ('also_deleted_exceptions', 'would_also_delete_exceptions')):
                 if a in out:

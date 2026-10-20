@@ -214,3 +214,16 @@ Test: `node tests/motion.test.js http://127.0.0.1:8766/` (also checks reduced mo
 
 ### List View calendar tint
 Each List View row is tinted with its calendar's color mixed 12% into white (hover 20%; an event happening now gets 24%, bold text, and a calendar-colored left accent next to today's blue border). The tint comes from the calendar color in `CALENDARS`, so it follows color changes. Test: `node tests/list_tint.test.js http://127.0.0.1:8766/ [screenshotDir]` (checks msc/mam/lifetime colors, whole row, AA contrast, hover, ongoing).
+
+## Day notes ("Today's Note") and Notes Review
+**Today's Note — this date only.** Every event's editor has a second, amber 📌 section under the regular notes, headed "Note for Tuesday, Oct 20" (the date you clicked). Whatever you write there shows only on that date: Monday's practice note doesn't appear on Tuesday's practice. It saves automatically (and on Save / Cancel); clearing the text deletes it. On repeating events the regular field is labelled **Notes (every occurrence)**. Writing a day note never changes the event and never turns the occurrence into a "changed occurrence". Occurrences that have one get a 📌 in Month/Week/Day/List views.
+
+Storage: table `occurrence_notes` (`event_id` → `events.id` on delete cascade, `occurrence_date` Chicago date, `body`, unique per event+date, same owner-only RLS). A changed occurrence's note is keyed by its series id + original date. Local mode stores them in localStorage (`scottcal.occurrenceNotes.v1`). **One-time DB step:** run `supabase/migration-2026-10-19-occurrence-notes.sql` (also at the end of `supabase/schema.sql`) in Supabase **SQL Editor → Run**. Until then the app shows the section as disabled and everything else works.
+
+**Notes Review** (sidebar / ☰ menu, under Tasks): Day / Week / Month / Season / Year tabs with ‹ › to move by period. Day has a date picker plus Sun–Sat chips for that week. Notes are grouped by date with event title, calendar color + name, time and text; tap one to open that occurrence. **Filters:** calendars (multi-select; follows the main calendar toggles until you change it), one event (lists each event/series that has notes, once), and a text search. Seasons are the meteorological ones above.
+
+Deep links (also restored after the magic-link sign-in): `?review=day&date=2026-10-19`, `?review=week&date=2026-10-19`, `?review=month&date=2026-10-19` (also `season`, `year`). On a phone it opens the menu at Notes Review.
+
+Bots: `cal.py note-get <id> --date YYYY-MM-DD`, `cal.py note-set <id> --date YYYY-MM-DD --text "..."` (empty text deletes; a changed-occurrence id needs no date), `cal.py note-list --from YYYY-MM-DD --to YYYY-MM-DD [--calendar mam]` → JSON `notes[]` with `date, title, calendar, calendar_name, time, start, end, note`.
+
+Tests: `node tests/day_notes_review.test.js http://127.0.0.1:8766/ [screenshotDir]` (empty `config.js` copy) and `python3 tests/cal_notes_test.py` (offline fake Supabase).

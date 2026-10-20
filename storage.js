@@ -18,6 +18,7 @@
   const KEY = 'scottcal.events.v1';
   const SETTINGS_KEY = 'scottcal.settings.v1';
   const CATS_KEY = 'scottcal.categories.v1';
+  const NOTES_KEY = 'scottcal.occurrenceNotes.v1';
   const MIGRATED_KEY = 'scottcal.migratedToSupabase.v1';
   const CFG = window.CALENDAR_CONFIG || {};
 
@@ -51,6 +52,10 @@
       (cats[cal] ||= []).includes(name) || cats[cal].push(name);
       localStorage.setItem(CATS_KEY, JSON.stringify(cats));
     },
+    // Day notes ("Today's Note"): one note per (event_id, occurrence_date). Never touches events.
+    async loadNotes() { return readJSON(NOTES_KEY, []); },
+    async upsertNote(n) { const all = readJSON(NOTES_KEY, []); const i = all.findIndex(x => x.eventId === n.eventId && x.date === n.date); if (i >= 0) all[i] = n; else all.push(n); localStorage.setItem(NOTES_KEY, JSON.stringify(all)); return n; },
+    async deleteNote(eventId, date) { localStorage.setItem(NOTES_KEY, JSON.stringify(readJSON(NOTES_KEY, []).filter(x => !(x.eventId === eventId && x.date === date)))); },
     ...deviceSettings,
   };
 
@@ -94,6 +99,8 @@
     return ev;
   }
 
+  const noteFromRow = r => ({ id: r.id, eventId: r.event_id, date: r.occurrence_date, body: r.body || '', createdAt: r.created_at, updatedAt: r.updated_at });
+
   function SupabaseAdapter(url, anonKey) {
     if (!window.supabase || !window.supabase.createClient) throw new Error('vendor/supabase.min.js did not load');
     const sb = window.supabase.createClient(url, anonKey, {
@@ -135,12 +142,29 @@
       async addCategory(cal, name) {
         must(await sb.from('categories').upsert({ calendar: cal, name }, { onConflict: 'calendar,name', ignoreDuplicates: true }));
       },
+      async loadNotes() {
+        const out = []; const page = 1000;
+        for (let from = 0; ; from += page) {
+          const rows = must(await sb.from('occurrence_notes').select('*').order('occurrence_date').range(from, from + page - 1));
+          out.push(...rows.map(noteFromRow));
+          if (rows.length < page) return out;
+        }
+      },
+      async upsertNote(n) {
+        const rows = must(await sb.from('occurrence_notes').upsert({ event_id: n.eventId, occurrence_date: n.date, body: n.body }, { onConflict: 'event_id,occurrence_date' }).select());
+        return noteFromRow(rows[0]);
+      },
+      async deleteNote(eventId, date) { must(await sb.from('occurrence_notes').delete().eq('event_id', eventId).eq('occurrence_date', date)); },
       subscribe(onChange) {
         const ch = sb.channel('calendar-changes')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, p => onChange('events', p))
           .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, p => onChange('categories', p))
           .subscribe();
-        return () => sb.removeChannel(ch);
+        // separate channel so a missing occurrence_notes table can never break event updates
+        const ch2 = sb.channel('day-notes-changes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'occurrence_notes' }, p => onChange('notes', p))
+          .subscribe();
+        return () => { sb.removeChannel(ch); sb.removeChannel(ch2); };
       },
       fromRow,
       ...deviceSettings,
@@ -151,6 +175,7 @@
   function createStore(adapter) {
     let cache = null;
     let cats = null;
+    let notesCache = null;
     const listeners = new Set();
     const remote = adapter.name !== 'local';
     const emit = (why) => listeners.forEach(fn => { try { fn(why); } catch (e) { console.error(e); } });
@@ -196,13 +221,36 @@
         } else { cache = [...events]; await writeLocal(); }
       },
       /** Re-read everything from the backend (realtime / tab focus). */
-      async reload() { cache = (await adapter.loadAll()) || []; cats = null; emit('reload'); return cache; },
+      async reload() { cache = (await adapter.loadAll()) || []; cats = null; notesCache = null; emit('reload'); return cache; },
       /** Apply a realtime row change without a full reload. */
       applyRemoteChange(table, p) {
+        if (table === 'notes') { notesCache = null; emit('notes'); return; }
         if (table !== 'events' || !cache) { cats = null; emit('categories'); return; }
         if (p.eventType === 'DELETE') { const id = p.old && p.old.id; if (id) cache = cache.filter(e => e.id !== id && e.seriesId !== id); }
         else if (p.new && p.new.id) put(adapter.fromRow(p.new));
         emit('remote');
+      },
+      /** Day notes ("Today's Note"), keyed by series/event id + Chicago date. Separate from events. */
+      notes: {
+        available: true, error: null,
+        async all() {
+          if (notesCache) return notesCache;
+          try { notesCache = (await adapter.loadNotes()) || []; this.available = true; this.error = null; }
+          catch (e) { console.warn('Day notes unavailable:', e); this.available = false; this.error = e.message || String(e); notesCache = []; }
+          return notesCache;
+        },
+        async get(eventId, date) { return (await this.all()).find(n => n.eventId === eventId && n.date === date) || null; },
+        /** Empty body deletes the note. */
+        async set(eventId, date, body) {
+          await this.all(); body = (body || '').trim();
+          const i = notesCache.findIndex(n => n.eventId === eventId && n.date === date);
+          if (!body) { if (i >= 0) { await adapter.deleteNote(eventId, date); notesCache.splice(i, 1); } return null; }
+          const now = new Date().toISOString();
+          const n = await adapter.upsertNote({ ...(i >= 0 ? notesCache[i] : { id: uid(), createdAt: now }), eventId, date, body, updatedAt: now });
+          if (i >= 0) notesCache[i] = n; else notesCache.push(n);
+          return n;
+        },
+        invalidate() { notesCache = null; },
       },
       onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 

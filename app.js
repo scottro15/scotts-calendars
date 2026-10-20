@@ -134,6 +134,13 @@
 
   // ---------- Sign-in (only when Supabase is configured) ----------
   if (Store.configError) console.warn('Supabase config problem, using localStorage:', Store.configError);
+  // Notes Review deep links (?review=day|week|month|season|year&date=YYYY-MM-DD) survive the
+  // magic-link sign-in round trip (the link returns to the bare site URL) via localStorage.
+  const DL_KEY = 'sandy.pendingReviewLink.v1';
+  {
+    const q = new URLSearchParams(location.search);
+    if (q.get('review')) localStorage.setItem(DL_KEY, JSON.stringify({ review: q.get('review'), date: q.get('date') || '', cals: q.get('cals') || '', at: Date.now() }));
+  }
   if (Store.auth) await requireOwnerSignIn();
 
   async function requireOwnerSignIn() {
@@ -170,6 +177,14 @@
   const settings = Object.assign({ visible: { msc: true, mam: true, lifetime: true }, taskScope: 'day' }, await Store.loadSettings());
   delete settings.customCategories; // now kept by Store.categories()
   const params = new URLSearchParams(location.search);
+  let reviewLink = null;
+  try {
+    const pend = JSON.parse(localStorage.getItem(DL_KEY) || 'null'); localStorage.removeItem(DL_KEY);
+    if (pend && Date.now() - pend.at < 3 * 3600 * 1000) {
+      reviewLink = pend;
+      if (!params.get('review')) { if (pend.date && !params.get('date')) params.set('date', pend.date); if (pend.cals && !params.get('cals')) params.set('cals', pend.cals); }
+    }
+  } catch { /* ignore */ }
   if (params.get('cals')) { // deep link, e.g. ?cals=mam or ?cals=msc,lifetime
     const want = params.get('cals').split(',');
     for (const c of CALENDARS) settings.visible[c.id] = want.includes(c.id);
@@ -247,7 +262,12 @@
     eventDidMount: info => {
       const p = info.event.extendedProps;
       const bits = [CAL[p.calendar]?.short, p.category, p.location, p.exception ? 'Changed occurrence' : '', p.example ? 'Example' : ''].filter(Boolean);
+      if (p.dayNote) bits.push("Has Today's Note");
       info.el.title = `${info.event.title}\n${bits.join(' · ')}`;
+      if (p.dayNote) {
+        const t = info.el.querySelector('.fc-list-event-title a, .fc-event-title, .fc-list-event-title') || info.el;
+        if (!t.querySelector('.day-note-dot')) { const d = document.createElement('span'); d.className = 'day-note-dot'; d.setAttribute('aria-label', "has Today's Note"); d.textContent = '📌'; t.appendChild(d); }
+      }
       if (info.view.type.startsWith('list')) { // remember times so the now-line can find its spot
         const e = info.event; const cc = CAL[info.event.extendedProps.calendar]?.color;
         if (cc) { info.el.style.setProperty('--cal', cc); info.el.classList.add('sandy-tint'); info.el.dataset.cal = info.event.extendedProps.calendar; }
@@ -337,12 +357,21 @@
   })();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) decorateList(); });
 
+  /** Which (event/series id, Chicago date) a day note belongs to, for an item + clicked occurrence. */
+  function noteKeyFor(ev, occKey) {
+    if (ev.seriesId) return { eventId: ev.seriesId, date: ev.originalDate };
+    if (isRecurring(ev)) return { eventId: ev.id, date: occKey };
+    return { eventId: ev.id, date: ymd(parseLocal(ev.start)) };
+  }
+  async function noteSet() { return new Set((await Store.notes.all()).map(n => `${n.eventId}|${n.date}`)); }
   async function buildFcEvents(rs, re) {
     const all = await Store.list();
+    const noted = await noteSet();
     const out = [];
     for (const ev of all) {
       if (!settings.visible[ev.calendar]) continue;
       const c = CAL[ev.calendar] || CALENDARS[0];
+      const hasNote = (e, k) => { const nk = noteKeyFor(e, k); return noted.has(`${nk.eventId}|${nk.date}`); };
       for (const o of occurrences(ev, rs, re)) {
         const done = ev.kind === 'task' && isDone(ev, o.key);
         const prefix = ev.kind === 'task' ? (done ? '✓ ' : '☐ ') : '';
@@ -355,8 +384,8 @@
           allDay: !!ev.allDay,
           backgroundColor: c.color, borderColor: c.color, textColor: '#fff',
           editable: true, // dragging one occurrence of a series detaches just that occurrence
-          classNames: [ev.example ? 'is-example' : '', done ? 'task-done' : '', ev.seriesId ? 'is-exception' : ''].filter(Boolean),
-          extendedProps: { sourceId: ev.id, occKey: o.key, calendar: ev.calendar, category: ev.category, location: ev.location, example: ev.example, exception: !!ev.seriesId },
+          classNames: [ev.example ? 'is-example' : '', done ? 'task-done' : '', ev.seriesId ? 'is-exception' : '', hasNote(ev, o.key) ? 'has-day-note' : ''].filter(Boolean),
+          extendedProps: { dayNote: hasNote(ev, o.key), sourceId: ev.id, occKey: o.key, calendar: ev.calendar, category: ev.category, location: ev.location, example: ev.example, exception: !!ev.seriesId },
         });
       }
     }
@@ -690,15 +719,49 @@
     f('scope').value = d.scope || 'day';
     f('done').checked = ev ? isDone(ev, occKey) : false;
     f('location').value = d.location || ''; f('notes').value = d.notes || '';
+    document.getElementById('notesLabel').textContent = recurring ? 'Notes (every occurrence)' : 'Notes';
+    await setupDayNote(ev, occKey);
     document.getElementById('deleteBtn').hidden = !ev;
     document.getElementById('restoreBtn').hidden = !(ev && ev.seriesId);
     applyWrap.hidden = !(recurring && occKey);
     form.querySelector('input[name=applyTo][value=one]').checked = true;
     syncFormUI();
+    editing.snap = formSnap();
     if (locAC) { locAC.reset(); Places.warm(); } // lazy-load Google Places only once the form opens
     dlg.showModal();
     if (!ev) f('title').focus();
   }
+
+  // ---------- Today's Note (day-specific note; separate storage, never edits the event) ----------
+  const dayBox = document.getElementById('dayNoteBox'), dayTa = document.getElementById('dayNote'), dayStatus = document.getElementById('dayNoteStatus');
+  let dayCtx = null, dayTimer = 0;
+  const fmtNoteDay = date => parseLocal(date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  function formSnap() { return JSON.stringify([...new FormData(form)].filter(([k]) => k !== 'applyTo')); }
+  async function setupDayNote(ev, occKey) {
+    clearTimeout(dayTimer); dayCtx = null; dayStatus.textContent = ''; dayTa.value = '';
+    if (!ev || (isRecurring(ev) && !occKey)) { dayBox.hidden = true; return; }
+    const nk = noteKeyFor(ev, occKey);
+    dayBox.hidden = false;
+    document.getElementById('dayNoteDate').textContent = `Note for ${fmtNoteDay(nk.date)}`;
+    const n = await Store.notes.get(nk.eventId, nk.date);
+    dayTa.disabled = !Store.notes.available;
+    document.getElementById('dayNoteHelp').textContent = Store.notes.available
+      ? "Saves automatically. Other dates of this event won't show it. Clear the text to delete it."
+      : "Today's Note needs a one-time database update before it can save (see README → Day notes).";
+    dayTa.value = n ? n.body : '';
+    dayCtx = { ...nk, saved: dayTa.value };
+  }
+  async function flushDayNote() {
+    clearTimeout(dayTimer);
+    const c = dayCtx; if (!c || !Store.notes.available) return;
+    const body = dayTa.value.trim(); if (body === c.saved.trim()) return;
+    dayStatus.textContent = 'Saving…';
+    try { await Store.notes.set(c.eventId, c.date, body); c.saved = body; dayStatus.textContent = body ? 'Saved' : 'Deleted'; scheduleRefresh(); }
+    catch (err) { dayStatus.textContent = 'Not saved'; fail(err); }
+  }
+  dayTa.addEventListener('input', () => { clearTimeout(dayTimer); dayStatus.textContent = ''; dayTimer = setTimeout(flushDayNote, 700); });
+  dayTa.addEventListener('blur', flushDayNote);
+  dlg.addEventListener('close', flushDayNote);
 
   /** Read the form into a plain object of fields (no id / recurrence bookkeeping). */
   async function readForm(calId) {
@@ -729,6 +792,9 @@
     e.preventDefault();
     try {
       const existing = editing.id ? await Store.get(editing.id) : null;
+      await flushDayNote();
+      // Nothing but Today's Note changed: don't rewrite the event (and never detach an occurrence).
+      if (existing && formSnap() === editing.snap) { dlg.close(); toast('Saved'); refresh(); return; }
       const calId = existing && (existing.seriesId || (editing.recurring && applyTo() === 'one')) ? existing.calendar : fCal.value;
       const v = await readForm(calId);
 
@@ -849,7 +915,7 @@
     }
     // live updates from the bots / other devices
     if (Store.adapter.subscribe) { try { Store.adapter.subscribe((t, p) => Store.applyRemoteChange(t, p)); } catch (e) { console.warn('Realtime unavailable', e); } }
-    Store.onChange(async why => { if (why === 'categories' || why === 'reload') await loadCats(); scheduleRefresh(); });
+    Store.onChange(async why => { if (why === 'notes') { scheduleRefresh(); return; } if (why === 'categories' || why === 'reload') await loadCats(); scheduleRefresh(); });
     let lastReload = Date.now();
     async function reloadFromServer(manual) {
       try { await Store.reload(); lastReload = Date.now(); if (manual) toast('Up to date'); } catch (err) { if (manual) fail(err); else console.warn(err); }
@@ -870,6 +936,135 @@
   document.getElementById('menuBtn').addEventListener('click', () => drawer(!sidebar.classList.contains('open')));
   scrim.addEventListener('click', () => drawer(false));
 
+  // ---------- Notes Review (browse Today's Notes by day / week / month / season / year) ----------
+  const RV_SCOPES = ['day', 'week', 'month', 'season', 'year'];
+  const rv = { scope: 'day', ref: startOfDay(nowWall()), cals: new Set(CALENDARS.filter(c => settings.visible[c.id]).map(c => c.id)), calsTouched: false, event: '', q: '' };
+  const $ = id => document.getElementById(id);
+  const rvList = $('reviewList'), rvDate = $('reviewDate'), rvEvent = $('reviewEvent');
+  function reviewRange(scope = rv.scope, ref = rv.ref) {
+    if (scope === 'year') return [W(ref.getUTCFullYear(), 0, 1), W(ref.getUTCFullYear() + 1, 0, 1)];
+    if (scope === 'season') return seasonPeriod(seasonOf(ref), ref);
+    return periodFor(scope, ref);
+  }
+  function reviewTitle(ps, pe) {
+    const last = addDays(pe, -1);
+    if (rv.scope === 'day') return ps.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+    if (rv.scope === 'week') return `${fmtShort(ps)} – ${fmtShort(last, true)}`;
+    if (rv.scope === 'month') return ps.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    if (rv.scope === 'season') return seasonTitle(seasonOf(rv.ref), rv.ref);
+    return String(ps.getUTCFullYear());
+  }
+  function shiftReview(dir) {
+    const r = rv.ref, y = r.getUTCFullYear(), m = r.getUTCMonth();
+    rv.ref = rv.scope === 'day' ? addDays(r, dir) : rv.scope === 'week' ? addDays(r, 7 * dir)
+      : rv.scope === 'month' ? W(y, m + dir, 1) : rv.scope === 'season' ? W(y, m + 3 * dir, 1) : W(y + dir, 0, 1);
+  }
+  /** Resolve every day note to what it's attached to (series occurrence or changed occurrence). */
+  async function reviewItems() {
+    const evs = await Store.list(); const byId = new Map(evs.map(e => [e.id, e]));
+    const excBy = new Map(evs.filter(e => e.seriesId).map(e => [`${e.seriesId}|${e.originalDate}`, e]));
+    const out = [];
+    for (const n of await Store.notes.all()) {
+      const series = byId.get(n.eventId); if (!series) continue;
+      const exc = excBy.get(`${n.eventId}|${n.date}`);
+      const ev = exc || series;
+      const start = exc ? parseLocal(exc.start) : isRecurring(series) ? occurrenceStart(series, n.date) : parseLocal(series.start);
+      const end = ev.end ? new Date(start.getTime() + (parseLocal(ev.end) - parseLocal(ev.start))) : null;
+      out.push({ note: n, ev, seriesId: n.eventId, date: ymd(start), start, end, open: exc ? [exc.id, null] : [series.id, isRecurring(series) ? n.date : null] });
+    }
+    return out.sort((a, b) => a.start - b.start);
+  }
+  function renderReviewChrome() {
+    for (const b of $('reviewScope').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.scope === rv.scope));
+    $('reviewDayPick').hidden = rv.scope !== 'day';
+    rvDate.value = ymd(rv.ref);
+    const chips = $('reviewChips'); chips.innerHTML = '';
+    const sun = addDays(rv.ref, -rv.ref.getUTCDay());
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(sun, i); const b = document.createElement('button'); b.type = 'button';
+      b.textContent = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }); b.dataset.date = ymd(d);
+      b.setAttribute('aria-label', d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' }));
+      b.setAttribute('aria-pressed', String(ymd(d) === ymd(rv.ref))); if (ymd(d) === ymd(nowWall())) b.classList.add('is-today');
+      chips.appendChild(b);
+    }
+    const box = $('reviewCals'); box.innerHTML = '';
+    for (const c of CALENDARS) {
+      const l = document.createElement('label'); l.className = 'cal-toggle'; l.style.setProperty('--c', c.color);
+      l.innerHTML = `<input type="checkbox" data-cal="${c.id}" ${rv.cals.has(c.id) ? 'checked' : ''}><span class="swatch"></span><span>${c.short}</span>`;
+      box.appendChild(l);
+    }
+  }
+  async function renderReview() {
+    if (!rvList) return;
+    if (!rv.calsTouched) rv.cals = new Set(CALENDARS.filter(c => settings.visible[c.id]).map(c => c.id));
+    renderReviewChrome();
+    const [ps, pe] = reviewRange();
+    $('reviewPeriod').textContent = reviewTitle(ps, pe);
+    const all = await reviewItems();
+    // event filter options: every event/series that has at least one day note
+    const opts = new Map(); for (const it of all) if (!opts.has(it.seriesId)) opts.set(it.seriesId, it.ev.seriesId ? (all.find(x => x.seriesId === it.seriesId && !x.ev.seriesId)?.ev.title || it.ev.title) : it.ev.title);
+    if (rv.event && !opts.has(rv.event)) rv.event = '';
+    rvEvent.innerHTML = '<option value="">All events</option>' + [...opts].sort((a, b) => a[1].localeCompare(b[1])).map(([id, t]) => `<option value="${id}">${escapeHtml(t)}</option>`).join('');
+    rvEvent.value = rv.event;
+    const q = rv.q.trim().toLowerCase(); const s0 = ymd(ps), e0 = ymd(pe);
+    const items = all.filter(it => it.date >= s0 && it.date < e0 && rv.cals.has(it.ev.calendar) && (!rv.event || it.seriesId === rv.event)
+      && (!q || it.note.body.toLowerCase().includes(q) || it.ev.title.toLowerCase().includes(q)));
+    const nf = (rv.cals.size < CALENDARS.length ? 1 : 0) + (rv.event ? 1 : 0) + (q ? 1 : 0);
+    $('reviewFilterSummary').textContent = nf ? `(${nf} on)` : '';
+    $('reviewCount').textContent = items.length ? `(${items.length})` : '';
+    rvList.innerHTML = '';
+    if (!Store.notes.available) { rvList.innerHTML = `<p class="empty">Today's Notes need a one-time database update first.</p>`; return; }
+    if (!items.length) {
+      const what = { day: 'this day', week: 'this week', month: 'this month', season: 'this season', year: 'this year' }[rv.scope];
+      rvList.innerHTML = `<p class="empty">${nf ? 'No notes match these filters for ' + what + '.' : 'No Today\'s Notes for ' + what + '. Open any event and write one under 📌 Today\'s Note.'}</p>`;
+      return;
+    }
+    let curDate = null, group = null;
+    for (const it of items) {
+      if (it.date !== curDate) {
+        curDate = it.date; group = document.createElement('div'); group.className = 'review-day';
+        const h = document.createElement('h3'); h.textContent = fmtNoteDay(it.date); group.appendChild(h); rvList.appendChild(group);
+      }
+      const c = CAL[it.ev.calendar] || CALENDARS[0];
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'review-item'; b.style.setProperty('--c', c.color);
+      const tm = it.ev.allDay ? 'All day' : `${fmtNow(it.start)}${it.end ? ' – ' + fmtNow(it.end) : ''}`;
+      b.innerHTML = `<span class="ri-head"><span class="swatch"></span><span class="ri-title"></span></span><span class="ri-meta"></span><span class="ri-body"></span>`;
+      b.querySelector('.ri-title').textContent = it.ev.title;
+      b.querySelector('.ri-meta').textContent = `${tm} · ${c.short}`;
+      b.querySelector('.ri-body').textContent = it.note.body;
+      b.setAttribute('aria-label', `${it.ev.title}, ${fmtNoteDay(it.date)} ${tm}, ${c.name}. Note: ${it.note.body}`);
+      b.addEventListener('click', () => { if (sidebar.classList.contains('open')) drawer(false); openEditor(it.open[0], it.open[1]); });
+      group.appendChild(b);
+    }
+  }
+  const rvRender = (dir = 0) => renderReview().then(() => window.Motion && Motion.swap(rvList, dir));
+  $('reviewScope').addEventListener('click', e => {
+    const b = e.target.closest('button[data-scope]'); if (!b || b.dataset.scope === rv.scope) return;
+    const dir = RV_SCOPES.indexOf(b.dataset.scope) > RV_SCOPES.indexOf(rv.scope) ? 1 : -1; rv.scope = b.dataset.scope; rvRender(dir);
+  });
+  $('reviewPrev').addEventListener('click', () => { shiftReview(-1); rvRender(-1); });
+  $('reviewNext').addEventListener('click', () => { shiftReview(1); rvRender(1); });
+  rvDate.addEventListener('change', () => { if (rvDate.value) { rv.ref = parseLocal(rvDate.value); rvRender(0); } });
+  $('reviewChips').addEventListener('click', e => { const b = e.target.closest('button[data-date]'); if (b) { rv.ref = parseLocal(b.dataset.date); rvRender(0); } });
+  $('reviewCals').addEventListener('change', e => { const id = e.target.dataset.cal; if (!id) return; rv.calsTouched = true; e.target.checked ? rv.cals.add(id) : rv.cals.delete(id); renderReview(); });
+  rvEvent.addEventListener('change', () => { rv.event = rvEvent.value; renderReview(); });
+  let rvQT; $('reviewSearch').addEventListener('input', e => { clearTimeout(rvQT); rvQT = setTimeout(() => { rv.q = e.target.value; renderReview(); }, 200); });
+  $('reviewClear').addEventListener('click', () => { rv.calsTouched = false; rv.event = ''; rv.q = ''; $('reviewSearch').value = ''; renderReview(); });
+  // deep link: ?review=day|week|month|season|year&date=YYYY-MM-DD (also restored after magic-link sign-in)
+  {
+    const want = params.get('review') || (reviewLink && reviewLink.review);
+    const wd = params.get('date') || (reviewLink && reviewLink.date);
+    if (want && RV_SCOPES.includes(want)) {
+      rv.scope = want;
+      if (wd && /^\d{4}-\d{2}-\d{2}$/.test(wd)) rv.ref = parseLocal(wd);
+      requestAnimationFrame(() => {
+        if (window.matchMedia('(max-width: 800px)').matches) drawer(true);
+        const sec = $('reviewSection'); sec.scrollIntoView({ block: 'start' }); sec.classList.add('flash');
+        setTimeout(() => sec.classList.remove('flash'), 1200);
+        $('reviewTitle').setAttribute('tabindex', '-1'); $('reviewTitle').focus({ preventScroll: true });
+      });
+    }
+  }
   // ---------- Misc ----------
   function firstVisibleCal() { return (CALENDARS.find(c => settings.visible[c.id]) || CALENDARS[0]).id; }
   function escapeHtml(s) { return s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])); }
@@ -878,9 +1073,9 @@
   function fail(err) { console.error(err); toast('Could not save: ' + (err && err.message ? err.message : err), 5000); }
   let refreshTimer;
   function scheduleRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 250); }
-  async function refresh() { renderToggles(await Store.list()); calendar.refetchEvents(); renderTasks(); renderBriefing(); }
+  async function refresh() { renderToggles(await Store.list()); calendar.refetchEvents(); renderTasks(); renderBriefing(); renderReview(); }
   refresh();
-  window.__app = { calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList }; // handy for debugging / tests
+  window.__app = { reviewState: () => ({ scope: rv.scope, ref: ymd(rv.ref), cals: [...rv.cals], event: rv.event, q: rv.q }), reviewRange, noteKeyFor, calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList }; // handy for debugging / tests
 
   // ---------- Example seed data (relative to the current week) ----------
   function seedExamples() {

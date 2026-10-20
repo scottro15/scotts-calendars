@@ -228,3 +228,43 @@ button:active:not(:disabled), .title-picker:active { transform: scale(.96); }
   *, *::before, *::after, dialog::backdrop { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; transition-delay: 0s !important; }
   button:active, .seg button:active, .title-picker:active { transform: none; }
 }
+
+/* ---------- Today's Note (day-specific note in the editor) ---------- */
+.day-note { border: 1px solid #f59e0b; border-left: 4px solid #f59e0b; background: #fffbeb; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.day-note-head { display: flex; align-items: flex-start; gap: 8px; }
+.day-note-icon { font-size: 18px; line-height: 1.2; }
+.day-note h3 { margin: 0; font-size: 14px; color: #92400e; }
+.day-note-date { margin: 2px 0 0; font-size: 13px; font-weight: 600; color: #78350f; }
+.day-note-status { margin-left: auto; white-space: nowrap; }
+.day-note textarea { border-color: #fcd34d; background: #fff; }
+.day-note textarea:focus { outline: 2px solid #f59e0b; outline-offset: 1px; }
+.day-note p.small { margin: 0; color: #92400e; }
+.day-note-dot { margin-left: 4px; font-size: .85em; }
+
+/* ---------- Notes Review (sidebar) ---------- */
+.review .seg.review-scope { display: flex; width: 100%; }
+.review .seg.review-scope button { flex: 1; padding: 6px 2px; font-size: 12px; }
+.review-nav { display: flex; align-items: center; gap: 6px; margin: 8px 0; }
+.review-period { flex: 1; text-align: center; font-weight: 600; font-size: 13px; }
+.review-daypick { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.review-daypick input { font: inherit; padding: 6px; border: 1px solid var(--line); border-radius: 8px; }
+.review-chips { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.review-chips button { padding: 6px 0; font-size: 12px; min-height: 34px; }
+.review-chips button[aria-pressed="true"] { background: #f59e0b; border-color: #f59e0b; color: #fff; }
+.review-chips button.is-today { box-shadow: inset 0 -2px 0 #2563eb; }
+.review-filters { margin-bottom: 8px; font-size: 13px; }
+.review-filters summary { cursor: pointer; padding: 4px 0; }
+.review-filters fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 6px 0; padding: 4px 8px; }
+.review-field { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; }
+.review-field select, .review-field input { font: inherit; padding: 6px; border: 1px solid var(--line); border-radius: 8px; }
+.review-list .empty { color: var(--muted); font-size: 13px; }
+.review-day h3 { font-size: 12px; margin: 10px 0 4px; color: #92400e; }
+.review-item { display: flex; flex-direction: column; align-items: stretch; text-align: left; width: 100%; gap: 2px; padding: 8px; margin-bottom: 6px; border: 1px solid var(--line); border-left: 4px solid var(--c); border-radius: 8px; background: color-mix(in srgb, var(--c) 8%, #fff); }
+.review-item:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.ri-head { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; }
+.ri-head .swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex: none; }
+.ri-meta { font-size: 12px; color: var(--muted); }
+.ri-body { font-size: 13px; white-space: pre-wrap; color: #1f2937; }
+.review.flash { animation: review-flash 1.2s ease-out; }
+@keyframes review-flash { 0% { box-shadow: 0 0 0 3px #f59e0b; border-radius: 10px; } 100% { box-shadow: 0 0 0 0 transparent; } }
+.reduce-motion .review.flash { animation: none; }
