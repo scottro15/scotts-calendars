@@ -239,7 +239,7 @@ button:active:not(:disabled), .title-picker:active { transform: scale(.96); }
 .day-note h3 { margin: 0; font-size: 14px; color: #92400e; }
 .day-note-date { margin: 2px 0 0; font-size: 13px; font-weight: 600; color: #78350f; }
 .day-note-status { margin-left: auto; white-space: nowrap; }
-.day-note textarea { border-color: #fcd34d; background: #fff; }
+.day-note textarea { border-color: #fcd34d; background: #fff; line-height: 1.45; min-height: calc(7 * 1.45em + 18px); max-height: calc(14 * 1.45em + 18px); resize: vertical; overflow-y: auto; box-sizing: border-box; }
 .day-note textarea:focus { outline: 2px solid #f59e0b; outline-offset: 1px; }
 .day-note p.small { margin: 0; color: #92400e; }
 .day-note-dot { margin-left: 4px; font-size: .85em; }

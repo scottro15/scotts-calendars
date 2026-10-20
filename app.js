@@ -750,6 +750,7 @@
       : "Today's Note needs a one-time database update before it can save (see README → Day notes).";
     dayTa.value = n ? n.body : '';
     dayCtx = { ...nk, saved: dayTa.value };
+    requestAnimationFrame(growDayNote);
   }
   async function flushDayNote() {
     clearTimeout(dayTimer);
@@ -759,6 +760,17 @@
     try { await Store.notes.set(c.eventId, c.date, body); c.saved = body; dayStatus.textContent = body ? 'Saved' : 'Deleted'; scheduleRefresh(); }
     catch (err) { dayStatus.textContent = 'Not saved'; fail(err); }
   }
+  // Auto-grow Today's Note up to its CSS max-height (~14 lines), then scroll. Never shrinks below a manual resize.
+  function growDayNote() {
+    if (dayBox.hidden) return;
+    const manual = dayTa.dataset.userH ? +dayTa.dataset.userH : 0;
+    dayTa.style.height = 'auto';
+    const max = parseFloat(getComputedStyle(dayTa).maxHeight) || Infinity;
+    dayTa.style.height = Math.min(Math.max(dayTa.scrollHeight + 2, manual), max) + 'px';
+  }
+  dayTa.addEventListener('pointerup', () => { if (dayTa.style.height && dayTa.offsetHeight !== parseFloat(dayTa.style.height)) dayTa.dataset.userH = dayTa.offsetHeight; });
+  dayTa.addEventListener('input', growDayNote);
+  dlg.addEventListener('close', () => { delete dayTa.dataset.userH; dayTa.style.height = ''; });
   dayTa.addEventListener('input', () => { clearTimeout(dayTimer); dayStatus.textContent = ''; dayTimer = setTimeout(flushDayNote, 700); });
   dayTa.addEventListener('blur', flushDayNote);
   dlg.addEventListener('close', flushDayNote);
