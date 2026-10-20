@@ -661,6 +661,37 @@
   document.getElementById('fAllDay').addEventListener('change', syncFormUI);
   document.getElementById('fFreq').addEventListener('change', syncFormUI);
 
+  // Start/End linkage: moving Start shifts End by the same duration; End never sits at/before Start.
+  const dtOf = (d, t) => d ? new Date(`${d}T${t || '00:00'}:00Z`) : null;
+  function readSE() {
+    const allDay = f('allDay').checked;
+    return { allDay, s: dtOf(f('startDate').value, allDay ? '00:00' : f('startTime').value || '09:00'),
+      e: dtOf(f('endDate').value || f('startDate').value, allDay ? '00:00' : f('endTime').value || '10:00') };
+  }
+  function writeEnd(e, allDay) { f('endDate').value = ymd(e); if (!allDay) f('endTime').value = hm(e); }
+  function syncEndMin() {
+    const sd = f('startDate').value; f('endDate').min = sd || '';
+    f('endTime').min = (!f('allDay').checked && sd && f('endDate').value === sd) ? (f('startTime').value || '') : '';
+  }
+  function clampEnd() {
+    const { allDay, s, e } = readSE(); if (!s) return;
+    if (allDay) { if (!e || e < s) writeEnd(s, true); }
+    else if (!e || e <= s) writeEnd(new Date(s.getTime() + 3600000), false);
+  }
+  function onStartChange() {
+    const { allDay, s } = readSE(); const prev = editing && editing.prevSE;
+    if (s && prev && prev.s && prev.e && prev.allDay === allDay) {
+      let dur = prev.e - prev.s; if (allDay ? dur < 0 : dur <= 0) dur = allDay ? 0 : 3600000;
+      writeEnd(new Date(s.getTime() + dur), allDay);
+    }
+    clampEnd(); syncEndMin(); rememberSE();
+  }
+  function onEndChange() { clampEnd(); syncEndMin(); rememberSE(); }
+  function rememberSE() { if (editing) editing.prevSE = readSE(); }
+  ['startDate', 'startTime'].forEach(n => f(n).addEventListener('change', onStartChange));
+  ['endDate', 'endTime'].forEach(n => f(n).addEventListener('change', onEndChange));
+  document.getElementById('fAllDay').addEventListener('change', () => { clampEnd(); syncEndMin(); rememberSE(); });
+
   function syncFormUI() {
     const isTask = kind() === 'task';
     document.getElementById('taskFields').hidden = !isTask;
@@ -726,6 +757,7 @@
     applyWrap.hidden = !(recurring && occKey);
     form.querySelector('input[name=applyTo][value=one]').checked = true;
     syncFormUI();
+    clampEnd(); syncEndMin(); rememberSE();
     editing.snap = formSnap();
     if (locAC) { locAC.reset(); Places.warm(); } // lazy-load Google Places only once the form opens
     dlg.showModal();
