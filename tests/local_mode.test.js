@@ -23,11 +23,9 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
     // ---- single-occurrence edit
     const before = await p.locator('.fc-event:has-text("Life Time shift")').count();
     await p.locator('.fc-event:has-text("Life Time shift")').nth(1).click();
-    assert(await p.isVisible('#applyToWrap'), 'apply-to choice shown for repeating event');
-    assert(!(await p.isVisible('#recurFieldset')), 'repeat rule hidden in "only this occurrence" mode');
     await p.fill('#eventForm input[name=title]', 'Shift (covering)');
     await p.fill('input[name=startTime]', '08:00'); await p.fill('input[name=endTime]', '16:00');
-    await p.click('#eventForm button[type=submit]'); await p.waitForTimeout(400);
+    await p.click('#eventForm button[type=submit]'); await p.click('#scopeOne'); await p.waitForTimeout(400);
     const after = await p.locator('.fc-event:has-text("Life Time shift")').count();
     const cov = await p.locator('.fc-timegrid-event:has-text("Shift (covering)") .fc-event-time').first().textContent();
     assert(after === before - 1, `series lost exactly one occurrence (${before} -> ${after})`);
@@ -39,10 +37,9 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
 
     // ---- whole-series edit from an occurrence, shifting time
     await p.locator('.fc-event:has-text("Life Time shift")').first().click();
-    await p.check('input[name=applyTo][value=all]');
-    assert(await p.isVisible('#recurFieldset'), 'repeat rule visible in whole-series mode');
+    assert(await p.isVisible('#recurFieldset'), 'repeat rule visible for series');
     await p.fill('input[name=startTime]', '05:30'); await p.fill('input[name=endTime]', '14:00');
-    await p.click('#eventForm button[type=submit]'); await p.waitForTimeout(400);
+    await p.click('#eventForm button[type=submit]'); await p.click('#scopeAll'); await p.waitForTimeout(400);
     const p2 = await p.evaluate(async id => Store.get(id), exc.seriesId);
     assert(p2.start.endsWith('T05:30') && p2.end.endsWith('T14:00'), `series time shifted (${p2.start} – ${p2.end})`);
     assert(p2.start.slice(0, 10) === parent.start.slice(0, 10), 'series start date unchanged');
@@ -66,7 +63,7 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
 
     // ---- drag-free move of a one-off, delete one occurrence still works
     await p.locator('.fc-event:has-text("Life Time shift")').first().click();
-    await p.click('#deleteBtn'); await p.click('#deleteDialog button[value=one]'); await p.waitForTimeout(300);
+    await p.click('#deleteBtn'); await p.click('#scopeOne'); await p.waitForTimeout(300);
     assert(await p.locator('.fc-event:has-text("Life Time shift")').count() === before - 1, 'delete one occurrence');
     // ---- reload persists
     await p.reload(); await p.waitForSelector('.fc-event');

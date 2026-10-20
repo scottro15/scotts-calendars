@@ -227,3 +227,6 @@ Deep links (also restored after the magic-link sign-in): `?review=day&date=2026-
 Bots: `cal.py note-get <id> --date YYYY-MM-DD`, `cal.py note-set <id> --date YYYY-MM-DD --text "..."` (empty text deletes; a changed-occurrence id needs no date), `cal.py note-list --from YYYY-MM-DD --to YYYY-MM-DD [--calendar mam]` → JSON `notes[]` with `date, title, calendar, calendar_name, time, start, end, note`.
 
 Tests: `node tests/day_notes_review.test.js http://127.0.0.1:8766/ [screenshotDir]` (empty `config.js` copy) and `python3 tests/cal_notes_test.py` (offline fake Supabase).
+
+## Repeating events: "Apply changes to…"
+Saving an edited occurrence of a repeating event, deleting one, or dragging/resizing one opens a small dialog: **This event only** (detaches that date as a changed occurrence) or **All events in the series** (shifts/edits the series), plus Cancel (Escape also cancels; focus stays inside the dialog). It isn't shown for one-time events, changed occurrences, or when only Today's Note changed. Changing the calendar, type or repeat rule disables "This event only". "This and following" is not offered (it would need series splitting). Test: `node tests/scope_dialog.test.js http://127.0.0.1:8766/`

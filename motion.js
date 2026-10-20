@@ -24,7 +24,9 @@
   const P = HTMLDialogElement.prototype;
   const nativeShow = P.showModal, nativeClose = P.close;
   P.showModal = function () {
+    this._closeTok = (this._closeTok || 0) + 1; // cancel a close still animating out
     this.classList.remove('closing');
+    if (this.open) nativeClose.call(this);
     nativeShow.call(this);
     if (lastPt && Date.now() - lastPt.t < 1500) {
       const r = this.getBoundingClientRect();
@@ -37,7 +39,8 @@
     if (!this.open || this.classList.contains('closing')) { if (!this.open) return; return; }
     this.classList.remove('anim-in');
     if (reduced()) { nativeClose.call(this, rv); return; }
-    runExit(this, 'closing', () => { if (this.open) nativeClose.call(this, rv); }, 160);
+    const tok = this._closeTok = (this._closeTok || 0) + 1;
+    runExit(this, 'closing', () => { if (this.open && this._closeTok === tok) nativeClose.call(this, rv); }, 160);
   };
 
   function wireDialog(d) {

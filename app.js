@@ -416,6 +416,41 @@
     return W(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), b.getUTCHours(), b.getUTCMinutes());
   }
 
+  // ---------- "Apply changes to…" (repeating items: save / delete / drag / resize) ----------
+  const scopeDlg = document.getElementById('scopeDialog');
+  const fmtOcc = k => parseLocal(k).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  /** Ask whether a change applies to one occurrence or the whole series. Resolves 'one' | 'all' | null (cancel). */
+  function askScope({ mode = 'save', occKey, title = '', oneDisabledReason = '' } = {}) {
+    const del = mode === 'delete';
+    document.getElementById('scopeTitle').textContent = del ? 'Delete…' : mode === 'move' ? 'Move…' : 'Apply changes to…';
+    document.getElementById('scopeDesc').textContent = `"${title}" is a repeating event.`;
+    document.getElementById('scopeOneSub').textContent = occKey ? `Only ${fmtOcc(occKey)}` : '';
+    document.getElementById('scopeAllSub').textContent = del ? 'Every occurrence is deleted' : 'Every occurrence changes';
+    scopeDlg.classList.toggle('danger-mode', del);
+    const one = document.getElementById('scopeOne'), hint = document.getElementById('scopeHint');
+    one.disabled = !!oneDisabledReason; hint.hidden = !oneDisabledReason; hint.textContent = oneDisabledReason;
+    scopeDlg.returnValue = '';
+    return new Promise(res => {
+      scopeDlg.addEventListener('close', () => { const v = scopeDlg.returnValue; res(v === 'one' || v === 'all' ? v : null); }, { once: true });
+      scopeDlg.showModal();
+      (one.disabled ? document.getElementById('scopeAll') : one).focus();
+    });
+  }
+  // Focus trap: Tab / Shift+Tab cycle inside the dialog (Escape cancels via motion.js's animated close).
+  scopeDlg.addEventListener('keydown', e => {
+    if (e.key !== 'Tab') return;
+    const els = [...scopeDlg.querySelectorAll('button:not(:disabled)')]; if (!els.length) return;
+    const i = els.indexOf(document.activeElement);
+    const n = e.shiftKey ? (i <= 0 ? els.length - 1 : i - 1) : (i === els.length - 1 ? 0 : i + 1);
+    e.preventDefault(); els[n].focus();
+  });
+  /** Shift a whole series so its occurrence shown at `shownStart` lands at `start`, with the new length. */
+  function shiftSeries(series, shownStart, v) {
+    const shift = parseLocal(v.start) - shownStart, len = parseLocal(v.end) - parseLocal(v.start);
+    const ns = new Date(parseLocal(series.start).getTime() + shift), ne = new Date(ns.getTime() + len);
+    return { start: v.allDay ? ymd(ns) : `${ymd(ns)}T${hm(ns)}`, end: v.allDay ? ymd(ne) : `${ymd(ne)}T${hm(ne)}` };
+  }
+
   async function moveEvent(info) {
     const ev = await Store.get(info.event.extendedProps.sourceId);
     if (!ev) { info.revert(); return; }
@@ -426,8 +461,14 @@
       : (() => { const ee = e || new Date(s.getTime() + 3600000); return { allDay, start: `${ymd(s)}T${hm(s)}`, end: `${ymd(ee)}T${hm(ee)}` }; })();
     try {
       if (isRecurring(ev)) {
-        await Store.saveMany(detachOccurrence(ev, info.event.extendedProps.occKey, times));
-        toast('Moved this occurrence only');
+        const occKey = info.event.extendedProps.occKey;
+        const choice = await askScope({ mode: 'move', occKey, title: ev.title });
+        if (!choice) { info.revert(); return; }
+        if (choice === 'one') { await Store.saveMany(detachOccurrence(ev, occKey, times)); toast('Moved this event only'); }
+        else {
+          if (ev.allDay !== allDay) { info.revert(); toast("Can't switch a whole series between all-day and timed by dragging"); return; }
+          Object.assign(ev, shiftSeries(ev, occurrenceStart(ev, occKey), times)); await Store.save(ev); toast('Moved all events in the series');
+        }
       } else { Object.assign(ev, times); await Store.save(ev); toast('Moved'); }
     } catch (err) { info.revert(); fail(err); return; }
     refresh();
@@ -637,7 +678,6 @@
   const fCat = document.getElementById('fCategory');
   const customWrap = document.getElementById('customCatWrap');
   const weekdayWrap = document.getElementById('weekdayWrap');
-  const applyWrap = document.getElementById('applyToWrap');
   const recurFs = document.getElementById('recurFieldset');
   fCal.innerHTML = CALENDARS.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
   weekdayWrap.innerHTML = DOW.map((d, i) => `<label><input type="checkbox" name="wd" value="${i}"><span>${d}</span></label>`).join('');
@@ -655,9 +695,10 @@
   fCal.addEventListener('change', () => fillCategories(fCal.value, kind() === 'task' ? 'Task / to-do' : null));
   fCat.addEventListener('change', () => { customWrap.hidden = fCat.value !== CUSTOM; if (!customWrap.hidden) f('customCategory').focus(); });
   const kind = () => form.querySelector('input[name=kind]:checked').value;
-  const applyTo = () => (applyWrap.hidden ? 'all' : form.querySelector('input[name=applyTo]:checked').value);
+  // Fields that only make sense for the whole series (changing them disables "This event only").
+  const SERIES_FIELDS = ['calendar', 'kind', 'freq', 'interval', 'until', 'wd'];
+  const seriesSnap = () => JSON.stringify([...new FormData(form)].filter(([k]) => SERIES_FIELDS.includes(k)).concat([['calendar', fCal.value]]));
   form.querySelectorAll('input[name=kind]').forEach(r => r.addEventListener('change', syncFormUI));
-  form.querySelectorAll('input[name=applyTo]').forEach(r => r.addEventListener('change', syncFormUI));
   document.getElementById('fAllDay').addEventListener('change', syncFormUI);
   document.getElementById('fFreq').addEventListener('change', syncFormUI);
 
@@ -699,10 +740,8 @@
     const allDay = f('allDay').checked;
     form.querySelectorAll('.time-field').forEach(el => el.hidden = allDay);
     document.getElementById('endRow').hidden = isTask && allDay;
-    const one = editing && editing.recurring && applyTo() === 'one';
-    recurFs.hidden = one || (editing && editing.exception);
-    fCal.disabled = one || (editing && editing.exception);       // one occurrence stays on its series' calendar
-    form.querySelectorAll('input[name=kind]').forEach(r => r.disabled = !!one);
+    recurFs.hidden = !!(editing && editing.exception);
+    fCal.disabled = !!(editing && editing.exception);       // a changed occurrence stays on its series' calendar
     const freq = f('freq').value;
     document.getElementById('intervalWrap').hidden = freq === 'none';
     document.getElementById('untilWrap').hidden = freq === 'none';
@@ -713,8 +752,8 @@
       note.hidden = false; note.textContent = `This is one changed occurrence (originally ${editing.originalDate}) of a repeating series. Edits here don't affect the rest of the series.`;
     } else if (editing && editing.recurring) {
       note.hidden = false;
-      note.textContent = one ? `Only ${editing.occKey} will change. The rest of the series stays as it is.`
-        : `Changes apply to every occurrence. Moving this date/time shifts the whole series the same amount.${isTask ? ` "Done" applies only to ${editing.occKey}.` : ''}`;
+      note.textContent = editing.occKey ? `Repeating event: when you save, you'll choose "This event only" (${editing.occKey}) or "All events in the series".${isTask ? ` "Done" applies only to ${editing.occKey}.` : ''}`
+        : `Repeating event: changes apply to every occurrence.`;
     } else note.hidden = true;
   }
 
@@ -754,11 +793,9 @@
     await setupDayNote(ev, occKey);
     document.getElementById('deleteBtn').hidden = !ev;
     document.getElementById('restoreBtn').hidden = !(ev && ev.seriesId);
-    applyWrap.hidden = !(recurring && occKey);
-    form.querySelector('input[name=applyTo][value=one]').checked = true;
     syncFormUI();
     clampEnd(); syncEndMin(); rememberSE();
-    editing.snap = formSnap();
+    editing.snap = formSnap(); editing.seriesSnap = seriesSnap();
     if (locAC) { locAC.reset(); Places.warm(); } // lazy-load Google Places only once the form opens
     dlg.showModal();
     if (!ev) f('title').focus();
@@ -839,27 +876,29 @@
       await flushDayNote();
       // Nothing but Today's Note changed: don't rewrite the event (and never detach an occurrence).
       if (existing && formSnap() === editing.snap) { dlg.close(); toast('Saved'); refresh(); return; }
-      const calId = existing && (existing.seriesId || (editing.recurring && applyTo() === 'one')) ? existing.calendar : fCal.value;
+      let scope = 'all';
+      if (existing && editing.recurring && editing.occKey) {
+        const seriesChanged = seriesSnap() !== editing.seriesSnap;
+        scope = await askScope({ mode: 'save', occKey: editing.occKey, title: f('title').value.trim() || existing.title,
+          oneDisabledReason: seriesChanged ? 'You changed the calendar, type or repeat rule, which can only apply to the whole series.' : '' });
+        if (!scope) return; // Cancel: stay in the editor, nothing saved
+      }
+      const calId = existing && (existing.seriesId || scope === 'one') ? existing.calendar : fCal.value;
       const v = await readForm(calId);
 
       // (1) only this occurrence of a repeating item
-      if (existing && editing.recurring && applyTo() === 'one') {
+      if (scope === 'one') {
         const changes = { ...v, kind: existing.kind };
         if (existing.kind === 'task') changes.done = f('done').checked;
         await Store.saveMany(detachOccurrence(existing, editing.occKey, changes));
-        dlg.close(); toast('Saved this occurrence'); refresh(); return;
+        dlg.close(); toast('Saved this event only'); refresh(); return;
       }
 
       const ev = existing ? { ...existing } : {};
       Object.assign(ev, v);
       // (2) whole series, opened from one occurrence: shift the series by the same amount
       if (existing && editing.recurring && editing.occKey) {
-        const shift = parseLocal(v.start) - editing.shownStart;
-        const len = parseLocal(v.end) - parseLocal(v.start);
-        const ns = new Date(parseLocal(existing.start).getTime() + shift);
-        const ne = new Date(ns.getTime() + len);
-        ev.start = v.allDay ? ymd(ns) : `${ymd(ns)}T${hm(ns)}`;
-        ev.end = v.allDay ? ymd(ne) : `${ymd(ne)}T${hm(ne)}`;
+        Object.assign(ev, shiftSeries(existing, editing.shownStart, v));
       }
       if (!ev.seriesId) {
         const freq = f('freq').value;
@@ -874,7 +913,7 @@
         else ev.done = f('done').checked;
       } else { delete ev.scope; delete ev.done; delete ev.completedDates; }
       await Store.save(ev);
-      dlg.close(); toast('Saved'); refresh();
+      dlg.close(); toast(scope === 'all' && editing.recurring ? 'Saved all events in the series' : 'Saved'); refresh();
     } catch (err) { fail(err); }
   });
 
@@ -882,16 +921,11 @@
     const ev = await Store.get(editing.id); if (!ev) return;
     try {
       if (isRecurring(ev)) {
-        const dd = document.getElementById('deleteDialog');
-        dd.returnValue = ''; dd.showModal();
-        dd.addEventListener('close', async () => {
-          try {
-            if (dd.returnValue === 'one') { ev.exdates = [...new Set([...(ev.exdates || []), editing.occKey])]; await Store.save(ev); }
-            else if (dd.returnValue === 'all') await Store.remove(ev.id);
-            else return;
-            dlg.close(); toast('Deleted'); refresh();
-          } catch (err) { fail(err); }
-        }, { once: true });
+        const choice = editing.occKey ? await askScope({ mode: 'delete', occKey: editing.occKey, title: ev.title }) : (confirm(`Delete every occurrence of "${ev.title}"?`) ? 'all' : null);
+        if (!choice) return;
+        if (choice === 'one') { ev.exdates = [...new Set([...(ev.exdates || []), editing.occKey])]; await Store.save(ev); }
+        else await Store.remove(ev.id);
+        dlg.close(); toast(choice === 'one' ? 'Deleted this event only' : 'Deleted all events in the series'); refresh();
       } else if (confirm(ev.seriesId ? `Delete this occurrence of "${ev.title}"?` : `Delete "${ev.title}"?`)) {
         await Store.remove(ev.id); dlg.close(); toast('Deleted'); refresh();
       }
@@ -1119,7 +1153,7 @@
   function scheduleRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 250); }
   async function refresh() { renderToggles(await Store.list()); calendar.refetchEvents(); renderTasks(); renderBriefing(); renderReview(); }
   refresh();
-  window.__app = { reviewState: () => ({ scope: rv.scope, ref: ymd(rv.ref), cals: [...rv.cals], event: rv.event, q: rv.q }), reviewRange, noteKeyFor, calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList }; // handy for debugging / tests
+  window.__app = { reviewState: () => ({ scope: rv.scope, ref: ymd(rv.ref), cals: [...rv.cals], event: rv.event, q: rv.q }), reviewRange, noteKeyFor, calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList, openEditor, moveEvent }; // handy for debugging / tests
 
   // ---------- Example seed data (relative to the current week) ----------
   function seedExamples() {

@@ -139,10 +139,6 @@
     <form id="eventForm" method="dialog">
       <h2 id="dialogTitle">New event</h2>
 
-      <div class="kind-switch apply-to" id="applyToWrap" hidden>
-        <label><input type="radio" name="applyTo" value="one" checked> Only this occurrence</label>
-        <label><input type="radio" name="applyTo" value="all"> Whole series</label>
-      </div>
 
       <div class="kind-switch" id="kindSwitch">
         <label><input type="radio" name="kind" value="event" checked> Event</label>
@@ -255,17 +251,17 @@
     </form>
   </dialog>
 
-  <!-- Delete choice for repeating items -->
-  <dialog id="deleteDialog">
+  <!-- "Apply changes to…" for repeating items (save, delete, drag/resize) -->
+  <dialog id="scopeDialog" class="scope-dialog" aria-labelledby="scopeTitle" aria-describedby="scopeDesc">
     <form method="dialog">
-      <h2>Delete repeating item</h2>
-      <p>Delete just this occurrence, or the whole series?</p>
-      <div class="dialog-actions">
-        <button value="cancel">Cancel</button>
-        <span class="spacer"></span>
-        <button value="one">This one</button>
-        <button value="all" class="danger">All</button>
+      <h2 id="scopeTitle">Apply changes to…</h2>
+      <p id="scopeDesc" class="muted small">This is a repeating event.</p>
+      <div class="scope-options">
+        <button type="submit" value="one" class="scope-opt" id="scopeOne"><strong>This event only</strong><span class="muted small" id="scopeOneSub"></span></button>
+        <button type="submit" value="all" class="scope-opt" id="scopeAll"><strong>All events in the series</strong><span class="muted small" id="scopeAllSub">Every occurrence changes</span></button>
       </div>
+      <p id="scopeHint" class="muted small" hidden></p>
+      <div class="dialog-actions"><span class="spacer"></span><button type="submit" value="cancel" id="scopeCancel">Cancel</button></div>
     </form>
   </dialog>
 
