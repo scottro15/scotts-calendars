@@ -230,3 +230,9 @@ Tests: `node tests/day_notes_review.test.js http://127.0.0.1:8766/ [screenshotDi
 
 ## Repeating events: "Apply changes to…"
 Saving an edited occurrence of a repeating event, deleting one, or dragging/resizing one opens a small dialog: **This event only** (detaches that date as a changed occurrence) or **All events in the series** (shifts/edits the series), plus Cancel (Escape also cancels; focus stays inside the dialog). It isn't shown for one-time events, changed occurrences, or when only Today's Note changed. Changing the calendar, type or repeat rule disables "This event only". "This and following" is not offered (it would need series splitting). Test: `node tests/scope_dialog.test.js http://127.0.0.1:8766/`
+
+## Checklists
+Any line in an event's Notes written as `- [ ] item` shows as a checkbox in the event form. Ticks are saved per
+date (table `occurrence_checks`), so every Life Time shift starts unticked. One-time database update:
+run `supabase/migration-2026-10-21-checklists-and-owner.sql` in the Supabase SQL Editor (it also adds the
+multi-user `owner_id` columns and per-user security rules). Until then the boxes show but are greyed out.

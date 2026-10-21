@@ -18,7 +18,7 @@
   const KEY = 'scottcal.events.v1';
   const SETTINGS_KEY = 'scottcal.settings.v1';
   const CATS_KEY = 'scottcal.categories.v1';
-  const NOTES_KEY = 'scottcal.occurrenceNotes.v1';
+  const NOTES_KEY = 'scottcal.occurrenceNotes.v1'; const CHECKS_KEY = 'scott-calendar-checks-v1';
   const MIGRATED_KEY = 'scottcal.migratedToSupabase.v1';
   const CFG = window.CALENDAR_CONFIG || {};
 
@@ -55,6 +55,9 @@
     // Day notes ("Today's Note"): one note per (event_id, occurrence_date). Never touches events.
     async loadNotes() { return readJSON(NOTES_KEY, []); },
     async upsertNote(n) { const all = readJSON(NOTES_KEY, []); const i = all.findIndex(x => x.eventId === n.eventId && x.date === n.date); if (i >= 0) all[i] = n; else all.push(n); localStorage.setItem(NOTES_KEY, JSON.stringify(all)); return n; },
+    // Checklist ticks ('- [ ]' lines in notes), one row per (event_id, occurrence_date).
+    async loadChecks() { return readJSON(CHECKS_KEY, []); },
+    async upsertChecks(c) { const all = readJSON(CHECKS_KEY, []).filter(x => !(x.eventId === c.eventId && x.date === c.date)); all.push(c); localStorage.setItem(CHECKS_KEY, JSON.stringify(all)); return c; },
     async deleteNote(eventId, date) { localStorage.setItem(NOTES_KEY, JSON.stringify(readJSON(NOTES_KEY, []).filter(x => !(x.eventId === eventId && x.date === date)))); },
     ...deviceSettings,
   };
@@ -154,6 +157,18 @@
         const rows = must(await sb.from('occurrence_notes').upsert({ event_id: n.eventId, occurrence_date: n.date, body: n.body }, { onConflict: 'event_id,occurrence_date' }).select());
         return noteFromRow(rows[0]);
       },
+      async loadChecks() {
+        const out = []; const page = 1000;
+        for (let from = 0; ; from += page) {
+          const rows = must(await sb.from('occurrence_checks').select('event_id,occurrence_date,checked').order('occurrence_date').range(from, from + page - 1));
+          out.push(...rows.map(r => ({ eventId: r.event_id, date: r.occurrence_date, checked: r.checked || [] })));
+          if (rows.length < page) return out;
+        }
+      },
+      async upsertChecks(c) {
+        must(await sb.from('occurrence_checks').upsert({ event_id: c.eventId, occurrence_date: c.date, checked: c.checked }, { onConflict: 'event_id,occurrence_date' }));
+        return c;
+      },
       async deleteNote(eventId, date) { must(await sb.from('occurrence_notes').delete().eq('event_id', eventId).eq('occurrence_date', date)); },
       subscribe(onChange) {
         const ch = sb.channel('calendar-changes')
@@ -164,7 +179,11 @@
         const ch2 = sb.channel('day-notes-changes')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'occurrence_notes' }, p => onChange('notes', p))
           .subscribe();
-        return () => { sb.removeChannel(ch); sb.removeChannel(ch2); };
+        // own channel too: until the 2026-10-21 migration runs, occurrence_checks doesn't exist
+        const ch3 = sb.channel('checklist-changes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'occurrence_checks' }, p => onChange('checks', p))
+          .subscribe();
+        return () => { sb.removeChannel(ch); sb.removeChannel(ch2); sb.removeChannel(ch3); };
       },
       fromRow,
       ...deviceSettings,
@@ -176,6 +195,7 @@
     let cache = null;
     let cats = null;
     let notesCache = null;
+    let checksCache = null;
     const listeners = new Set();
     const remote = adapter.name !== 'local';
     const emit = (why) => listeners.forEach(fn => { try { fn(why); } catch (e) { console.error(e); } });
@@ -221,10 +241,11 @@
         } else { cache = [...events]; await writeLocal(); }
       },
       /** Re-read everything from the backend (realtime / tab focus). */
-      async reload() { cache = (await adapter.loadAll()) || []; cats = null; notesCache = null; emit('reload'); return cache; },
+      async reload() { cache = (await adapter.loadAll()) || []; cats = null; notesCache = null; checksCache = null; emit('reload'); return cache; },
       /** Apply a realtime row change without a full reload. */
       applyRemoteChange(table, p) {
         if (table === 'notes') { notesCache = null; emit('notes'); return; }
+        if (table === 'checks') { checksCache = null; emit('checks'); return; }
         if (table !== 'events' || !cache) { cats = null; emit('categories'); return; }
         if (p.eventType === 'DELETE') { const id = p.old && p.old.id; if (id) cache = cache.filter(e => e.id !== id && e.seriesId !== id); }
         else if (p.new && p.new.id) put(adapter.fromRow(p.new));
@@ -251,6 +272,25 @@
           return n;
         },
         invalidate() { notesCache = null; },
+      },
+      /** Checklist ticks per occurrence: keys of the '- [ ]' note lines ticked on that date. */
+      checks: {
+        available: true, error: null,
+        async all() {
+          if (checksCache) return checksCache;
+          try { checksCache = (await adapter.loadChecks()) || []; this.available = true; this.error = null; }
+          catch (e) { console.warn('Checklists unavailable:', e); this.available = false; this.error = e.message || String(e); checksCache = []; }
+          return checksCache;
+        },
+        async get(eventId, date) { const c = (await this.all()).find(x => x.eventId === eventId && x.date === date); return c ? [...c.checked] : []; },
+        async set(eventId, date, checked) {
+          await this.all();
+          const c = await adapter.upsertChecks({ eventId, date, checked: [...new Set(checked)] });
+          const i = checksCache.findIndex(x => x.eventId === eventId && x.date === date);
+          if (i >= 0) checksCache[i] = c; else checksCache.push(c);
+          return c;
+        },
+        invalidate() { checksCache = null; },
       },
       onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 

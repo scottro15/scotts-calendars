@@ -208,6 +208,13 @@
       </div>
       <label><span id="notesLabel">Notes</span> <textarea name="notes" rows="3"></textarea></label>
 
+      <section id="checklistBox" class="checklist-box" aria-labelledby="checklistTitle" hidden>
+        <div class="checklist-head"><h3 id="checklistTitle">Checklist</h3><span id="checklistDate" class="muted small"></span>
+          <span id="checklistStatus" class="muted small" role="status" aria-live="polite"></span></div>
+        <ul id="checklistItems" class="checklist-items"></ul>
+        <p id="checklistHelp" class="muted small">Ticks are saved for this date only. Add items as "- [ ] item" lines in Notes.</p>
+      </section>
+
       <section id="dayNoteBox" class="day-note" aria-labelledby="dayNoteTitle" hidden>
         <div class="day-note-head">
           <span class="day-note-icon" aria-hidden="true">📌</span>

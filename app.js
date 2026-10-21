@@ -791,6 +791,7 @@
     f('location').value = d.location || ''; f('notes').value = d.notes || '';
     document.getElementById('notesLabel').textContent = recurring ? 'Notes (every occurrence)' : 'Notes';
     await setupDayNote(ev, occKey);
+    await setupChecklist(ev, occKey);
     document.getElementById('deleteBtn').hidden = !ev;
     document.getElementById('restoreBtn').hidden = !(ev && ev.seriesId);
     syncFormUI();
@@ -800,6 +801,53 @@
     dlg.showModal();
     if (!ev) f('title').focus();
   }
+
+  // ---------- Checklist: '- [ ] item' lines in Notes become checkboxes, ticked per occurrence date ----------
+  const ckBox = document.getElementById('checklistBox'), ckList = document.getElementById('checklistItems'), ckStatus = document.getElementById('checklistStatus');
+  let ckCtx = null;
+  const ckKey = t => t.toLowerCase().replace(/\s+/g, ' ').trim();
+  function parseChecklist(text) {
+    const out = [];
+    for (const line of String(text || '').split('\n')) {
+      const m = line.match(/^\s*[-*]\s*\[( |x|X)?\]\s*(.+?)\s*$/);
+      if (m && !out.some(o => o.key === ckKey(m[2]))) out.push({ text: m[2], key: ckKey(m[2]) });
+    }
+    return out;
+  }
+  async function setupChecklist(ev, occKey) {
+    ckCtx = null; ckStatus.textContent = '';
+    if (!ev || (isRecurring(ev) && !occKey)) { ckBox.hidden = true; return; }
+    const nk = noteKeyFor(ev, occKey);
+    ckCtx = { ...nk, checked: await Store.checks.get(nk.eventId, nk.date) };
+    document.getElementById('checklistDate').textContent = fmtNoteDay(nk.date);
+    renderChecklist();
+  }
+  function renderChecklist() {
+    const items = ckCtx ? parseChecklist(f('notes').value) : [];
+    ckBox.hidden = !items.length; if (!items.length) return;
+    const on = new Set(ckCtx.checked), ok = Store.checks.available;
+    ckList.innerHTML = '';
+    for (const it of items) {
+      const li = document.createElement('li'), lb = document.createElement('label'), cb = document.createElement('input'), sp = document.createElement('span');
+      cb.type = 'checkbox'; cb.checked = on.has(it.key); cb.disabled = !ok; cb.dataset.key = it.key; sp.textContent = it.text;
+      cb.addEventListener('change', () => toggleCheck(it.key, cb.checked));
+      lb.append(cb, sp); li.append(lb); ckList.append(li);
+    }
+    const done = items.filter(i => on.has(i.key)).length;
+    if (!ckStatus.textContent || /done$/.test(ckStatus.textContent)) ckStatus.textContent = `${done}/${items.length} done`;
+    document.getElementById('checklistHelp').textContent = ok
+      ? 'Ticks save right away, for this date only. Add items as "- [ ] item" lines in Notes.'
+      : 'Checklist ticks need a one-time database update before they can save (see README → Checklists).';
+  }
+  async function toggleCheck(key, on) {
+    const c = ckCtx; if (!c) return;
+    const prev = c.checked;
+    c.checked = on ? [...new Set([...prev, key])] : prev.filter(k => k !== key);
+    ckStatus.textContent = 'Saving…';
+    try { await Store.checks.set(c.eventId, c.date, c.checked); ckStatus.textContent = 'Saved'; setTimeout(() => { if (ckCtx === c) { ckStatus.textContent = ''; renderChecklist(); } }, 900); }
+    catch (err) { c.checked = prev; ckStatus.textContent = 'Not saved'; renderChecklist(); fail(err); }
+  }
+  f('notes').addEventListener('input', () => { if (ckCtx) renderChecklist(); });
 
   // ---------- Today's Note (day-specific note; separate storage, never edits the event) ----------
   const dayBox = document.getElementById('dayNoteBox'), dayTa = document.getElementById('dayNote'), dayStatus = document.getElementById('dayNoteStatus');
@@ -993,7 +1041,7 @@
     }
     // live updates from the bots / other devices
     if (Store.adapter.subscribe) { try { Store.adapter.subscribe((t, p) => Store.applyRemoteChange(t, p)); } catch (e) { console.warn('Realtime unavailable', e); } }
-    Store.onChange(async why => { if (why === 'notes') { scheduleRefresh(); return; } if (why === 'categories' || why === 'reload') await loadCats(); scheduleRefresh(); });
+    Store.onChange(async why => { if (why === 'checks') { if (ckCtx && dlg.open) { ckCtx.checked = await Store.checks.get(ckCtx.eventId, ckCtx.date); renderChecklist(); } return; } if (why === 'notes') { scheduleRefresh(); return; } if (why === 'categories' || why === 'reload') await loadCats(); scheduleRefresh(); });
     let lastReload = Date.now();
     async function reloadFromServer(manual) {
       try { await Store.reload(); lastReload = Date.now(); if (manual) toast('Up to date'); } catch (err) { if (manual) fail(err); else console.warn(err); }

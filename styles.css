@@ -280,3 +280,15 @@ button:active:not(:disabled), .title-picker:active { transform: scale(.96); }
 .scope-opt:disabled { opacity: .5; cursor: not-allowed; }
 .scope-dialog.danger-mode #scopeAll strong { color: #b91c1c; }
 @media (max-width: 800px) { .scope-dialog { margin-bottom: max(12px, env(safe-area-inset-bottom)); } .scope-opt { min-height: 54px; } }
+
+/* Checklist ('- [ ]' lines in notes), ticked per occurrence */
+.checklist-box { border: 1px solid #cbd5e1; border-left: 4px solid #0ea5e9; background: #f0f9ff; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.checklist-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.checklist-head h3 { margin: 0; font-size: 14px; color: #075985; }
+#checklistStatus { margin-left: auto; }
+.checklist-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+dialog .checklist-items label { display: flex; flex-direction: row; align-items: center; gap: 10px; font-weight: 400; font-size: 14px; color: #1f2937; flex: none; padding: 6px 4px; border-radius: 6px; cursor: pointer; min-height: 32px; }
+dialog .checklist-items label:hover { background: #e0f2fe; }
+.checklist-items input { width: 20px; height: 20px; flex: none; margin: 0; accent-color: #0284c7; }
+.checklist-items input:checked + span { text-decoration: line-through; color: #64748b; }
+.checklist-items input:disabled + span { color: #475569; }

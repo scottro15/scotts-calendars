@@ -57,6 +57,8 @@ CALENDARS = {
     'lifetime': {'name': 'Life Time – Facility Ops',
                  'categories': ['Work shift', 'Meeting', 'Weekly meeting – Bill & Sherita', 'Task / to-do', 'Event', 'Other']},
 }
+SCOTT_OWNER_ID = 'f85fb17b-2943-4266-b1b2-dc130ae8b678'  # scottro1522@gmail.com (auth.users.id)
+USER_TABLES = ('events', 'categories', 'occurrence_notes', 'occurrence_checks')
 FREQS = ('none', 'daily', 'weekly', 'monthly', 'yearly')
 SCOPES = ('day', 'week', 'month', 'season')
 WEEKDAYS = {'su': 0, 'sun': 0, 'sunday': 0, 'mo': 1, 'mon': 1, 'monday': 1, 'tu': 2, 'tue': 2, 'tues': 2, 'tuesday': 2,
@@ -274,6 +276,23 @@ class Client:
         self.key = os.environ.get('SUPABASE_SERVICE_KEY') or ''
         self.dry_run = dry_run
         self.planned = []
+        # Multi-user: the bots act for ONE owner. Every read/update/delete is filtered to that owner's rows
+        # and every insert is stamped with it (once the owner_id columns exist; see
+        # supabase/migration-2026-10-21-checklists-and-owner.sql).
+        self.owner_id = os.environ.get('SANDY_OWNER_ID') or SCOTT_OWNER_ID
+        self._owner_cols = None
+
+    def owner_scoped_tables(self):
+        if self._owner_cols is None:
+            self._owner_cols = set()
+            try:
+                spec = self._raw('GET', '', None, None, None)
+                for t, d in (spec.get('definitions') or {}).items():
+                    if t in USER_TABLES and 'owner_id' in (d.get('properties') or {}):
+                        self._owner_cols.add(t)
+            except CalError:
+                pass
+        return self._owner_cols
 
     @property
     def configured(self):
@@ -288,6 +307,14 @@ class Client:
             self.planned.append({'method': method, 'path': path, 'params': params, 'body': body})
             return body if isinstance(body, list) else ([body] if body else [])
         self._need()
+        if path in USER_TABLES and path in self.owner_scoped_tables():
+            if method in ('GET', 'PATCH', 'DELETE'):
+                params = dict(params or {}, owner_id=f'eq.{self.owner_id}')
+            elif method == 'POST' and body is not None:
+                body = [dict(r, owner_id=self.owner_id) for r in body] if isinstance(body, list) else dict(body, owner_id=self.owner_id)
+        return self._raw(method, path, params, body, prefer)
+
+    def _raw(self, method, path, params, body, prefer):
         q = ('?' + urllib.parse.urlencode(params, safe='*,().:"')) if params else ''
         req = urllib.request.Request(f'{self.url}/rest/v1/{path}{q}', method=method,
                                      data=json.dumps(body).encode() if body is not None else None)
