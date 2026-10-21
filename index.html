@@ -16,19 +16,20 @@
   <!-- Sign-in gate (only shown when Supabase sync is configured) -->
   <div id="authGate" class="auth-gate" hidden>
     <div class="auth-card">
-      <h1>📅 SANDY</h1>
+      <h1 data-app-name data-app-prefix="📅 ">📅 SANDY</h1>
       <p id="authMsg" class="muted"></p>
       <form id="authForm">
         <label>Email <input id="authEmail" type="email" required autocomplete="email"></label>
         <button type="submit" class="primary">Email me a sign-in link</button>
       </form>
       <button id="authSignOut" hidden>Sign out</button>
+      <p class="muted auth-legal">By signing in you agree to the <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a> (drafts).</p>
     </div>
   </div>
 
   <header class="topbar">
     <button id="menuBtn" class="icon-btn" aria-label="Show calendars and tasks">☰</button>
-    <h1>SANDY</h1>
+    <h1 data-app-name>SANDY</h1>
     <button id="addBtn" class="primary">+ New</button>
   </header>
 
@@ -80,7 +81,7 @@
         <div id="reviewList" class="review-list"></div>
       </section>
 
-      <section>
+      <section id="dataSection">
         <h2>Data</h2>
         <div class="data-btns">
           <button id="exportBtn">Export JSON</button>
@@ -279,6 +280,7 @@
   <script src="storage.js"></script>
   <script src="places.js"></script>
   <script src="motion.js"></script>
+  <script src="account.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

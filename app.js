@@ -3,7 +3,9 @@
   'use strict';
 
   // ---------- Calendar definitions ----------
-  const CALENDARS = [
+  // Built-in calendars: used in local mode, and as the fallback until the step 2 migration
+  // creates the per-user `calendars` table. Preset categories stay keyed by slug.
+  const BUILTIN_CALENDARS = [
     { id: 'msc', name: 'MSC – Mental Stability Community', short: 'MSC', color: '#7c3aed',
       categories: ['Study time', 'Client session', 'Client reach-out', 'Client check-in', 'Meeting', 'Other'] },
     { id: 'mam', name: 'Minds Above Matters', short: 'MAM', color: '#ea580c',
@@ -14,7 +16,16 @@
     { id: 'lifetime', name: 'Life Time – Facility Ops', short: 'Life Time', color: '#0f766e',
       categories: ['Work shift', 'Meeting', 'Weekly meeting – Bill & Sherita', 'Task / to-do', 'Event', 'Other'] },
   ];
-  const CAL = Object.fromEntries(CALENDARS.map(c => [c.id, c]));
+  const GENERIC_CATEGORIES = ['Meeting', 'Task / to-do', 'Event', 'Other'];
+  const PRESETS = Object.fromEntries(BUILTIN_CALENDARS.map(c => [c.id, c.categories]));
+  let CALENDARS = BUILTIN_CALENDARS;
+  let CAL = Object.fromEntries(CALENDARS.map(c => [c.id, c]));
+  function useCalendars(rows) { // rows from the calendars table (per user)
+    CALENDARS = rows.map(r => ({ id: r.slug, name: r.name, short: r.short || r.name, color: r.color,
+      categories: PRESETS[r.slug] && BUILTIN_CALENDARS.some(b => b.id === r.slug && b.name === r.name) ? PRESETS[r.slug] : GENERIC_CATEGORIES }));
+    CAL = Object.fromEntries(CALENDARS.map(c => [c.id, c]));
+  }
+  const taskCal = () => (CAL.lifetime ? 'lifetime' : CALENDARS[0].id);
   const CUSTOM = '__custom__';
   const DOW = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
   const SCOPE_LABEL = { day: 'Day', week: 'Week', month: 'Month', season: 'Season' };
@@ -141,7 +152,17 @@
     const q = new URLSearchParams(location.search);
     if (q.get('review')) localStorage.setItem(DL_KEY, JSON.stringify({ review: q.get('review'), date: q.get('date') || '', cals: q.get('cals') || '', at: Date.now() }));
   }
-  if (Store.auth) await requireOwnerSignIn();
+  const signedInUser = Store.auth ? await requireOwnerSignIn() : null;
+  // ---------- Per-user calendars (step 2) ----------
+  if (Store.auth) {
+    let rows = null;
+    try { rows = await Store.calendars(); } catch (e) { console.error('calendars:', e); }
+    if (rows && rows.length === 0 && window.SandyAccount) { // signed in, no calendars yet: welcome flow
+      await window.SandyAccount.onboarding({ store: Store, user: signedInUser });
+      try { rows = await Store.calendars(); } catch (e) { console.error(e); rows = null; }
+    }
+    if (rows && rows.length) useCalendars(rows); // null = table not there yet: keep the built-in three
+  }
 
   async function requireOwnerSignIn() {
     const gate = document.getElementById('authGate');
@@ -173,7 +194,8 @@
   }
 
   // ---------- State ----------
-  const settings = Object.assign({ visible: { msc: true, mam: true, lifetime: true }, taskScope: 'day' }, await Store.loadSettings());
+  const settings = Object.assign({ visible: {}, taskScope: 'day' }, await Store.loadSettings());
+  for (const c of CALENDARS) if (!(c.id in settings.visible)) settings.visible[c.id] = true;
   delete settings.customCategories; // now kept by Store.categories()
   const params = new URLSearchParams(location.search);
   let reviewLink = null;
@@ -864,7 +886,7 @@
     form.querySelector(`input[name=kind][value=${d.kind || 'event'}]`).checked = true;
     f('title').value = d.title || '';
     fCal.value = d.calendar;
-    fillCategories(d.calendar, d.category || (d.kind === 'task' && d.calendar === 'lifetime' ? 'Task / to-do' : null));
+    fillCategories(d.calendar, d.category || (d.kind === 'task' && (d.calendar === 'lifetime' || !PRESETS[d.calendar]) ? 'Task / to-do' : null));
     f('allDay').checked = !!d.allDay;
     // For a repeating event, show the clicked occurrence's date/time.
     let s = parseLocal(d.start), e = d.end ? parseLocal(d.end) : null;
@@ -1090,7 +1112,7 @@
   document.getElementById('addBtn').addEventListener('click', () => openEditor(null, null, {}));
   document.getElementById('addTaskBtn').addEventListener('click', () => {
     const scope = settings.taskScope;
-    openEditor(null, null, { kind: 'task', calendar: 'lifetime', category: 'Task / to-do', allDay: true, start: ymd(nowWall()), end: ymd(nowWall()), scope });
+    openEditor(null, null, { kind: 'task', calendar: taskCal(), category: 'Task / to-do', allDay: true, start: ymd(nowWall()), end: ymd(nowWall()), scope });
   });
   document.getElementById('exportBtn').addEventListener('click', async () => {
     const blob = new Blob([await Store.exportJSON()], { type: 'application/json' });
@@ -1121,6 +1143,7 @@
     storageNote.textContent = `Synced across your devices and bots. Signed in as ${user ? user.email : '?'}.`;
     document.getElementById('syncBtns').hidden = false;
     document.getElementById('signOutBtn').addEventListener('click', async () => { await Store.auth.signOut(); location.reload(); });
+    if (window.SandyAccount) window.SandyAccount.mountAccount({ store: Store, user, mount: document.getElementById('dataSection') });
     document.getElementById('syncNowBtn').addEventListener('click', () => reloadFromServer(true));
     const local = await Store.localDataForMigration();
     if (local) {

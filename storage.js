@@ -53,6 +53,8 @@
       localStorage.setItem(CATS_KEY, JSON.stringify(cats));
     },
     // Day notes ("Today's Note"): one note per (event_id, occurrence_date). Never touches events.
+    async loadCalendars() { return null; }, // local mode: the app's built-in calendars
+    async loadProfile() { return null; },
     async loadNotes() { return readJSON(NOTES_KEY, []); },
     async upsertNote(n) { const all = readJSON(NOTES_KEY, []); const i = all.findIndex(x => x.eventId === n.eventId && x.date === n.date); if (i >= 0) all[i] = n; else all.push(n); localStorage.setItem(NOTES_KEY, JSON.stringify(all)); return n; },
     // Checklist ticks ('- [ ]' lines in notes), one row per (event_id, occurrence_date).
@@ -105,6 +107,9 @@
 
   const noteFromRow = r => ({ id: r.id, eventId: r.event_id, date: r.occurrence_date, body: r.body || '', createdAt: r.created_at, updatedAt: r.updated_at });
 
+  const isMissingTable = e => e && (e.code === 'PGRST205' || e.code === '42P01' || /could not find the table|does not exist/i.test(e.message || ''));
+  // categories are unique per (owner, calendar, name) after the step 2 migration; plain insert + ignore duplicates works for both
+  const CAT_CONFLICT = 'owner_id,calendar,name';
   function SupabaseAdapter(url, anonKey) {
     if (!window.supabase || !window.supabase.createClient) throw new Error('vendor/supabase.min.js did not load');
     const sb = window.supabase.createClient(url, anonKey, {
@@ -137,6 +142,33 @@
       async removeMany(ids) {
         for (let i = 0; i < ids.length; i += 200) must(await sb.from('events').delete().in('id', ids.slice(i, i + 200)));
       },
+      // Per-user calendars (step 2). null = table not created yet -> app keeps its built-in three.
+      async loadCalendars() {
+        const { data, error } = await sb.from('calendars').select('id,slug,name,short,color,sort').order('sort').order('created_at');
+        if (error) { if (isMissingTable(error)) return null; throw new Error(error.message); }
+        return data;
+      },
+      async createCalendars(list) { return must(await sb.from('calendars').insert(list).select()); },
+      async loadProfile() {
+        const { data, error } = await sb.from('profiles').select('*').maybeSingle();
+        if (error) { if (isMissingTable(error)) return null; throw new Error(error.message); }
+        return data;
+      },
+      async saveProfile(p) { return must(await sb.from('profiles').upsert(p).select().single()); },
+      async exportAccount() {
+        const out = {};
+        for (const t of ['profiles', 'calendars', 'events', 'categories', 'occurrence_notes', 'occurrence_checks', 'occurrence_links']) {
+          const rows = []; const page = 1000;
+          for (let from = 0; ; from += page) {
+            const { data, error } = await sb.from(t).select('*').range(from, from + page - 1);
+            if (error) { if (isMissingTable(error)) break; throw new Error(error.message); }
+            rows.push(...data); if (data.length < page) break;
+          }
+          out[t] = rows;
+        }
+        return out;
+      },
+      async deleteAccount(email) { return must(await sb.rpc('delete_my_account', { confirm_email: email })); },
       async loadCategories() {
         const rows = must(await sb.from('categories').select('calendar,name').order('name'));
         const cats = {};
@@ -144,7 +176,10 @@
         return cats;
       },
       async addCategory(cal, name) {
-        must(await sb.from('categories').upsert({ calendar: cal, name }, { onConflict: 'calendar,name', ignoreDuplicates: true }));
+        let r = await sb.from('categories').upsert({ calendar: cal, name }, { onConflict: CAT_CONFLICT, ignoreDuplicates: true });
+        if (r.error && r.error.code === '42P10') // before the step 2 migration: old global (calendar, name) key
+          r = await sb.from('categories').upsert({ calendar: cal, name }, { onConflict: 'calendar,name', ignoreDuplicates: true });
+        must(r);
       },
       async loadNotes() {
         const out = []; const page = 1000;
@@ -317,6 +352,12 @@
       },
       onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 
+      async calendars() { return adapter.loadCalendars ? adapter.loadCalendars() : null; },
+      async createCalendars(list) { return adapter.createCalendars(list); },
+      async profile() { return adapter.loadProfile ? adapter.loadProfile() : null; },
+      async saveProfile(p) { return adapter.saveProfile(p); },
+      async exportAccount() { return adapter.exportAccount ? adapter.exportAccount() : JSON.parse(await store.exportJSON()); },
+      async deleteAccount(email) { return adapter.deleteAccount(email); },
       async categories() { if (!cats) cats = (await adapter.loadCategories()) || {}; return cats; },
       async addCategory(cal, name) { await adapter.addCategory(cal, name); cats = null; },
 

@@ -8,6 +8,7 @@
  * NEVER put the service_role key here. That one is only for the bots (tools/cal.py).
  */
 window.CALENDAR_CONFIG = {
+  APP_NAME: 'SANDY', // placeholder product name: change it here only (final name TBD)
   SUPABASE_URL: 'https://dnsihqpdjflswbpahzvl.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuc2locXBkamZsc3dicGFoenZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzMzQ3NjcsImV4cCI6MjEwNzkxMDc2N30.o5F7__bJdWZDBsR1g8KXUJcOYgqfwS4aOS5DKWIVnt0',
   SITE_URL: 'https://scottro15.github.io/scotts-calendars/', // magic-link redirect when hosted

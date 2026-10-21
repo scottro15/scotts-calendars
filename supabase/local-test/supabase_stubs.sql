@@ -21,3 +21,7 @@ do $$ begin
     create publication supabase_realtime;
   end if;
 end $$;
+-- (step 2) auth.role() and a minimal auth.users, as on Supabase
+create or replace function auth.role() returns text language sql stable as $$
+  select nullif(auth.jwt() ->> 'role', '') $$;
+create table if not exists auth.users (id uuid primary key, email text);

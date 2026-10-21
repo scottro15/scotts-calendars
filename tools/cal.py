@@ -58,7 +58,7 @@ CALENDARS = {
                  'categories': ['Work shift', 'Meeting', 'Weekly meeting – Bill & Sherita', 'Task / to-do', 'Event', 'Other']},
 }
 SCOTT_OWNER_ID = 'f85fb17b-2943-4266-b1b2-dc130ae8b678'  # scottro1522@gmail.com (auth.users.id)
-USER_TABLES = ('events', 'categories', 'occurrence_notes', 'occurrence_checks')
+USER_TABLES = ('events', 'categories', 'occurrence_notes', 'occurrence_checks', 'calendars')
 FREQS = ('none', 'daily', 'weekly', 'monthly', 'yearly')
 SCOPES = ('day', 'week', 'month', 'season')
 WEEKDAYS = {'su': 0, 'sun': 0, 'sunday': 0, 'mo': 1, 'mon': 1, 'monday': 1, 'tu': 2, 'tue': 2, 'tues': 2, 'tuesday': 2,
@@ -185,7 +185,7 @@ def parse_calendars(s):
     for part in [p.strip() for p in s.split(',') if p.strip()]:
         part = aliases.get(part, part)
         if part not in CALENDARS:
-            raise CalError(f'Unknown calendar "{part}". Use msc, mam, lifetime or all.')
+            raise CalError(f'Unknown calendar "{part}". Use {", ".join(CALENDARS)} or all.')
         if part not in out:
             out.append(part)
     if not out:
@@ -648,7 +648,7 @@ def cmd_add(client, args):
         raise CalError('--title is required')
     cat_rows, cat_note = category_rows_needed(client, [(r['calendar'], r['category']) for r in rows])
     if cat_rows:
-        client.insert('categories', cat_rows, on_conflict='calendar,name')
+        client.insert('categories', cat_rows)  # only rows not already there (owner-scoped check above)
     created = client.insert('events', rows)
     res = {'action': 'add', 'created': [present(r) for r in created]}
     if cat_rows:
@@ -1005,6 +1005,28 @@ def build_parser():
     return ap
 
 
+BUILTIN_CALENDARS = {k: dict(v) for k, v in CALENDARS.items()}
+GENERIC_CATEGORIES = ['Meeting', 'Task / to-do', 'Event', 'Other']
+
+
+def load_owner_calendars(client):
+    """Step 2: calendars live in the per-user `calendars` table. Before that migration runs (or with no
+    credentials) the built-in msc/mam/lifetime stay in use, so `--calendar msc` works either way."""
+    if not client.configured:
+        return
+    try:
+        rows = client.request('GET', 'calendars', {'select': 'slug,name', 'order': 'sort,created_at'})
+    except CalError:
+        return  # table not there yet
+    rows = [r for r in (rows if isinstance(rows, list) else []) if isinstance(r, dict) and r.get('slug') and r.get('name')]
+    if not rows:
+        return
+    CALENDARS.clear()
+    for r in rows:
+        b = BUILTIN_CALENDARS.get(r['slug'])
+        CALENDARS[r['slug']] = {'name': r['name'], 'categories': b['categories'] if b else GENERIC_CATEGORIES}
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     dry = '--dry-run' in argv
@@ -1021,6 +1043,7 @@ def main(argv=None):
     args.source = source
     client = Client(dry_run=dry)
     try:
+        load_owner_calendars(client)
         fn = {'list': cmd_list, 'find': cmd_find, 'get': cmd_get, 'categories': cmd_categories,
               'add': cmd_add, 'edit': cmd_edit, 'delete': cmd_delete,
               'note-get': cmd_note_get, 'note-set': cmd_note_set, 'note-list': cmd_note_list, 'note-link': cmd_note_link}[args.cmd]
