@@ -18,7 +18,7 @@ const ok=(c,m)=>{ if(!c) throw new Error('FAIL '+m); console.log('ok -',m); };
  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:310,y:650}]});
  for (let x=300;x>=160;x-=20){ await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y:652}]}); await p.waitForTimeout(15); }
  const tf=await p.evaluate(()=>document.querySelector('#calendar .fc-view-harness').style.transform);
- if (rm==='no-preference') { ok(/translateX\(-5\d/.test(tf), 'harness follows finger with resistance: '+tf); await p.screenshot({path:'screenshots/23_swipe_drag_mobile.png'}); }
+ if (rm==='no-preference') { ok(/translate3d\(-1[45]\d/.test(tf), 'harness follows finger 1:1: '+tf); await p.screenshot({path:'screenshots/23_swipe_drag_mobile.png'}); }
  else ok(!tf,'reduced motion: no drag follow');
  await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:270,y:652}]}); // back under threshold -> spring back
  await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]}); await p.waitForTimeout(400);

@@ -19,7 +19,7 @@ const ok=(c,m)=>{ if(!c) throw new Error('FAIL '+m); console.log('ok -',m); };
  await swipe(60,400,330,395); ok(await title()===t0,'swipe right -> back');
  await swipe(200,500,230,200); ok(await title()===t0,'vertical swipe ignored');
  await swipe(330,400,280,400); ok(await title()===t0,'short swipe ignored');
- await swipe(330,400,80,410,1200); ok(await title()===t0,'slow drag ignored');
+ await swipe(330,400,260,400,1200); ok(await title()===t0,'slow short drag springs back');
  for (const [v,re0] of [['timeGridDay',/October 21/],['timeGridWeek',null],['dayGridMonth',/October/]]) {
   await p.click(`.fc-${v}-button`); await p.waitForTimeout(400); const a=await title();
   await swipe(330,450,60,460); const c=await title(); ok(c!==a,`${v} swipe left changes period (${a} -> ${c})`);

@@ -313,52 +313,125 @@
   });
   calendar.render();
 
-  // ---------- Swipe navigation: left = next period, right = previous ----------
-  // Only quick, clearly horizontal one-finger swipes on the calendar. Ignores pinch, event drag/resize,
-  // text selection, and anything inside modals/menus/inputs.
+  // ---------- Swipe pager (Google Calendar style): left = next period, right = previous ----------
+  // The current page moves 1:1 with the finger while the neighbouring period (preloaded in a hidden
+  // FullCalendar "ghost" that shares the same event source) slides in beside it with its real dates and
+  // events. Release past 30% of the width or with a fast flick commits; otherwise it springs back.
+  // The sticky toolbar never moves. Reduced motion: no drag, instant switch.
+  const stage = document.createElement('div'); stage.id = 'swipe-stage';
+  const swipeCalEl = document.getElementById('calendar');
+  swipeCalEl.parentNode.insertBefore(stage, swipeCalEl); stage.appendChild(swipeCalEl);
+  const ghostOpts = {
+    timeZone: 'UTC', now: () => nowWall(), headerToolbar: false, height: 'auto', firstDay: 0, nowIndicator: true,
+    dayMaxEvents: true, editable: false, selectable: false, scrollTime: '06:00:00', slotMinTime: '05:00:00',
+    views: { timeGridDay: { dayHeaderFormat: { weekday: 'long' } } },
+    eventTimeFormat: { hour: 'numeric', minute: '2-digit', meridiem: 'short' },
+    events: async (info, ok, fail) => { try { ok(await buildFcEvents(info.start, info.end)); } catch (err) { fail(err); } },
+    eventDidMount: info => { const cc = CAL[info.event.extendedProps.calendar]?.color; if (cc) { info.el.style.setProperty('--cal', cc); info.el.classList.add('sandy-tint'); } },
+  };
+  const ghosts = {};
+  for (const d of [1, -1]) {
+    const g = document.createElement('div'); g.className = 'swipe-ghost'; g.dataset.dir = d > 0 ? 'next' : 'prev'; g.setAttribute('aria-hidden', 'true');
+    stage.appendChild(g); ghosts[d] = { el: g, cal: null, key: '' };
+  }
+  const neighbourKey = d => `${calendar.view.type}|${ymd(calendar.getDate())}|${d}`;
+  function preloadGhost(d) {
+    const G = ghosts[d], key = neighbourKey(d);
+    if (G.key === key) return; G.key = key;
+    if (!G.cal) { G.cal = new FullCalendar.Calendar(G.el, { ...ghostOpts, initialView: calendar.view.type, initialDate: calendar.getDate() }); G.cal.render(); }
+    else G.cal.changeView(calendar.view.type, calendar.getDate());
+    d > 0 ? G.cal.next() : G.cal.prev();
+  }
+  let preloadTimer = 0;
+  const preloadSoon = () => { clearTimeout(preloadTimer); preloadTimer = setTimeout(() => { const run = () => { preloadGhost(1); preloadGhost(-1); }; window.requestIdleCallback ? requestIdleCallback(run, { timeout: 800 }) : run(); }, 300); };
+  calendar.on('datesSet', preloadSoon);
+  calendar.on('eventsSet', () => { clearTimeout(preloadTimer); preloadTimer = setTimeout(() => { for (const d of [1, -1]) { const G = ghosts[d]; if (G.cal && G.key === neighbourKey(d)) G.cal.refetchEvents(); else preloadGhost(d); } }, 400); });
+  preloadSoon();
+  const harness = () => document.querySelector('#calendar .fc-view-harness');
+  const reducedM = () => !!(window.Motion && Motion.reduced());
+  function placeGhost(d) {
+    const G = ghosts[d], h = harness(); if (!h) return null;
+    preloadGhost(d);
+    // Measure without the drag transform (offset* ignore transforms; #calendar is the offsetParent).
+    const sr = stage.getBoundingClientRect(), cr = swipeCalEl.getBoundingClientRect();
+    G.el.style.left = (cr.left - sr.left + h.offsetLeft) + 'px'; G.el.style.width = h.offsetWidth + 'px';
+    const hr = { top: cr.top + h.offsetTop };
+    // Line the ghost up with what's on screen: time grids keep the same hours; List/Month show their top.
+    let top = hr.top - sr.top;
+    const timegrid = calendar.view.type.startsWith('timeGrid');
+    const stickyBottom = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) || 0) + (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--fc-toolbar-h')) || 0);
+    if (!timegrid && hr.top < stickyBottom) top += stickyBottom - hr.top;
+    G.el.style.top = top + 'px';
+    G.el.classList.add('on');
+    return G.el;
+  }
+  const hideGhosts = () => { for (const d of [1, -1]) { const g = ghosts[d].el; g.classList.remove('on'); g.style.transition = ''; g.style.transform = ''; } };
+  function setPos(dx, ms = 0, ease = '') {
+    const h = harness(); if (!h) return;
+    const W = h.offsetWidth;
+    const tr = ms ? `transform ${ms}ms ${ease}` : 'none';
+    h.style.transition = tr; h.style.transform = dx ? `translate3d(${dx}px,0,0)` : '';
+    const d = dx < 0 ? 1 : -1, other = ghosts[-d].el; other.classList.remove('on');
+    if (dx) { const g = placeGhost(d); if (g) { g.style.transition = tr; g.style.transform = `translate3d(${dx + d * W}px,0,0)`; } }
+  }
   (function swipeNav() {
-    const el = document.getElementById('calendar');
+    const el = swipeCalEl;
     let s = null;
-    const blocked = t => t.closest('input, textarea, select, [contenteditable], dialog, .modal, .menu, .fc-popover, .fc-event-resizer, .fc-event-selected, .fc-event-dragging, .fc-header-toolbar');
-    const harness = () => document.querySelector('#calendar .fc-view-harness');
-    const reduced = () => window.Motion && Motion.reduced();
-    const pull = dx => { const v = Math.max(-80, Math.min(80, dx * 0.35)); return v; };
-    const setDrag = (h, dx) => { const v = pull(dx); h.style.transition = 'none'; h.style.transform = `translateX(${v}px)`; h.style.opacity = String(1 - Math.abs(v) / 80 * 0.25); };
-    const springBack = h => { if (!h) return; h.style.transition = 'transform 260ms cubic-bezier(.2,.9,.3,1.2), opacity 200ms ease'; h.style.transform = ''; h.style.opacity = '';
-      setTimeout(() => { h.style.transition = ''; }, 280); };
+    const blocked = t => t.closest('input, textarea, select, [contenteditable], dialog, .modal, .menu, .fc-popover, .fc-event-resizer, .fc-event-dragging, .fc-header-toolbar');
+    const dragging = () => document.querySelector('.fc-event-dragging, .fc-event-mirror');
     el.addEventListener('touchstart', e => {
       if (e.touches.length !== 1 || blocked(e.target) || document.querySelector('dialog[open]')) { s = null; return; }
-      const t = e.touches[0]; s = { x: t.clientX, y: t.clientY, at: Date.now(), multi: false, horiz: false, dx: 0 };
+      const t = e.touches[0]; s = { x: t.clientX, y: t.clientY, at: Date.now(), multi: false, horiz: false, dx: 0, vx: 0, lt: Date.now(), lx: t.clientX, onEvent: !!e.target.closest('.fc-event') };
+      if (!reducedM()) { preloadGhost(1); preloadGhost(-1); }
     }, { passive: true });
     el.addEventListener('touchmove', e => {
       if (!s) return;
-      if (e.touches.length > 1) { s.multi = true; if (s.horiz) springBack(harness()); s.horiz = false; return; }
+      if (e.touches.length > 1) { s.multi = true; if (s.horiz) setPos(0, 220, 'ease-out'); s.horiz = false; return; }
       if (s.multi) return;
-      const t = e.touches[0], dx = t.clientX - s.x, dy = t.clientY - s.y; s.dx = dx;
-      if (!s.horiz && Math.abs(dx) > 12 && Math.abs(dx) > 1.5 * Math.abs(dy) && !document.querySelector('.fc-event-dragging, .fc-event-mirror')) s.horiz = true;
-      if (s.horiz && !reduced()) { const h = harness(); if (h) setDrag(h, dx); }
+      const t = e.touches[0], dx = t.clientX - s.x, dy = t.clientY - s.y, now = Date.now();
+      if (now > s.lt) { s.vx = 0.6 * s.vx + 0.4 * (t.clientX - s.lx) / (now - s.lt); s.lt = now; s.lx = t.clientX; }
+      s.dx = dx;
+      if (!s.horiz && Math.abs(dx) > 12 && Math.abs(dx) > 1.5 * Math.abs(dy) && !dragging()) {
+        s.horiz = true;
+        // A swipe that began on an event: make sure FullCalendar doesn't treat it as select / long-press.
+        if (s.onEvent) { try { calendar.unselect(); } catch (_) {} document.querySelectorAll('#calendar .fc-event-selected').forEach(n => n.classList.remove('fc-event-selected')); }
+      }
+      if (s.horiz && dragging()) { s.horiz = false; setPos(0, 200, 'ease-out'); s = null; return; } // long-press drag won
+      if (s.horiz && !reducedM()) setPos(dx);
     }, { passive: true });
-    el.addEventListener('touchend', e => {
+    const end = e => {
       const st = s; s = null; if (!st) return;
-      const h = harness();
-      const t = e.changedTouches[0], dx = t.clientX - st.x, dy = t.clientY - st.y;
-      const fail = st.multi || Date.now() - st.at > 600 || Math.abs(dx) < 60 || Math.abs(dx) < 1.5 * Math.abs(dy)
-        || document.querySelector('.fc-event-dragging, .fc-event-mirror, dialog[open]') || (window.getSelection && String(window.getSelection()));
-      if (fail) { if (st.horiz) springBack(h); return; }
-      swipeGo(dx < 0 ? 1 : -1, st.horiz ? pull(dx) : 0);
-    }, { passive: true });
-    el.addEventListener('touchcancel', () => { if (s && s.horiz) springBack(harness()); s = null; }, { passive: true });
+      const t = e.changedTouches && e.changedTouches[0]; const dx = t ? t.clientX - st.x : st.dx, dy = t ? t.clientY - st.y : 0;
+      const h = harness(); const W = h ? h.getBoundingClientRect().width : 390;
+      const bad = st.multi || !st.horiz || dragging() || document.querySelector('dialog[open]') || (window.getSelection && String(window.getSelection()));
+      const avg = dx / Math.max(1, Date.now() - st.at); if (Math.abs(avg) > Math.abs(st.vx) && Date.now() - st.at < 300) st.vx = avg;
+      const flick = Math.abs(st.vx) > 0.45 && Math.abs(dx) > 40 && Math.sign(st.vx) === Math.sign(dx);
+      const commit = !bad && Math.abs(dx) > 1.5 * Math.abs(dy) && (Math.abs(dx) > 0.3 * W || flick);
+      window.__swipeLast = { dx, dy, vx: st.vx, horiz: st.horiz, multi: st.multi, bad: !!bad, commit };
+      if (st.horiz) { // swallow the synthetic click so a swipe off an event never opens the editor
+        const kill = ev => { ev.stopPropagation(); ev.preventDefault(); };
+        window.addEventListener('click', kill, true); setTimeout(() => window.removeEventListener('click', kill, true), 350);
+      }
+      if (!commit) { if (st.horiz && !reducedM()) { setPos(0, 260, 'cubic-bezier(.2,.9,.3,1.15)'); setTimeout(hideGhosts, 280); } return; }
+      swipeGo(dx < 0 ? 1 : -1, reducedM() ? 0 : dx, st.vx);
+    };
+    el.addEventListener('touchend', end, { passive: true });
+    el.addEventListener('touchcancel', () => { if (s && s.horiz) { setPos(0, 220, 'ease-out'); setTimeout(hideGhosts, 240); } s = null; }, { passive: true });
   })();
-  function swipeGo(dir, from = 0) {
+  function swipeGo(dir, from = 0, v = 0) {
     try { if (navigator.vibrate) navigator.vibrate(10); } catch (_) {}
-    const h = document.querySelector('#calendar .fc-view-harness');
-    const reduced = window.Motion && Motion.reduced();
+    const h = harness();
+    const reduced = reducedM();
     const go = () => {
+      const g = ghosts[dir];
       dir > 0 ? calendar.next() : calendar.prev();
-      const hh = document.querySelector('#calendar .fc-view-harness');
-      if (hh) { hh.style.transition = ''; hh.style.transform = ''; hh.style.opacity = ''; }
-      if (hh && !reduced && hh.animate)
-        hh.animate([{ opacity: 0.4, transform: `translateX(${dir * 60}px)` }, { opacity: 1, transform: 'none' }], { duration: 240, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      const hh = harness();
+      if (hh) { hh.style.transition = 'none'; hh.style.transform = ''; }
+      // Keep the ghost (same content) on top for a beat so there's no blank flash while events load.
+      if (!reduced && g.el.classList.contains('on')) { g.el.style.transition = 'none'; g.el.style.transform = 'translate3d(0,0,0)';
+        let done = false; const off = () => { if (done) return; done = true; calendar.off('eventsSet', off); requestAnimationFrame(() => requestAnimationFrame(hideGhosts)); };
+        calendar.on('eventsSet', off); setTimeout(off, 350); }
+      else hideGhosts();
       const view = calendar.view;
       if (view.type.startsWith('list')) {
         const today = ymd(nowWall());
@@ -366,9 +439,12 @@
         else window.scrollTo({ top: 0, behavior: 'auto' });
       }
     };
-    if (h && !reduced && h.animate) {
-      const a = h.animate([{ transform: `translateX(${from}px)`, opacity: h.style.opacity || 1 }, { transform: `translateX(${-dir * 120}px)`, opacity: 0 }], { duration: 140, easing: 'ease-in', fill: 'forwards' });
-      a.onfinish = () => { a.cancel(); go(); };
+    if (h && !reduced) {
+      const W = h.getBoundingClientRect().width;
+      if (!from) setPos(-dir * 1); // button/programmatic: start from rest
+      const left = W - Math.abs(from || 0);
+      const ms = Math.max(140, Math.min(300, v ? left / Math.max(Math.abs(v), 0.8) : 260));
+      requestAnimationFrame(() => { setPos(-dir * W, ms, 'cubic-bezier(.2,.8,.2,1)'); setTimeout(go, ms + 10); });
     } else go();
   }
   window.__sandySwipe = swipeGo;
