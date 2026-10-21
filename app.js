@@ -291,6 +291,41 @@
   });
   calendar.render();
 
+  // ---------- Swipe navigation: left = next period, right = previous ----------
+  // Only quick, clearly horizontal one-finger swipes on the calendar. Ignores pinch, event drag/resize,
+  // text selection, and anything inside modals/menus/inputs.
+  (function swipeNav() {
+    const el = document.getElementById('calendar');
+    let s = null;
+    const blocked = t => t.closest('input, textarea, select, [contenteditable], dialog, .modal, .menu, .fc-popover, .fc-event-resizer, .fc-event-selected, .fc-event-dragging, .fc-header-toolbar');
+    el.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1 || blocked(e.target) || document.querySelector('dialog[open]')) { s = null; return; }
+      const t = e.touches[0]; s = { x: t.clientX, y: t.clientY, at: Date.now(), multi: false };
+    }, { passive: true });
+    el.addEventListener('touchmove', e => { if (s && e.touches.length > 1) s.multi = true; }, { passive: true });
+    el.addEventListener('touchend', e => {
+      const st = s; s = null; if (!st || st.multi) return;
+      const t = e.changedTouches[0], dx = t.clientX - st.x, dy = t.clientY - st.y;
+      if (Date.now() - st.at > 600 || Math.abs(dx) < 60 || Math.abs(dx) < 1.5 * Math.abs(dy)) return;
+      if (document.querySelector('.fc-event-dragging, .fc-event-mirror, dialog[open]')) return;
+      const sel = window.getSelection && String(window.getSelection()); if (sel) return;
+      swipeGo(dx < 0 ? 1 : -1);
+    }, { passive: true });
+    el.addEventListener('touchcancel', () => { s = null; }, { passive: true });
+  })();
+  function swipeGo(dir) {
+    dir > 0 ? calendar.next() : calendar.prev();
+    const view = calendar.view, harness = document.querySelector('#calendar .fc-view-harness');
+    if (harness && !(window.Motion && Motion.reduced()) && harness.animate)
+      harness.animate([{ opacity: 0.35, transform: `translateX(${dir * 40}px)` }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    if (view.type.startsWith('list')) {
+      const today = ymd(nowWall());
+      if (ymd(view.activeStart) <= today && today < ymd(view.activeEnd)) { listScrollPending = true; scheduleListDecorate(); }
+      else window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+  }
+  window.__sandySwipe = swipeGo;
+
   // ---------- List View: today's border, now-line, scroll-to-today ----------
   // Today's section gets a border; a line marks the current Chicago time and moves every minute.
   // Scrolls to today only when List View is opened, never on the minute ticks.

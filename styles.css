@@ -338,3 +338,7 @@ dialog .checklist-items label:hover { background: #e0f2fe; }
 .fc-timegrid-event .fc-event-title-container { padding-right: 18px; }
 .day-note-notion { margin: 4px 0 0; }
 .day-note-notion .notion-link { margin-left: 0; font-weight: 600; color: var(--accent, #2563eb); }
+
+/* Swipe navigation: stop horizontal overscroll from triggering browser back/forward */
+html, body { overscroll-behavior-x: none; }
+#calendar { touch-action: pan-y pinch-zoom; }
