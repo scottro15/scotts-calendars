@@ -298,31 +298,56 @@
     const el = document.getElementById('calendar');
     let s = null;
     const blocked = t => t.closest('input, textarea, select, [contenteditable], dialog, .modal, .menu, .fc-popover, .fc-event-resizer, .fc-event-selected, .fc-event-dragging, .fc-header-toolbar');
+    const harness = () => document.querySelector('#calendar .fc-view-harness');
+    const reduced = () => window.Motion && Motion.reduced();
+    const pull = dx => { const v = Math.max(-80, Math.min(80, dx * 0.35)); return v; };
+    const setDrag = (h, dx) => { const v = pull(dx); h.style.transition = 'none'; h.style.transform = `translateX(${v}px)`; h.style.opacity = String(1 - Math.abs(v) / 80 * 0.25); };
+    const springBack = h => { if (!h) return; h.style.transition = 'transform 260ms cubic-bezier(.2,.9,.3,1.2), opacity 200ms ease'; h.style.transform = ''; h.style.opacity = '';
+      setTimeout(() => { h.style.transition = ''; }, 280); };
     el.addEventListener('touchstart', e => {
       if (e.touches.length !== 1 || blocked(e.target) || document.querySelector('dialog[open]')) { s = null; return; }
-      const t = e.touches[0]; s = { x: t.clientX, y: t.clientY, at: Date.now(), multi: false };
+      const t = e.touches[0]; s = { x: t.clientX, y: t.clientY, at: Date.now(), multi: false, horiz: false, dx: 0 };
     }, { passive: true });
-    el.addEventListener('touchmove', e => { if (s && e.touches.length > 1) s.multi = true; }, { passive: true });
+    el.addEventListener('touchmove', e => {
+      if (!s) return;
+      if (e.touches.length > 1) { s.multi = true; if (s.horiz) springBack(harness()); s.horiz = false; return; }
+      if (s.multi) return;
+      const t = e.touches[0], dx = t.clientX - s.x, dy = t.clientY - s.y; s.dx = dx;
+      if (!s.horiz && Math.abs(dx) > 12 && Math.abs(dx) > 1.5 * Math.abs(dy) && !document.querySelector('.fc-event-dragging, .fc-event-mirror')) s.horiz = true;
+      if (s.horiz && !reduced()) { const h = harness(); if (h) setDrag(h, dx); }
+    }, { passive: true });
     el.addEventListener('touchend', e => {
-      const st = s; s = null; if (!st || st.multi) return;
+      const st = s; s = null; if (!st) return;
+      const h = harness();
       const t = e.changedTouches[0], dx = t.clientX - st.x, dy = t.clientY - st.y;
-      if (Date.now() - st.at > 600 || Math.abs(dx) < 60 || Math.abs(dx) < 1.5 * Math.abs(dy)) return;
-      if (document.querySelector('.fc-event-dragging, .fc-event-mirror, dialog[open]')) return;
-      const sel = window.getSelection && String(window.getSelection()); if (sel) return;
-      swipeGo(dx < 0 ? 1 : -1);
+      const fail = st.multi || Date.now() - st.at > 600 || Math.abs(dx) < 60 || Math.abs(dx) < 1.5 * Math.abs(dy)
+        || document.querySelector('.fc-event-dragging, .fc-event-mirror, dialog[open]') || (window.getSelection && String(window.getSelection()));
+      if (fail) { if (st.horiz) springBack(h); return; }
+      swipeGo(dx < 0 ? 1 : -1, st.horiz ? pull(dx) : 0);
     }, { passive: true });
-    el.addEventListener('touchcancel', () => { s = null; }, { passive: true });
+    el.addEventListener('touchcancel', () => { if (s && s.horiz) springBack(harness()); s = null; }, { passive: true });
   })();
-  function swipeGo(dir) {
-    dir > 0 ? calendar.next() : calendar.prev();
-    const view = calendar.view, harness = document.querySelector('#calendar .fc-view-harness');
-    if (harness && !(window.Motion && Motion.reduced()) && harness.animate)
-      harness.animate([{ opacity: 0.35, transform: `translateX(${dir * 40}px)` }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)' });
-    if (view.type.startsWith('list')) {
-      const today = ymd(nowWall());
-      if (ymd(view.activeStart) <= today && today < ymd(view.activeEnd)) { listScrollPending = true; scheduleListDecorate(); }
-      else window.scrollTo({ top: 0, behavior: 'auto' });
-    }
+  function swipeGo(dir, from = 0) {
+    try { if (navigator.vibrate) navigator.vibrate(10); } catch (_) {}
+    const h = document.querySelector('#calendar .fc-view-harness');
+    const reduced = window.Motion && Motion.reduced();
+    const go = () => {
+      dir > 0 ? calendar.next() : calendar.prev();
+      const hh = document.querySelector('#calendar .fc-view-harness');
+      if (hh) { hh.style.transition = ''; hh.style.transform = ''; hh.style.opacity = ''; }
+      if (hh && !reduced && hh.animate)
+        hh.animate([{ opacity: 0.4, transform: `translateX(${dir * 60}px)` }, { opacity: 1, transform: 'none' }], { duration: 240, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      const view = calendar.view;
+      if (view.type.startsWith('list')) {
+        const today = ymd(nowWall());
+        if (ymd(view.activeStart) <= today && today < ymd(view.activeEnd)) { listScrollPending = true; scheduleListDecorate(); }
+        else window.scrollTo({ top: 0, behavior: 'auto' });
+      }
+    };
+    if (h && !reduced && h.animate) {
+      const a = h.animate([{ transform: `translateX(${from}px)`, opacity: h.style.opacity || 1 }, { transform: `translateX(${-dir * 120}px)`, opacity: 0 }], { duration: 140, easing: 'ease-in', fill: 'forwards' });
+      a.onfinish = () => { a.cancel(); go(); };
+    } else go();
   }
   window.__sandySwipe = swipeGo;
 

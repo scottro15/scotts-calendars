@@ -342,3 +342,20 @@ dialog .checklist-items label:hover { background: #e0f2fe; }
 /* Swipe navigation: stop horizontal overscroll from triggering browser back/forward */
 html, body { overscroll-behavior-x: none; }
 #calendar { touch-action: pan-y pinch-zoom; }
+
+/* Day view: today's header gets a blue glowing border that travels clockwise. */
+.fc-timeGridDay-view .fc-col-header-cell.fc-day-today { position: relative; }
+.fc-timeGridDay-view .fc-col-header-cell.fc-day-today::after {
+  content: ''; position: absolute; inset: 1px 2px; border-radius: 8px; padding: 2px; pointer-events: none;
+  background: conic-gradient(from var(--angle),
+    var(--today) 0deg, color-mix(in srgb, var(--today) 55%, transparent) 50deg,
+    color-mix(in srgb, var(--today) 30%, transparent) 120deg, color-mix(in srgb, var(--today) 30%, transparent) 300deg, var(--today) 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--today) 60%, transparent));
+  animation: sandy-cw 4s linear infinite;
+}
+@keyframes sandy-cw { from { --angle: 0deg; } to { --angle: 360deg; } }
+@media (prefers-reduced-motion: reduce) {
+  .fc-timeGridDay-view .fc-col-header-cell.fc-day-today::after { animation: none; background: var(--today); opacity: .8; }
+}
