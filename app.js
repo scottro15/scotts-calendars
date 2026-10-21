@@ -149,7 +149,7 @@
     const formEl = document.getElementById('authForm');
     const emailEl = document.getElementById('authEmail');
     const outBtn = document.getElementById('authSignOut');
-    emailEl.value = Store.auth.ownerEmail || '';
+    emailEl.value = localStorage.getItem('sandy.lastEmail') || '';
     const showFor = user => {
       gate.hidden = false;
       formEl.hidden = !!user; outBtn.hidden = !user;
@@ -163,10 +163,9 @@
     formEl.onsubmit = async e => {
       e.preventDefault();
       const email = emailEl.value.trim();
-      if (Store.auth.ownerEmail && email.toLowerCase() !== Store.auth.ownerEmail) { msg.textContent = 'That email doesn\'t have access to these calendars.'; return; }
-      msg.textContent = 'Sending…';
+      msg.textContent = 'Sending…'; localStorage.setItem('sandy.lastEmail', email);
       try { await Store.auth.sendMagicLink(email); msg.textContent = `Check ${email} for a sign-in link. Open it on this device. This page will continue automatically.`; }
-      catch (err) { msg.textContent = 'Could not send the link: ' + (err.message || err); }
+      catch (err) { msg.textContent = err && err.notInvited ? 'That email hasn\'t been invited yet. SANDY is invite-only for now.' : 'Could not send the link: ' + (err.message || err); }
     };
     return new Promise(resolve => {
       Store.auth.onSignIn(u => { if (Store.auth.isOwner(u)) { gate.hidden = true; resolve(u); } else showFor(u); });
@@ -404,8 +403,8 @@
           allDay: !!ev.allDay,
           backgroundColor: c.color, borderColor: c.color, textColor: '#fff',
           editable: true, // dragging one occurrence of a series detaches just that occurrence
-          classNames: [ev.example ? 'is-example' : '', done ? 'task-done' : '', ev.seriesId ? 'is-exception' : '', hasNote(ev, o.key) ? 'has-day-note' : ''].filter(Boolean),
-          extendedProps: { dayNote: hasNote(ev, o.key), sourceId: ev.id, occKey: o.key, calendar: ev.calendar, category: ev.category, location: ev.location, example: ev.example, exception: !!ev.seriesId },
+          classNames: [ev.example ? 'is-example' : '', done ? 'task-done' : '', ev.seriesId ? 'is-exception' : '', hasNote(ev, o.key) ? 'has-day-note' : '', ev.kind === 'task' && ev.allDay ? 'sandy-todo-glow' : ''].filter(Boolean),
+          extendedProps: { kind: ev.kind, dayNote: hasNote(ev, o.key), sourceId: ev.id, occKey: o.key, calendar: ev.calendar, category: ev.category, location: ev.location, example: ev.example, exception: !!ev.seriesId },
         });
       }
     }

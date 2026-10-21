@@ -362,12 +362,20 @@
         const redirect = CFG.SITE_URL && location.hostname === new URL(CFG.SITE_URL).hostname
           ? CFG.SITE_URL
           : location.origin + location.pathname.replace(/index\.html$/, '');
-        const { error } = await sb.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: redirect } });
-        if (error) throw error;
+        const { error } = await sb.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: redirect, shouldCreateUser: false } });
+        if (error) {
+          // Invite-only: Supabase refuses emails without an account (sign-ups are off).
+          if (error.status === 422 || /signups? not allowed|otp_disabled|user not found/i.test(error.message || '') || error.code === 'otp_disabled') {
+            const e = new Error('not_invited'); e.notInvited = true; throw e;
+          }
+          throw error;
+        }
       },
       async signOut() { await sb.auth.signOut(); },
       onSignIn(fn) { return sb.auth.onAuthStateChange((evt, session) => { if (session && (evt === 'SIGNED_IN' || evt === 'INITIAL_SESSION')) fn(session.user); }); },
-      isOwner(user) { return !!user && (!owner || (user.email || '').toLowerCase() === owner); },
+      // Invite-only: any account that exists in Supabase Auth was invited (sign-ups are off),
+      // and Row Level Security limits each account to its own calendars.
+      isOwner(user) { return !!user; },
     };
   }
 

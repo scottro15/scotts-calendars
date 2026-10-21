@@ -32,10 +32,12 @@ async function open(b, { jwt, email, localEvents } = {}) {
   // 1. signed out -> gate
   { const { ctx, p } = await open(b); await p.goto(BASE + '?view=timeGridWeek&date=2026-10-19');
     await p.waitForSelector('#authGate:not([hidden])'); assert(await p.isVisible('#authForm'), 'signed out: sign-in gate shown');
-    assert(await p.inputValue('#authEmail') === 'scottro1522@gmail.com', 'gate prefilled with owner email'); await ctx.close(); }
-  // 2. wrong account -> refused
+    assert(await p.inputValue('#authEmail') === '', 'gate does not prefill anyone\'s email'); await ctx.close(); }
+  // 2. another invited account -> own empty calendars
   { const { ctx, p } = await open(b, { jwt: process.env.OTHER_JWT, email: 'someone@else.com' }); await p.goto(BASE);
-    await p.waitForSelector('#authGate:not([hidden])'); assert(/doesn't have access/.test(await p.textContent('#authMsg')), 'non-owner account refused'); await ctx.close(); }
+    // Invite-only: an account only exists if Scott invited it, so a signed-in account gets in, and RLS shows it only its own (empty) calendars.
+    await p.waitForSelector('#calendar .fc-view'); assert(await p.isHidden('#authGate'), 'invited (non-Scott) account opens the app');
+    assert(await p.locator('.fc-event').count() === 0, 'invited account sees none of Scott\'s events'); await ctx.close(); }
 
   // 3. owner, with leftover local events -> migration
   const localEvents = [

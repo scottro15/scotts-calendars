@@ -302,3 +302,29 @@ dialog .checklist-items label:hover { background: #e0f2fe; }
 #calendar .fc-list-sticky .fc-list-day > * { background: var(--panel, #fff); }
 #calendar .fc-list-sticky .fc-list-day .fc-list-day-cushion { background: #f3f4f6; }
 #calendar .fc-list-sticky .fc-list-day.sandy-today-first .fc-list-day-cushion { background: #dbeafe; }
+
+/* Phones: no iOS auto-zoom. Safari zooms into any field under 16px when it gets focus. */
+@media (max-width: 800px), (pointer: coarse) {
+  input, select, textarea, dialog input, dialog select, dialog textarea { font-size: 16px; }
+  dialog { max-width: calc(100vw - 16px); box-sizing: border-box; }
+  dialog form { box-sizing: border-box; max-width: 100%; }
+}
+
+/* List View: all-day to-dos get a glowing border in their calendar's color that travels counter-clockwise. */
+@property --angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.fc-list tr.sandy-todo-glow { position: relative; }
+.fc-list tr.sandy-todo-glow > td { position: relative; }
+.fc-list tr.sandy-todo-glow::after {
+  content: ''; position: absolute; inset: 1px 2px; border-radius: 8px; padding: 2px; pointer-events: none;
+  background: conic-gradient(from var(--angle),
+    var(--cal) 0deg, color-mix(in srgb, var(--cal) 55%, transparent) 50deg,
+    color-mix(in srgb, var(--cal) 35%, transparent) 120deg, color-mix(in srgb, var(--cal) 35%, transparent) 300deg, var(--cal) 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--cal) 60%, transparent));
+  animation: sandy-ccw 4s linear infinite;
+}
+@keyframes sandy-ccw { from { --angle: 360deg; } to { --angle: 0deg; } }
+@media (prefers-reduced-motion: reduce) {
+  .fc-list tr.sandy-todo-glow::after { animation: none; background: var(--cal); opacity: .8; }
+}

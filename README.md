@@ -42,7 +42,7 @@ In Season mode the panel shows Spring, Summer, Autumn and Winter as buttons. It 
 ## Storage modes
 - **Local (default):** if `config.js` has no Supabase keys, data stays in this browser's localStorage and example events are seeded.
 - **Shared (Supabase):** if `config.js` has `SUPABASE_URL` and `SUPABASE_ANON_KEY`, the app:
-  - asks for **email magic-link sign-in**. Only `OWNER_EMAIL` (scottro1522@gmail.com) is let in, and the database enforces that with Row Level Security.
+  - asks for **email magic-link sign-in**. Invite-only: sign-ups are off in Supabase Auth and the app asks for magic links with `shouldCreateUser: false`, so an email without an invited account is refused ("hasn't been invited yet"). Row Level Security (`owner_id = auth.uid()`) limits each account to its own calendars.
   - reads and writes the shared `events` and `categories` tables.
   - shows bot changes **live** (Supabase Realtime) and also re-loads when the tab regains focus, when the device comes back online, every 5 minutes, and when you tap "Refresh now".
   - offers a one-time **"Import my local events"** on any device that still has pre-sync localStorage events (examples are optional).
