@@ -328,3 +328,13 @@ dialog .checklist-items label:hover { background: #e0f2fe; }
 @media (prefers-reduced-motion: reduce) {
   .fc-list tr.sandy-todo-glow::after { animation: none; background: var(--cal); opacity: .8; }
 }
+
+/* Notion link icon on events whose notes are in Notion (List + Day view, editor) */
+.notion-link { display: inline-flex; align-items: center; gap: 4px; flex: none; vertical-align: middle; margin-left: 6px; color: inherit; text-decoration: none; line-height: 1; }
+.notion-link svg { width: 14px; height: 14px; border-radius: 3px; display: block; }
+.notion-link:hover svg, .notion-link:focus-visible svg { outline: 2px solid currentColor; outline-offset: 1px; }
+.fc-timegrid-event .fc-event-main-frame { min-width: 0; }
+.fc-timegrid-event .notion-link { position: absolute; top: 2px; right: 2px; margin: 0; background: #fff; border-radius: 3px; padding: 1px; z-index: 2; }
+.fc-timegrid-event .fc-event-title-container { padding-right: 18px; }
+.day-note-notion { margin: 4px 0 0; }
+.day-note-notion .notion-link { margin-left: 0; font-weight: 600; color: var(--accent, #2563eb); }

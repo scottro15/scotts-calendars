@@ -873,6 +873,25 @@ def cmd_note_set(client, args):
     return dict(note_view(client, row, d, saved[0] if saved else {'body': body}), saved=True)
 
 
+NOTION_URL_RE = re.compile(r'^https://([a-z0-9-]+\.)*notion\.(so|com|site)/\S+$', re.I)
+
+
+def cmd_note_link(client, args):
+    """Record (or with --clear, remove) the Notion page holding one occurrence's notes."""
+    row, d = note_target(client, args.id, args.date)
+    key = {'event_id': f'eq.{row["id"]}', 'occurrence_date': f'eq.{d}'}
+    if args.clear:
+        gone = client.delete('occurrence_links', key)
+        return {'event_id': row['id'], 'date': d, 'title': row.get('title'), 'deleted': bool(gone)}
+    url = (args.url or '').strip()
+    if not NOTION_URL_RE.match(url):
+        raise SystemExit(json.dumps({'ok': False, 'error': 'url must be an https notion.so / notion.com / notion.site link'}))
+    saved = client.request('POST', 'occurrence_links', {'on_conflict': 'event_id,occurrence_date'},
+                           [{'event_id': row['id'], 'occurrence_date': d, 'notion_url': url}],
+                           prefer='return=representation,resolution=merge-duplicates', write=True)
+    return {'event_id': row['id'], 'date': d, 'title': row.get('title'), 'notion_url': url, 'saved': True}
+
+
 def cmd_note_list(client, args):
     rs, re_ = date_range(args)
     cals = parse_calendars(args.calendar) if args.calendar else list(CALENDARS)
@@ -977,6 +996,9 @@ def build_parser():
     p.add_argument('id'); p.add_argument('--date', help='YYYY-MM-DD occurrence (required for repeating events)')
     p = sub.add_parser('note-set', help="write Today's Note for one occurrence (empty text deletes it); never edits the event")
     p.add_argument('id'); p.add_argument('--date'); p.add_argument('--text', required=True)
+    p = sub.add_parser('note-link', help='record the Notion page for one occurrence\'s notes (shows a Notion icon in the app)')
+    p.add_argument('id'); p.add_argument('--date'); g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument('--url'); g.add_argument('--clear', action='store_true')
     p = sub.add_parser('note-list', help="all Today's Notes in a date range (JSON)")
     p.add_argument('--from', dest='from_'); p.add_argument('--to'); p.add_argument('--days', type=int)
     p.add_argument('--calendar', help='msc | mam | lifetime | all | comma list (default all)')
@@ -1001,11 +1023,11 @@ def main(argv=None):
     try:
         fn = {'list': cmd_list, 'find': cmd_find, 'get': cmd_get, 'categories': cmd_categories,
               'add': cmd_add, 'edit': cmd_edit, 'delete': cmd_delete,
-              'note-get': cmd_note_get, 'note-set': cmd_note_set, 'note-list': cmd_note_list}[args.cmd]
+              'note-get': cmd_note_get, 'note-set': cmd_note_set, 'note-list': cmd_note_list, 'note-link': cmd_note_link}[args.cmd]
         result = fn(client, args)
         out = {'ok': True, 'dry_run': dry}
         out.update(result if isinstance(result, dict) else {'result': result})
-        if dry and args.cmd in ('add', 'edit', 'delete', 'note-set'):
+        if dry and args.cmd in ('add', 'edit', 'delete', 'note-set', 'note-link'):
             for a, b in (('created', 'would_create'), ('after', 'would_be'), ('deleted', 'would_delete'),
                          ('created_exception', 'would_create_exception'), ('also_deleted_exceptions', 'would_also_delete_exceptions')):
                 if a in out:

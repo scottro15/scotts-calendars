@@ -275,6 +275,10 @@
         const t = info.el.querySelector('.fc-list-event-title a, .fc-event-title, .fc-list-event-title') || info.el;
         if (!t.querySelector('.day-note-dot')) { const d = document.createElement('span'); d.className = 'day-note-dot'; d.setAttribute('aria-label', "has Today's Note"); d.textContent = '📌'; t.appendChild(d); }
       }
+      if (p.notionUrl && (info.view.type.startsWith('list') || info.view.type === 'timeGridDay')) {
+        const t = info.el.querySelector('.fc-list-event-title, .fc-event-title-container, .fc-event-main-frame, .fc-event-main') || info.el;
+        if (!info.el.querySelector('.notion-link')) t.appendChild(notionLinkEl(p.notionUrl));
+      }
       if (info.view.type.startsWith('list')) { // remember times so the now-line can find its spot
         const e = info.event; const cc = CAL[info.event.extendedProps.calendar]?.color;
         if (cc) { info.el.style.setProperty('--cal', cc); info.el.classList.add('sandy-tint'); info.el.dataset.cal = info.event.extendedProps.calendar; }
@@ -382,15 +386,26 @@
     if (isRecurring(ev)) return { eventId: ev.id, date: occKey };
     return { eventId: ev.id, date: ymd(parseLocal(ev.start)) };
   }
+  const NOTION_SVG = '<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false"><path fill="#fff" d="M6 4.3 61.3.2c6.8-.6 8.5-.2 12.8 2.9l17.6 12.4c2.9 2.1 3.9 2.7 3.9 5v68.3c0 4.3-1.6 6.8-7 7.2L24.4 99.8c-4.1.2-6-.4-8.2-3.1L3.3 79.9C.9 76.8 0 74.5 0 71.8V11.1c0-3.5 1.6-6.4 6-6.8z"/><path fill="#000" fill-rule="evenodd" d="M61.3.2 6 4.3C1.6 4.7 0 7.6 0 11.1v60.7c0 2.7.9 5 3.3 8.1l12.9 16.8c2.1 2.7 4.1 3.3 8.2 3.1l64.2-3.9c5.4-.4 7-2.9 7-7.2V20.5c0-2.2-.9-2.9-3.4-4.8L74.1 3.1C69.8 0 68.1-.4 61.3.2zM25.9 19.5c-5.3.4-6.5.4-9.5-2L8.8 11.4c-.8-.8-.4-1.8 1.6-2l53.2-3.9c4.5-.4 6.8 1.2 8.5 2.5l9.1 6.6c.4.2 1.4 1.4.2 1.4l-54.9 3.3-.6.2zm-6.1 68.8V30.3c0-2.5.8-3.7 3.1-3.9l63.1-3.7c2.1-.2 3.1 1.2 3.1 3.7v57.6c0 2.5-.4 4.7-3.9 4.9l-60.4 3.5c-3.5.2-5-1-5-4.1zm59.6-54.9c.4 1.8 0 3.5-1.8 3.7l-2.9.6v42.6c-2.5 1.4-4.9 2.2-6.8 2.2-3.1 0-3.9-1-6.2-3.9L42.6 49.7v28.8l6 1.4s0 3.5-4.9 3.5l-13.4.8c-.4-.8 0-2.7 1.4-3.1l3.5-1V41.6l-4.9-.4c-.4-1.8.6-4.5 3.5-4.7l14.4-1 19.9 30.4V39l-5.1-.6c-.4-2.2 1.2-3.9 3.3-4.1l13.4-.8z"/></svg>';
+  function notionLinkEl(url) {
+    const a = document.createElement('a');
+    a.className = 'notion-link'; a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    a.title = 'Open notes in Notion'; a.setAttribute('aria-label', 'Open notes in Notion'); a.innerHTML = NOTION_SVG;
+    // never let the tap reach FullCalendar (which would open the editor)
+    for (const t of ['click', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'touchstart', 'touchend']) a.addEventListener(t, e => e.stopPropagation());
+    return a;
+  }
   async function noteSet() { return new Set((await Store.notes.all()).map(n => `${n.eventId}|${n.date}`)); }
   async function buildFcEvents(rs, re) {
     const all = await Store.list();
     const noted = await noteSet();
+    const links = new Map((await Store.links.all()).map(l => [`${l.eventId}|${l.date}`, l.url]));
     const out = [];
     for (const ev of all) {
       if (!settings.visible[ev.calendar]) continue;
       const c = CAL[ev.calendar] || CALENDARS[0];
       const hasNote = (e, k) => { const nk = noteKeyFor(e, k); return noted.has(`${nk.eventId}|${nk.date}`); };
+      const notionOf = (e, k) => { const nk = noteKeyFor(e, k); return links.get(`${nk.eventId}|${nk.date}`) || null; };
       for (const o of occurrences(ev, rs, re)) {
         const done = ev.kind === 'task' && isDone(ev, o.key);
         const prefix = ev.kind === 'task' ? (done ? '✓ ' : '☐ ') : '';
@@ -404,7 +419,7 @@
           backgroundColor: c.color, borderColor: c.color, textColor: '#fff',
           editable: true, // dragging one occurrence of a series detaches just that occurrence
           classNames: [ev.example ? 'is-example' : '', done ? 'task-done' : '', ev.seriesId ? 'is-exception' : '', hasNote(ev, o.key) ? 'has-day-note' : '', ev.kind === 'task' && ev.allDay ? 'sandy-todo-glow' : ''].filter(Boolean),
-          extendedProps: { kind: ev.kind, dayNote: hasNote(ev, o.key), sourceId: ev.id, occKey: o.key, calendar: ev.calendar, category: ev.category, location: ev.location, example: ev.example, exception: !!ev.seriesId },
+          extendedProps: { kind: ev.kind, dayNote: hasNote(ev, o.key), notionUrl: notionOf(ev, o.key), sourceId: ev.id, occKey: o.key, calendar: ev.calendar, category: ev.category, location: ev.location, example: ev.example, exception: !!ev.seriesId },
         });
       }
     }
@@ -885,6 +900,8 @@
       ? "Saves automatically. Other dates of this event won't show it. Clear the text to delete it."
       : "Today's Note needs a one-time database update before it can save (see README → Day notes).";
     dayTa.value = n ? n.body : '';
+    const nl = document.getElementById('dayNoteNotion'); const url = await Store.links.get(nk.eventId, nk.date);
+    if (nl) { nl.replaceChildren(); nl.hidden = !url; if (url) { const a = notionLinkEl(url); a.append(' Open in Notion'); nl.append(a); } }
     dayCtx = { ...nk, saved: dayTa.value };
     requestAnimationFrame(growDayNote);
   }

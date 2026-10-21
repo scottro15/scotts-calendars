@@ -18,7 +18,7 @@
   const KEY = 'scottcal.events.v1';
   const SETTINGS_KEY = 'scottcal.settings.v1';
   const CATS_KEY = 'scottcal.categories.v1';
-  const NOTES_KEY = 'scottcal.occurrenceNotes.v1'; const CHECKS_KEY = 'scott-calendar-checks-v1';
+  const NOTES_KEY = 'scottcal.occurrenceNotes.v1'; const LINKS_KEY = 'scott-calendar-links-v1'; const CHECKS_KEY = 'scott-calendar-checks-v1';
   const MIGRATED_KEY = 'scottcal.migratedToSupabase.v1';
   const CFG = window.CALENDAR_CONFIG || {};
 
@@ -57,6 +57,7 @@
     async upsertNote(n) { const all = readJSON(NOTES_KEY, []); const i = all.findIndex(x => x.eventId === n.eventId && x.date === n.date); if (i >= 0) all[i] = n; else all.push(n); localStorage.setItem(NOTES_KEY, JSON.stringify(all)); return n; },
     // Checklist ticks ('- [ ]' lines in notes), one row per (event_id, occurrence_date).
     async loadChecks() { return readJSON(CHECKS_KEY, []); },
+    async loadLinks() { return readJSON(LINKS_KEY, []); },
     async upsertChecks(c) { const all = readJSON(CHECKS_KEY, []).filter(x => !(x.eventId === c.eventId && x.date === c.date)); all.push(c); localStorage.setItem(CHECKS_KEY, JSON.stringify(all)); return c; },
     async deleteNote(eventId, date) { localStorage.setItem(NOTES_KEY, JSON.stringify(readJSON(NOTES_KEY, []).filter(x => !(x.eventId === eventId && x.date === date)))); },
     ...deviceSettings,
@@ -165,6 +166,10 @@
           if (rows.length < page) return out;
         }
       },
+      async loadLinks() {
+        const rows = must(await sb.from('occurrence_links').select('event_id,occurrence_date,notion_url'));
+        return rows.map(r => ({ eventId: r.event_id, date: r.occurrence_date, url: r.notion_url }));
+      },
       async upsertChecks(c) {
         must(await sb.from('occurrence_checks').upsert({ event_id: c.eventId, occurrence_date: c.date, checked: c.checked }, { onConflict: 'event_id,occurrence_date' }));
         return c;
@@ -183,7 +188,11 @@
         const ch3 = sb.channel('checklist-changes')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'occurrence_checks' }, p => onChange('checks', p))
           .subscribe();
-        return () => { sb.removeChannel(ch); sb.removeChannel(ch2); sb.removeChannel(ch3); };
+        // own channel: occurrence_links exists only after the notion-links migration
+        const ch4 = sb.channel('link-changes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'occurrence_links' }, p => onChange('links', p))
+          .subscribe();
+        return () => { sb.removeChannel(ch); sb.removeChannel(ch2); sb.removeChannel(ch3); sb.removeChannel(ch4); };
       },
       fromRow,
       ...deviceSettings,
@@ -196,6 +205,7 @@
     let cats = null;
     let notesCache = null;
     let checksCache = null;
+    let linksCache = null;
     const listeners = new Set();
     const remote = adapter.name !== 'local';
     const emit = (why) => listeners.forEach(fn => { try { fn(why); } catch (e) { console.error(e); } });
@@ -241,11 +251,12 @@
         } else { cache = [...events]; await writeLocal(); }
       },
       /** Re-read everything from the backend (realtime / tab focus). */
-      async reload() { cache = (await adapter.loadAll()) || []; cats = null; notesCache = null; checksCache = null; emit('reload'); return cache; },
+      async reload() { cache = (await adapter.loadAll()) || []; cats = null; notesCache = null; checksCache = null; linksCache = null; emit('reload'); return cache; },
       /** Apply a realtime row change without a full reload. */
       applyRemoteChange(table, p) {
         if (table === 'notes') { notesCache = null; emit('notes'); return; }
         if (table === 'checks') { checksCache = null; emit('checks'); return; }
+        if (table === 'links') { linksCache = null; emit('notes'); return; }
         if (table !== 'events' || !cache) { cats = null; emit('categories'); return; }
         if (p.eventType === 'DELETE') { const id = p.old && p.old.id; if (id) cache = cache.filter(e => e.id !== id && e.seriesId !== id); }
         else if (p.new && p.new.id) put(adapter.fromRow(p.new));
@@ -291,6 +302,18 @@
           return c;
         },
         invalidate() { checksCache = null; },
+      },
+      /** Notion links per occurrence (read-only in the app; written by the sync routine via cal.py note-link). */
+      links: {
+        available: true,
+        async all() {
+          if (linksCache) return linksCache;
+          try { linksCache = ((await adapter.loadLinks?.()) || []).filter(l => /^https:\/\/([a-z0-9-]+\.)*notion\.(so|com|site)\//i.test(l.url || '')); this.available = true; }
+          catch (e) { console.warn('Notion links unavailable:', e); this.available = false; linksCache = []; }
+          return linksCache;
+        },
+        async get(eventId, date) { const l = (await this.all()).find(x => x.eventId === eventId && x.date === date); return l ? l.url : null; },
+        invalidate() { linksCache = null; },
       },
       onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 
