@@ -225,14 +225,22 @@
   // List View now-line state (declared before the calendar: datesSet fires during render)
   let listScrollPending = false, lastViewType = null, listDecoTimer = 0, listDecorating = false;
   const narrow = window.matchMedia('(max-width: 600px)').matches;
+  // Remember the last view (not the date): reopen it on today. ?view= / deep links win.
+  const VIEW_KEY = 'sandy.lastView', VIEWS = ['dayGridMonth', 'timeGridWeek', 'timeGridDay', 'listWeek'];
+  let savedView = null; try { savedView = localStorage.getItem(VIEW_KEY); } catch (_) {}
+  const initialViewType = params.get('view') || (VIEWS.includes(savedView) ? savedView : (narrow ? 'listWeek' : 'dayGridMonth'));
+  // Cold open in List View: keep re-scrolling to today while events load, until the user scrolls.
+  let coldListUntil = initialViewType.startsWith('list') && !params.get('review') ? Date.now() + 4000 : 0;
+  const stopCold = () => { coldListUntil = 0; };
+  ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(t => window.addEventListener(t, stopCold, { passive: true, once: true }));
   const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
     timeZone: 'UTC',          // see "Date helpers": UTC fields == Chicago wall clock
     now: () => nowWall(),     // so "today" and the now-line are Chicago's, on any device
-    initialView: params.get('view') || (narrow ? 'listWeek' : 'dayGridMonth'),
-    initialDate: params.get('date') || undefined,
+    initialView: initialViewType,
+    initialDate: params.get('date') || undefined, // no date => today, even when restoring the last view
     headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' },
     buttonText: { today: 'Today', month: 'Month', week: 'Week', day: 'Day', list: 'List' },
-    views: { listWeek: { buttonText: 'List' } },
+    views: { listWeek: { buttonText: 'List' }, timeGridDay: { dayHeaderFormat: { weekday: 'long' } } },
     height: 'auto',
     firstDay: 0,
     nowIndicator: true,
@@ -257,7 +265,7 @@
       calendar.unselect();
     },
     eventDrop: info => moveEvent(info), eventResize: info => moveEvent(info),
-    datesSet: info => { markTitle(); if (briefReady) renderBriefing(); listDatesSet(info.view); },
+    datesSet: info => { try { localStorage.setItem(VIEW_KEY, info.view.type); } catch (_) {} syncStickyOffsets(); markTitle(); if (briefReady) renderBriefing(); listDatesSet(info.view); },
     eventsSet: () => scheduleListDecorate(),
     eventDidMount: info => {
       const p = info.event.extendedProps;
@@ -286,8 +294,18 @@
   function listDatesSet(view) {
     const isList = view.type.startsWith('list');
     if (isList && lastViewType !== view.type) listScrollPending = true;
+    if (lastViewType && lastViewType !== view.type) coldListUntil = 0;
     lastViewType = view.type; scheduleListDecorate();
   }
+  // Sticky stack: app top bar, then FullCalendar toolbar, then day headers (offsets via CSS vars).
+  function syncStickyOffsets() {
+    const top = document.querySelector('.topbar'), tb = document.querySelector('#calendar .fc-header-toolbar');
+    const th = top && /sticky|fixed/.test(getComputedStyle(top).position) ? top.getBoundingClientRect().height : 0;
+    const r = document.documentElement.style;
+    r.setProperty('--topbar-h', th + 'px'); r.setProperty('--fc-toolbar-h', (tb ? tb.getBoundingClientRect().height : 0) + 'px');
+  }
+  window.addEventListener('resize', () => syncStickyOffsets());
+  if (window.ResizeObserver) new ResizeObserver(() => syncStickyOffsets()).observe(document.querySelector('.topbar') || document.body);
   function scheduleListDecorate() { cancelAnimationFrame(listDecoTimer); listDecoTimer = requestAnimationFrame(decorateList); }
   const fmtNow = d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
   function decorateList() {
@@ -344,11 +362,13 @@
       const ordered = [header]; for (let r = header.nextElementSibling; r && all.includes(r); r = r.nextElementSibling) ordered.push(r);
       ordered.forEach(r => r.classList.add('sandy-today'));
       ordered[0].classList.add('sandy-today-first'); ordered[ordered.length - 1].classList.add('sandy-today-last');
-      if (listScrollPending) {
-        listScrollPending = false;
-        const top = document.querySelector('.topbar'); const stuck = top && /sticky|fixed/.test(getComputedStyle(top).position); const off = (stuck ? top.getBoundingClientRect().height : 0) + 4;
+      const cold = coldListUntil && Date.now() < coldListUntil;
+      if (listScrollPending || cold) {
+        listScrollPending = false; syncStickyOffsets();
+        const cs = getComputedStyle(document.documentElement);
+        const off = (parseFloat(cs.getPropertyValue('--topbar-h')) || 0) + (parseFloat(cs.getPropertyValue('--fc-toolbar-h')) || 0);
         const y = header.getBoundingClientRect().top + window.scrollY - off;
-        if (Math.abs(y - window.scrollY) > 4 && y > 0) setTimeout(() => window.scrollTo({ top: y, behavior: 'smooth' }), 60);
+        if (Math.abs(y - window.scrollY) > 4 && y > 0) setTimeout(() => window.scrollTo({ top: y, behavior: cold ? 'auto' : 'smooth' }), 60);
       }
     } finally { listDecorating = false; }
   }

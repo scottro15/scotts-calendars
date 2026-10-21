@@ -7,7 +7,7 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { margin: 0; height: 100%; }
+html, body { margin: 0; } html { height: 100%; } body { min-height: 100%; } /* not height: a fixed body height un-sticks the top bar on long pages */
 body { font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--text); background: var(--bg); }
 button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 6px 12px; }
 button.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
@@ -292,3 +292,13 @@ dialog .checklist-items label:hover { background: #e0f2fe; }
 .checklist-items input { width: 20px; height: 20px; flex: none; margin: 0; accent-color: #0284c7; }
 .checklist-items input:checked + span { text-decoration: line-through; color: #64748b; }
 .checklist-items input:disabled + span { color: #475569; }
+
+/* ---- Sticky headers: top bar -> FullCalendar toolbar -> day headers ---- */
+:root { --topbar-h: 0px; --fc-toolbar-h: 0px; }
+#calendar .fc-header-toolbar { position: sticky; top: var(--topbar-h); z-index: 20; background: var(--bg, #f8fafc); margin-bottom: 0 !important; padding: 6px 0; box-shadow: 0 1px 0 var(--line); }
+#calendar .fc-scrollgrid-section-sticky > *,
+#calendar .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > * { top: calc(var(--topbar-h) + var(--fc-toolbar-h)) !important; z-index: 15; background: var(--panel, #fff); }
+#calendar .fc-list-sticky .fc-list-day > * { top: calc(var(--topbar-h) + var(--fc-toolbar-h)) !important; z-index: 10; }
+#calendar .fc-list-sticky .fc-list-day > * { background: var(--panel, #fff); }
+#calendar .fc-list-sticky .fc-list-day .fc-list-day-cushion { background: #f3f4f6; }
+#calendar .fc-list-sticky .fc-list-day.sandy-today-first .fc-list-day-cushion { background: #dbeafe; }

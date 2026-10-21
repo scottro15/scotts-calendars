@@ -35,9 +35,9 @@ const T0 = new Date('2026-10-21T23:15:00Z');
       return { prev, next };
     });
     assert(pos.prev.every(s => s <= '2026-10-21T18:15') && pos.next.every(s => s > '2026-10-21T18:15'), `${N} line between events by time (${JSON.stringify(pos)})`);
-    // scroll: header just below the sticky topbar
-    const geo = await p.evaluate(() => ({ y: scrollY, top: document.querySelector('tr.sandy-today-first').getBoundingClientRect().top, bar: /sticky|fixed/.test(getComputedStyle(document.querySelector('.topbar')).position) ? document.querySelector('.topbar').getBoundingClientRect().height : 0 }));
-    assert(geo.y > 0 && Math.abs(geo.top - geo.bar - 4) < 6, `${N} scrolled so today sits at top (${JSON.stringify(geo)})`);
+    // scroll: header just below the sticky topbar + sticky FullCalendar toolbar
+    const geo = await p.evaluate(() => ({ y: scrollY, top: document.querySelector('tr.sandy-today-first').getBoundingClientRect().top, bar: /sticky|fixed/.test(getComputedStyle(document.querySelector('.topbar')).position) ? document.querySelector('.topbar').getBoundingClientRect().height : 0, tool: document.querySelector('.fc-header-toolbar').getBoundingClientRect().height }));
+    assert(geo.y > 0 && Math.abs(geo.top - geo.bar - geo.tool) < 6, `${N} scrolled so today sits at top (${JSON.stringify(geo)})`);
     // minute tick moves label; no re-scroll
     await p.evaluate(() => window.scrollTo(0, 0));
     await p.clock.runFor(60000); await p.waitForTimeout(50);
