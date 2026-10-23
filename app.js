@@ -652,7 +652,7 @@
 
   async function moveEvent(info) {
     const ev = await Store.get(info.event.extendedProps.sourceId);
-    if (!ev) { info.revert(); return; }
+    if (!ev) { info.revert(); refresh(); return; }
     const s = info.event.start, e = info.event.end;
     const allDay = info.event.allDay;
     const times = allDay
@@ -662,14 +662,14 @@
       if (isRecurring(ev)) {
         const occKey = info.event.extendedProps.occKey;
         const choice = await askScope({ mode: 'move', occKey, title: ev.title });
-        if (!choice) { info.revert(); return; }
+        if (!choice) { info.revert(); refresh(); return; }
         if (choice === 'one') { await Store.saveMany(detachOccurrence(ev, occKey, times)); toast('Moved this event only'); }
         else {
-          if (ev.allDay !== allDay) { info.revert(); toast("Can't switch a whole series between all-day and timed by dragging"); return; }
+          if (ev.allDay !== allDay) { info.revert(); refresh(); toast("Can't switch a whole series between all-day and timed by dragging"); return; }
           Object.assign(ev, shiftSeries(ev, occurrenceStart(ev, occKey), times)); await Store.save(ev); toast('Moved all events in the series');
         }
       } else { Object.assign(ev, times); await Store.save(ev); toast('Moved'); }
-    } catch (err) { info.revert(); fail(err); return; }
+    } catch (err) { info.revert(); refresh(); fail(err); return; }
     refresh();
   }
 

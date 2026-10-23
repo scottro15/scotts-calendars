@@ -400,3 +400,10 @@ html, body { overscroll-behavior-x: none; }
 .fc-event.task-done.has-todo-check { opacity: .6; }
 /* Overdue to-dos in the to-do panel */
 #taskList li.overdue .overdue-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 9px; background: #fee2e2; color: #b91c1c; font-size: 11px; font-weight: 600; white-space: nowrap; }
+
+/* Readable confirm dialogs: near-black text everywhere (Scott 2026-10-22) */
+.scope-dialog, .scope-dialog h2, .scope-dialog p, .scope-dialog .muted, .scope-dialog .small,
+.scope-dialog .scope-opt, .scope-dialog .scope-opt strong, .scope-dialog .scope-opt span, .scope-dialog #scopeCancel { color: #111; opacity: 1; }
+.scope-dialog .scope-opt:disabled, .scope-dialog .scope-opt:disabled * { color: #374151; }
+.scope-dialog #scopeCancel { background: #fff; border: 1px solid #9ca3af; }
+.acct-del h2, .acct-del p, .acct-del label { color: #111; }
