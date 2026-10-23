@@ -301,6 +301,13 @@
         const t = info.el.querySelector('.fc-list-event-title, .fc-event-title-container, .fc-event-main-frame, .fc-event-main') || info.el;
         if (!info.el.querySelector('.notion-link')) t.appendChild(notionLinkEl(p.notionUrl));
       }
+      if (p.kind === 'task' && (info.view.type.startsWith('list') || info.view.type === 'timeGridDay') && !info.el.querySelector('.todo-check')) {
+        const t = info.el.querySelector('.fc-list-event-title a, .fc-event-title, .fc-list-event-title');
+        if (t) { const w = document.createTreeWalker(t, NodeFilter.SHOW_TEXT); const n = w.nextNode(); if (n) n.nodeValue = n.nodeValue.replace(/^(☐|✓) /, ''); }
+        const host = info.el.querySelector('.fc-list-event-title') || info.el.querySelector('.fc-event-main-frame, .fc-event-main') || info.el;
+        host.insertBefore(todoCheckEl(p.sourceId, p.occKey, info.el.classList.contains('task-done'), CAL[p.calendar]?.color), host.firstChild);
+        info.el.classList.add('has-todo-check');
+      }
       if (info.view.type.startsWith('list')) { // remember times so the now-line can find its spot
         const e = info.event; const cc = CAL[info.event.extendedProps.calendar]?.color;
         if (cc) { info.el.style.setProperty('--cal', cc); info.el.classList.add('sandy-tint'); info.el.dataset.cal = info.event.extendedProps.calendar; }
@@ -377,7 +384,7 @@
   (function swipeNav() {
     const el = swipeCalEl;
     let s = null;
-    const blocked = t => t.closest('input, textarea, select, [contenteditable], dialog, .modal, .menu, .fc-popover, .fc-event-resizer, .fc-event-dragging, .fc-header-toolbar');
+    const blocked = t => t.closest('input, textarea, select, [contenteditable], dialog, .modal, .menu, .fc-popover, .fc-event-resizer, .fc-event-dragging, .fc-header-toolbar, .todo-check');
     const dragging = () => document.querySelector('.fc-event-dragging, .fc-event-mirror');
     el.addEventListener('touchstart', e => {
       if (e.touches.length !== 1 || blocked(e.target) || document.querySelector('dialog[open]')) { s = null; return; }
@@ -829,12 +836,23 @@
     for (const b of scopeTabs.querySelectorAll('button')) b.classList.toggle('active', b.dataset.scope === scope);
     scopeTabs.querySelector('[data-scope=season]').textContent = seasonName();
     const [ps, pe] = periodFor(scope);
-    const all = (await Store.list()).filter(e => e.kind === 'task' && settings.visible[e.calendar] && (e.scope || 'day') === scope);
-    const items = [];
-    for (const ev of all) {
-      const occ = occurrences(ev, ps, pe);
-      for (const o of occ) items.push({ ev, key: o.key, date: o.start, overdue: false });
-      if (!isRecurring(ev) && !occ.length && !ev.done && parseLocal(ev.start) < ps) items.push({ ev, key: ymd(parseLocal(ev.start)), date: parseLocal(ev.start), overdue: true });
+    const tasks = (await Store.list()).filter(e => e.kind === 'task' && settings.visible[e.calendar]);
+    const now = nowWall(), today = startOfDay(now);
+    // when is an occurrence overdue: all-day = after its day, timed = after its end
+    const dueAt = (ev, o) => ev.allDay ? addDays(startOfDay(o.start), 1) : (o.end && o.end > o.start ? o.end : o.start);
+    const items = [], seen = new Set();
+    const add = (ev, o) => {
+      const k = `${ev.id}|${o.key}`; if (seen.has(k)) return; seen.add(k);
+      const done = isDone(ev, o.key), due = dueAt(ev, o), overdue = !done && due <= now;
+      items.push({ ev, key: o.key, date: o.start, overdue, overdueMs: overdue ? now - (ev.allDay ? startOfDay(o.start) : due) : 0 });
+    };
+    for (const ev of tasks) {
+      if ((ev.scope || 'day') === scope) for (const o of occurrences(ev, ps, pe)) add(ev, o);
+      // unfinished to-dos from before now show in every tab; for a repeating to-do only its most recent
+      // missed occurrence (last 60 days), so a daily task doesn't flood the list
+      const back = isRecurring(ev) ? addDays(today, -60) : W(1970, 0, 1);
+      const missed = occurrences(ev, back, addDays(today, 1)).filter(o => !isDone(ev, o.key) && dueAt(ev, o) <= now);
+      for (const o of isRecurring(ev) ? missed.slice(-1) : missed) add(ev, o);
     }
     items.sort((a, b) => (a.overdue === b.overdue ? 0 : a.overdue ? -1 : 1) || a.date - b.date);
     const open = items.filter(i => !isDone(i.ev, i.key)).length;
@@ -846,12 +864,41 @@
       const c = CAL[it.ev.calendar];
       li.innerHTML = `<input type="checkbox" ${done ? 'checked' : ''}><span><span class="t"></span><span class="meta"></span></span>`;
       li.querySelector('.t').textContent = it.ev.title;
-      li.querySelector('.meta').textContent = `${it.overdue ? '⚠ Overdue · ' : ''}${c?.short || ''} · ${fmtDay(it.date)}${it.ev.example ? ' · Example' : ''}`;
+      if (it.overdue) { li.classList.add('overdue'); const od = document.createElement('span'); od.className = 'overdue-badge'; od.textContent = `Overdue ${overdueText(it.overdueMs)}`; li.querySelector('.t').after(od); }
+      li.querySelector('.meta').textContent = `${c?.short || ''} · ${it.overdue ? 'Due ' : ''}${fmtDay(it.date)}${it.ev.example ? ' · Example' : ''}`;
       li.querySelector('input').style.accentColor = c?.color;
       li.querySelector('input').addEventListener('change', async e => { await setDone(it.ev.id, it.key, e.target.checked); });
       li.querySelector('.t').addEventListener('click', () => openEditor(it.ev.id, it.key));
       taskListEl.appendChild(li);
     }
+  }
+  /** Tappable to-do box for List / Day view: ~34px hit area, never opens the editor or starts a swipe. */
+  function todoCheckEl(id, key, done, color) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'todo-check' + (done ? ' checked' : '');
+    b.setAttribute('role', 'checkbox'); b.setAttribute('aria-checked', String(done)); b.setAttribute('aria-label', done ? 'Mark not done' : 'Mark done');
+    if (color) b.style.setProperty('--cal', color);
+    b.innerHTML = '<span class="box" aria-hidden="true"></span>';
+    for (const t of ['mousedown', 'mouseup', 'pointerdown', 'pointerup', 'touchstart', 'touchmove', 'touchend']) b.addEventListener(t, e => e.stopPropagation());
+    b.addEventListener('click', e => {
+      e.preventDefault(); e.stopPropagation();
+      const v = b.getAttribute('aria-checked') !== 'true';
+      b.classList.toggle('checked', v); b.setAttribute('aria-checked', String(v));
+      b.closest('.fc-event')?.classList.toggle('task-done', v);
+      setDone(id, key, v);
+    });
+    return b;
+  }
+  /** "4 days", "3 hrs", "2 wks", "1 mo" — largest sensible unit. */
+  function overdueText(ms) {
+    const m = Math.max(1, Math.floor(ms / 60000)), h = Math.floor(m / 60), d = Math.floor(h / 24);
+    const u = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+    if (h < 1) return u(m, 'min', 'mins');
+    if (d < 1) return u(h, 'hr', 'hrs');
+    if (d < 14) return u(d, 'day', 'days');
+    if (d < 60) return u(Math.floor(d / 7), 'wk', 'wks');
+    if (d < 365) return u(Math.floor(d / 30.44), 'mo', 'mos');
+    return u(Math.floor(d / 365.25), 'yr', 'yrs');
   }
   async function setDone(id, key, val) {
     const ev = await Store.get(id); if (!ev) return;

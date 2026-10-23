@@ -45,7 +45,7 @@ button.primary.danger { background: #b91c1c; color: #fff; }
 .scope-tabs button.active { background: var(--lifetime); color: #fff; border-color: var(--lifetime); }
 .task-list { list-style: none; margin: 0 0 6px; padding: 0; }
 .task-list li { display: flex; gap: 8px; align-items: flex-start; padding: 6px 2px; border-bottom: 1px dashed var(--line); }
-.task-list li input { margin-top: 3px; width: 17px; height: 17px; accent-color: var(--lifetime); }
+.task-list li input { flex: none; margin-top: 3px; width: 17px; height: 17px; accent-color: var(--lifetime); }
 .task-list li.done .t { text-decoration: line-through; color: var(--muted); }
 .task-list li .t { cursor: pointer; } .task-list li .meta { display: block; font-size: 12px; color: var(--muted); }
 .task-list .empty { color: var(--muted); font-size: 13px; border: none; }
@@ -389,3 +389,14 @@ html, body { overscroll-behavior-x: none; }
 #calendar { position: relative; }
 .swipe-ghost { height: 0; overflow: hidden; }
 .swipe-ghost.on { height: auto; overflow: visible; }
+
+/* Tappable to-do box in List / Day view: 34px hit area around an 18px box */
+.todo-check { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin: -8px 2px -8px -8px; padding: 0; border: 0; background: transparent; cursor: pointer; vertical-align: middle; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.todo-check .box { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--cal, #2563eb); background: #fff; box-sizing: border-box; position: relative; }
+.todo-check.checked .box { background: var(--cal, #2563eb); }
+.todo-check.checked .box::after { content: ''; position: absolute; left: 4px; top: 0; width: 5px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.fc-timegrid-event .todo-check { margin: -6px 0 -6px -6px; }
+.fc-timegrid-event.has-todo-check .fc-event-main-frame { flex-direction: row; align-items: flex-start; }
+.fc-event.task-done.has-todo-check { opacity: .6; }
+/* Overdue to-dos in the to-do panel */
+#taskList li.overdue .overdue-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 9px; background: #fee2e2; color: #b91c1c; font-size: 11px; font-weight: 600; white-space: nowrap; }
