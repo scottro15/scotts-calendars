@@ -11,7 +11,7 @@ $P -d $DB -f local-test/supabase_stubs.sql 2>/dev/null
 $P -d $DB -c "insert into auth.users values ('f85fb17b-2943-4266-b1b2-dc130ae8b678','scottro1522@gmail.com'),('aaaaaaaa-0000-0000-0000-00000000000a','alice@example.com'),('bbbbbbbb-0000-0000-0000-00000000000b','bob@example.com')"
 # local stand-in for Supabase Vault; the pg_cron/pg_net part (section 5 of the push migration) is cut off locally
 $P -d $DB -q -c "create schema if not exists vault; create table if not exists vault.secrets(name text unique, secret text); create or replace view vault.decrypted_secrets as select name, secret as decrypted_secret from vault.secrets; create or replace function vault.create_secret(s text, n text, d text default null) returns uuid language sql as 'insert into vault.secrets values (n, s) returning gen_random_uuid()';"
-sed '/^-- -* 5\. every-minute job/,$d' schema.sql | $P -d $DB -o /dev/null 2>/dev/null
+sed '/^-- -* 5\. every-minute job/,/^select jobname, schedule, active/d' schema.sql | $P -d $DB -o /dev/null 2>/dev/null
 $P -d $DB -c "insert into public.events (calendar,title,start_at) values ('msc','Scott private event','2026-10-26 09:00')"
 $P -d $DB -c "notify pgrst, 'reload schema'"
 echo "reset $DB"

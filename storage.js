@@ -85,6 +85,7 @@
       done: !!ev.done, completed_dates: ev.completedDates || [],
       example: !!ev.example, source: 'app',
       reminders: cleanReminders(ev.reminders),
+      todo_category_id: isTask ? (ev.todoCategoryId || null) : null,
     };
   }
   // minutes before start; max 6, 0..267840 (186 days), no duplicates (matches the DB check)
@@ -97,7 +98,7 @@
         freq: row.recur_freq, interval: row.recur_interval || 1, until: row.recur_until || null,
         byWeekday: row.recur_freq === 'weekly' ? (row.recur_by_weekday || undefined) : undefined,
       },
-      exdates: row.exdates || [], location: row.location || '', notes: row.notes || '', reminders: row.reminders || [],
+      exdates: row.exdates || [], location: row.location || '', notes: row.notes || '', reminders: row.reminders || [], todoCategoryId: row.todo_category_id || null,
       example: !!row.example, source: row.source, createdAt: row.created_at, updatedAt: row.updated_at,
     };
     if (row.series_id) { ev.seriesId = row.series_id; ev.originalDate = row.original_date; }
@@ -137,16 +138,21 @@
         const sorted = [...events].sort((a, b) => (a.seriesId ? 1 : 0) - (b.seriesId ? 1 : 0));
         const saved = [];
         for (let i = 0; i < sorted.length; i += 500) {
-          let batch = sorted.slice(i, i + 500).map(toRow);
-          if (this.remindersSupported === false) batch = batch.map(({ reminders, ...r }) => r);
-          let res = await sb.from('events').upsert(batch).select();
-          // before the push migration runs there is no reminders column: save everything else
-          if (res.error && /reminders/.test(res.error.message || '') && this.remindersSupported !== false) {
-            this.remindersSupported = false; batch = batch.map(({ reminders, ...r }) => r);
-            res = await sb.from('events').upsert(batch).select();
+          // columns added by later migrations: until they run, save everything else
+          const OPT = ['reminders', 'todo_category_id'];
+          this.missingCols = this.missingCols || new Set();
+          const strip = rs => rs.map(r => { const o = { ...r }; for (const c of this.missingCols) delete o[c]; return o; });
+          const raw = sorted.slice(i, i + 500).map(toRow);
+          let res = await sb.from('events').upsert(strip(raw)).select();
+          for (let tries = 0; res.error && tries < OPT.length; tries++) {
+            const c = OPT.find(c => !this.missingCols.has(c) && (res.error.message || '').includes(c));
+            if (!c) break;
+            this.missingCols.add(c); if (c === 'reminders') this.remindersSupported = false;
+            res = await sb.from('events').upsert(strip(raw)).select();
           }
           const rows = must(res);
           if (rows[0] && 'reminders' in rows[0]) this.remindersSupported = true;
+          if (rows[0] && 'todo_category_id' in rows[0]) this.todoCategoriesSupported = true;
           saved.push(...rows.map(fromRow));
         }
         return saved;
@@ -169,7 +175,7 @@
       async saveProfile(p) { return must(await sb.from('profiles').upsert(p).select().single()); },
       async exportAccount() {
         const out = {};
-        for (const t of ['profiles', 'calendars', 'events', 'categories', 'occurrence_notes', 'occurrence_checks', 'occurrence_links']) {
+        for (const t of ['profiles', 'calendars', 'events', 'categories', 'occurrence_notes', 'occurrence_checks', 'occurrence_links', 'todo_categories', 'inbox_items']) {
           const rows = []; const page = 1000;
           for (let from = 0; ; from += page) {
             const { data, error } = await sb.from(t).select('*').range(from, from + page - 1);

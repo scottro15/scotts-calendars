@@ -25,3 +25,12 @@ end $$;
 create or replace function auth.role() returns text language sql stable as $$
   select nullif(auth.jwt() ->> 'role', '') $$;
 create table if not exists auth.users (id uuid primary key, email text);
+-- (nav revamp) minimal Supabase Storage: buckets, objects, storage.foldername()
+create schema if not exists storage;
+grant usage on schema storage to anon, authenticated, service_role;
+create table if not exists storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+create table if not exists storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text references storage.buckets(id), name text, owner uuid default auth.uid(), unique (bucket_id, name));
+alter table storage.objects enable row level security;
+grant select, insert, update, delete on storage.objects to authenticated;
+create or replace function storage.foldername(name text) returns text[] language sql immutable as $$
+  select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $$;

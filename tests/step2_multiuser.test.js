@@ -82,8 +82,8 @@ const SCOTT_CALS = ['MSC – Mental Stability Community', 'Minds Above Matters',
     assert(total === 0, 'isolation: tester sees none of Scott\'s events');
     assert(/Free plan/.test(await p.textContent('#planBadge')), 'plan shows Free');
     await p.screenshot({ path: SHOT + '22_tester_after_welcome_mobile.png' });
-    // export (open the menu drawer on mobile)
-    await p.click('#menuBtn'); await p.waitForTimeout(400); await p.$eval('#accountSection', el => el.scrollIntoView());
+    // export (Profile tab)
+    await p.click('#bottomNav [data-tab=profile]'); await p.waitForTimeout(400); await p.$eval('#accountSection', el => el.scrollIntoView());
     await p.screenshot({ path: SHOT + '22_account_menu_mobile.png' });
     const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#acctExport')]);
     const data = JSON.parse(fs.readFileSync(await dl.path(), 'utf8'));

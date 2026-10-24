@@ -61,13 +61,13 @@ const SVC = sign({ role: 'service_role', exp: Math.floor(Date.now() / 1000) + 86
   }
   const calNames = p => p.$$eval('#calToggles .cal-toggle', ls => ls.map(l => l.textContent.replace(/\d+$/, '').trim()));
   const hourIn = tz => +new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', hourCycle: 'h23' }).format(new Date()) % 24;
-  const openMenu = async p => { if (await p.isVisible('#menuBtn') && !(await p.$eval('#sidebar', s => s.classList.contains('open')))) { await p.click('#menuBtn'); await p.waitForTimeout(350); } await p.waitForSelector('#accountSection'); };
+  const openMenu = async p => { await p.waitForFunction(() => window.SandyNav); await p.evaluate(() => window.SandyNav.go('profile')); await p.waitForTimeout(350); await p.waitForSelector('#accountSection'); };
 
   // 1. Scott (admin): unchanged calendars, Chicago, Invites screen
   { const { ctx, p, errs } = await open(SCOTT, 'America/Chicago', { width: 1300, height: 900 }); await p.waitForSelector('#calendar .fc-view');
     assert(!(await p.$('.onb')), 'Scott: no welcome flow');
     assert(JSON.stringify(await calNames(p)) === JSON.stringify(['MSC – Mental Stability Community', 'Minds Above Matters', 'Life Time – Facility Ops']), 'Scott: his three calendars unchanged ' + JSON.stringify(await calNames(p)));
-    await p.waitForSelector('#tzSelect');
+    await openMenu(p); await p.waitForSelector('#tzSelect');
     assert(await p.$eval('#tzSelect', s => s.value) === 'America/Chicago' && /America\/Chicago/.test(await p.textContent('#tzNote')), 'Scott: time zone America/Chicago from his profile');
     await p.waitForSelector('#invitesBtn', { state: 'visible' });
     assert(true, 'Scott: admin sees Invites + Feedback inbox');
@@ -132,7 +132,7 @@ const SVC = sign({ role: 'service_role', exp: Math.floor(Date.now() / 1000) + 86
   // 4. Scott again: invite statuses, feedback inbox, his data untouched, revoke/restore
   { const { ctx, p, errs } = await open(SCOTT, 'America/Chicago', { width: 1300, height: 900 }); await p.waitForSelector('#calendar .fc-view');
     assert(await p.evaluate(() => window.__app.timeZone()) === 'America/Chicago', 'Scott: still Chicago (Alice\'s change was hers only)');
-    await p.waitForSelector('#invitesBtn', { state: 'visible' }); await p.click('#invitesBtn');
+    await openMenu(p); await p.waitForSelector('#invitesBtn', { state: 'visible' }); await p.click('#invitesBtn');
     await p.waitForSelector('.inv-row:has-text("alice@example.com")');
     assert(/Joined/.test(await p.textContent('.inv-row:has-text("alice@example.com")')), 'admin: Alice shows Joined after her first sign-in');
     assert(/Joined/.test(await p.textContent('.inv-row:has-text("bob@example.com")')), 'admin: Bob shows Joined');

@@ -31,8 +31,8 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
   if (SHOTS) await p.screenshot({ path: `${SHOTS}/25_todo_checked_list_mobile.png` });
   await p.locator('tr.fc-list-event:has-text("Send practice plan") .fc-list-event-title a, tr.fc-list-event:has-text("Send practice plan") .fc-list-event-title').first().click({ position: { x: 150, y: 10 } });
   await p.waitForSelector('dialog[open]'); assert(true, 'tapping elsewhere opens editor'); await p.keyboard.press('Escape'); await p.waitForTimeout(300);
-  // overdue in Week tab (sidebar is a drawer on mobile)
-  await p.click('#menuBtn'); await p.waitForTimeout(400);
+  // overdue in Week tab ("By period" lives on the To-Do tab)
+  await p.click('#bottomNav [data-tab=todo]'); await p.waitForTimeout(400);
   await p.click('#scopeTabs [data-scope=week]'); await p.waitForTimeout(400);
   const txt = await p.locator('#taskList li:has-text("Order pool chemicals")').innerText(); assert(/Overdue 4 days/.test(txt) && /Mon, Oct 19/.test(txt), 'Week tab: original date + "Overdue 4 days": ' + txt.replace(/\n/g, ' '));
   const cls = await p.$$eval('#taskList li', ls => ls.map(l => l.classList.contains('overdue'))); assert(cls.indexOf(false) === -1 || cls.lastIndexOf(true) < cls.indexOf(false), 'overdue items sorted first');
@@ -43,7 +43,7 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
   await p.locator('#taskList li:has-text("Order pool chemicals") input').click(); await p.waitForTimeout(600);
   assert(!/Overdue/.test(await p.locator('#taskList li:has-text("Order pool chemicals")').innerText().catch(() => '')), 'checked off: no longer overdue');
   // Day view box
-  await p.evaluate(() => document.getElementById('sidebar').classList.remove('open')); await p.waitForTimeout(300);
+  await p.click('#bottomNav [data-tab=home]'); await p.waitForTimeout(300);
   await p.evaluate(() => __app.calendar.changeView('timeGridDay')); await p.waitForTimeout(500);
   assert(await p.locator('.fc-event .todo-check').count() >= 1, 'Day view has the box');
   assert(errs.length === 0, 'no page errors ' + errs.join('|'));

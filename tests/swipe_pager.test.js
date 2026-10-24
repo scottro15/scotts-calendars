@@ -12,7 +12,7 @@ const ok=(c,m)=>{ if(!c) throw new Error('FAIL '+m); console.log('ok -',m); };
  const title=()=>p.textContent('.fc-toolbar-title');
  for (const [v,name] of [['listWeek','list'],['timeGridDay','day'],['timeGridWeek','week'],['dayGridMonth','month']]) {
   await p.click(`.fc-${v}-button`); await p.waitForTimeout(900); const a=await title();
-  const Y=await p.evaluate(()=>{const r=document.querySelector('#calendar .fc-view-harness').getBoundingClientRect(); const lo=Math.max(r.top,140), hi=Math.min(r.bottom,innerHeight); return Math.round((lo+hi)/2);});
+  const Y=await p.evaluate(()=>{const r=document.querySelector('#calendar .fc-view-harness').getBoundingClientRect(); const lo=Math.max(r.top,140), hi=Math.min(r.bottom,innerHeight-70); return Math.round((lo+hi)/2);});
   await T('touchStart',340,Y); for(let x=330;x>=200;x-=10){ await T('touchMove',x,Y+2); await p.waitForTimeout(16); }
   const st=await p.evaluate(()=>{const h=document.querySelector('#calendar .fc-view-harness'); const g=document.querySelector('.swipe-ghost.on');
     const gr=g&&g.getBoundingClientRect(); return {tf:h.style.transform, ghost:!!g, dir:g&&g.dataset.dir, gl:gr&&Math.round(gr.left), cells:g?g.querySelectorAll('[data-date]').length:0, evs:g?g.querySelectorAll('.fc-event').length:0,
@@ -26,7 +26,7 @@ const ok=(c,m)=>{ if(!c) throw new Error('FAIL '+m); console.log('ok -',m); };
   ok(await title()===a,name+': under 30% springs back');
   await T('touchStart',340,Y); for(let x=330;x>=200;x-=5){ await T('touchMove',x,Y+2); await p.waitForTimeout(25); } await p.waitForTimeout(200); await T('touchEnd'); await p.waitForTimeout(700);
   const c=await title(); ok(c!==a,name+': slow drag past 30% commits ('+c+')'); await p.waitForTimeout(1200);
-  const Y2=await p.evaluate(()=>{const r=document.querySelector('#calendar .fc-view-harness').getBoundingClientRect(); const lo=Math.max(r.top,140), hi=Math.min(r.bottom,innerHeight); return Math.round((lo+hi)/2);});
+  const Y2=await p.evaluate(()=>{const r=document.querySelector('#calendar .fc-view-harness').getBoundingClientRect(); const lo=Math.max(r.top,140), hi=Math.min(r.bottom,innerHeight-70); return Math.round((lo+hi)/2);});
   await T('touchStart',100,Y2); await T('touchMove',130,Y2+2); await p.waitForTimeout(10); await T('touchMove',170,Y2+2); await T('touchEnd'); await p.waitForTimeout(700);
   {const tt=await title(); ok(tt===a,name+': fast flick right goes back '+tt+' '+JSON.stringify(await p.evaluate(()=>window.__swipeLast)));}
   ok(await p.evaluate(()=>!document.querySelector('.swipe-ghost.on')),name+': ghosts hidden after');

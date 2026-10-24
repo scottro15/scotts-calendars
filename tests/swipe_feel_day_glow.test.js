@@ -15,16 +15,19 @@ const ok=(c,m)=>{ if(!c) throw new Error('FAIL '+m); console.log('ok -',m); };
  const g=await glow(); ok(g.content!=='none', rm+': today header has border'); ok(rm==='reduce'? g.anim==='none' : g.anim==='sandy-cw', rm+': animation '+g.anim);
  if (rm==='no-preference') await p.screenshot({path:'screenshots/23_day_today_glow_mobile.png'});
  const cdp=await ctx.newCDPSession(p);
- await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:310,y:650}]});
- for (let x=300;x>=160;x-=20){ await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y:652}]}); await p.waitForTimeout(15); }
+ // the bottom nav takes the last 60px: scroll the time grid into the visible area and swipe at its middle
+ await p.evaluate(()=>window.scrollBy(0,250)); await p.waitForTimeout(200);
+ const Y=await p.evaluate(()=>{const r=document.querySelector('#calendar .fc-view-harness').getBoundingClientRect(); return Math.round((Math.max(r.top,140)+Math.min(r.bottom,innerHeight-70))/2);});
+ await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:310,y:Y}]});
+ for (let x=300;x>=160;x-=20){ await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y:Y+2}]}); await p.waitForTimeout(15); }
  const tf=await p.evaluate(()=>document.querySelector('#calendar .fc-view-harness').style.transform);
  if (rm==='no-preference') { ok(/translate3d\(-1[45]\d/.test(tf), 'harness follows finger 1:1: '+tf); await p.screenshot({path:'screenshots/23_swipe_drag_mobile.png'}); }
  else ok(!tf,'reduced motion: no drag follow');
- await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:270,y:652}]}); // back under threshold -> spring back
+ await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:270,y:Y+2}]}); // back under threshold -> spring back
  await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]}); await p.waitForTimeout(400);
  ok(/October 21/.test(await title()) && !(await p.evaluate(()=>document.querySelector('#calendar .fc-view-harness').style.transform)), rm+': springs back, no change');
- await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:320,y:650}]});
- for (let x=300;x>=80;x-=40){ await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y:652}]}); await p.waitForTimeout(15); }
+ await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:320,y:Y}]});
+ for (let x=300;x>=80;x-=40){ await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y:Y+2}]}); await p.waitForTimeout(15); }
  await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]}); await p.waitForTimeout(600);
  {const tt=await title(); ok(/October 22/.test(tt), rm+': swipe -> Oct 22 '+tt);}
  ok((await glow()).content==='none', rm+': other day has no border');

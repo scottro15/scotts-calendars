@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <script>try { if (localStorage.getItem('sandy.theme') === 'dark') document.documentElement.classList.add('dark'); } catch (_) {}</script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#111827">
   <link rel="manifest" href="manifest.webmanifest">
@@ -12,7 +13,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <title>SANDY — the scheduling app</title>
-  <link rel="stylesheet" href="styles.css?v=20261024-tweaks">
+  <link rel="stylesheet" href="styles.css?v=20261024-nav">
   <!-- FullCalendar v6 is vendored locally (vendor/) so the app works offline and on GitHub Pages. -->
   <script src="vendor/fullcalendar.min.js"></script>
   <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
@@ -34,86 +35,23 @@
   </div>
 
   <header class="topbar">
-    <button id="menuBtn" class="icon-btn" aria-label="Show calendars and tasks">☰</button>
     <h1 data-app-name>SANDY</h1>
     <button id="aiBtn" class="icon-btn ai-btn" aria-label="AI assistant" title="AI assistant">✨ AI</button>
     <button id="addBtn" class="primary">+ New</button>
   </header>
 
   <div class="layout">
-    <aside id="sidebar" class="sidebar">
-      <section>
-        <h2>Calendars</h2>
-        <label class="cal-toggle all"><input type="checkbox" id="toggleAll"> <span>All calendars</span></label>
-        <div id="calToggles"></div>
-      </section>
 
-      <section>
-        <h2>Tasks / to-dos <small id="taskCount"></small></h2>
-        <div class="scope-tabs" id="scopeTabs">
-          <button data-scope="day" class="active">Today</button>
-          <button data-scope="week">Week</button>
-          <button data-scope="month">Month</button>
-          <button data-scope="season">Season</button>
+    <main class="main" id="page-home">
+      <!-- Today tab: briefing card (shown only on the Today tab) -->
+      <section id="todayCard" class="today-card" aria-labelledby="todayH">
+        <div class="tc-head"><h2 id="todayH">Today</h2><span id="todayDate" class="muted small"></span></div>
+        <div id="todayBody"></div>
+        <div id="todayNudges" class="tc-nudges" aria-label="Sandy Intelligence prep nudges">
+          <div class="tc-nudge-head">✨ Sandy Intelligence <span class="tc-soon">coming soon</span></div>
+          <p class="muted small">Prep nudges for your day will appear here: when to leave for a practice, pack lunches before a shift or school, make the grocery list before shopping.</p>
         </div>
-        <ul id="taskList" class="task-list"></ul>
-        <button id="addTaskBtn" class="link-btn">+ Add task</button>
       </section>
-
-      <section id="reviewSection" class="review" aria-labelledby="reviewTitle">
-        <h2 id="reviewTitle">Notes Review <small id="reviewCount"></small></h2>
-        <div class="seg review-scope" id="reviewScope" role="group" aria-label="Review period">
-          <button type="button" data-scope="day" aria-pressed="true">Day</button>
-          <button type="button" data-scope="week" aria-pressed="false">Week</button>
-          <button type="button" data-scope="month" aria-pressed="false">Month</button>
-          <button type="button" data-scope="season" aria-pressed="false">Season</button>
-          <button type="button" data-scope="year" aria-pressed="false">Year</button>
-        </div>
-        <div class="review-nav">
-          <button type="button" id="reviewPrev" class="icon-btn" aria-label="Previous period">‹</button>
-          <span id="reviewPeriod" class="review-period" aria-live="polite"></span>
-          <button type="button" id="reviewNext" class="icon-btn" aria-label="Next period">›</button>
-        </div>
-        <div id="reviewDayPick" class="review-daypick">
-          <input type="date" id="reviewDate" aria-label="Pick a day">
-          <div id="reviewChips" class="review-chips" role="group" aria-label="Days this week"></div>
-        </div>
-        <details class="review-filters" id="reviewFilters">
-          <summary>Filters <span id="reviewFilterSummary" class="muted small"></span></summary>
-          <fieldset><legend>Calendars</legend><div id="reviewCals"></div></fieldset>
-          <label class="review-field">Event <select id="reviewEvent"><option value="">All events</option></select></label>
-          <label class="review-field">Search <input type="search" id="reviewSearch" placeholder="Words in the note"></label>
-          <button type="button" id="reviewClear" class="link-btn">Clear filters</button>
-        </details>
-        <div id="reviewList" class="review-list"></div>
-      </section>
-
-      <section id="dataSection">
-        <h2>Data</h2>
-        <div class="data-btns">
-          <button id="exportBtn">Export JSON</button>
-          <button id="importBtn">Import JSON</button>
-          <input type="file" id="importFile" accept="application/json,.json" hidden>
-        </div>
-        <button id="clearExamplesBtn" class="link-btn danger">Remove example events</button>
-        <div id="migrateBox" class="migrate-box" hidden>
-          <p class="small" id="migrateText"></p>
-          <div class="data-btns">
-            <button id="migrateBtn" class="primary">Import my local events</button>
-            <button id="migrateSkipBtn">Not now</button>
-          </div>
-        </div>
-        <p class="muted small" id="storageNote"></p>
-        <div id="syncBtns" class="data-btns" hidden>
-          <button id="syncNowBtn">Refresh now</button>
-          <button id="signOutBtn">Sign out</button>
-        </div>
-        <p class="muted small" id="tzNote">Times are shown in America/Chicago.</p>
-      </section>
-    </aside>
-    <div id="scrim" class="scrim"></div>
-
-    <main class="main">
       <!-- Briefing: preview of the selected period (respects the calendar toggles) -->
       <section id="briefing" class="briefing" aria-labelledby="briefTitle">
         <div class="brief-head">
@@ -140,6 +78,114 @@
       </section>
       <div id="calendar"></div>
     </main>
+
+    <!-- Bottom-nav tabs (2026-10-24). Home + Today use the calendar above; these are full pages. -->
+    <section id="page-todo" class="tab-page" aria-labelledby="todoH" hidden>
+      <div class="page-head"><h1 id="todoH">To-Do</h1><span id="todoCount" class="muted small"></span></div>
+      <form id="quickAdd" class="quick-add" autocomplete="off">
+        <input id="qaText" maxlength="2000" placeholder="Jot a to-do or note…" aria-label="Jot a to-do or note" enterkeyhint="done">
+        <div class="qa-opts">
+          <select id="qaKind" aria-label="Type"><option value="todo">To-do</option><option value="note">Note</option></select>
+          <select id="qaCat" aria-label="Category"><option value="">No category</option></select>
+          <button class="primary" id="qaAdd">Add</button>
+        </div>
+      </form>
+      <div class="todo-bar">
+        <div class="chips" id="todoFilter" role="group" aria-label="Filter by calendar"></div>
+        <label class="small">Group by <select id="todoGroup"><option value="calendar">Calendar</option><option value="category">Category</option><option value="date">Date</option></select></label>
+        <label class="small check"><input type="checkbox" id="todoShowDone"> Show done</label>
+        <button type="button" class="link-btn" id="todoCatsBtn">Categories…</button>
+      </div>
+      <div id="todoList" class="todo-list" aria-live="polite"></div>
+      <button type="button" id="todoNewDated" class="link-btn">+ Scheduled to-do (with a date)</button>
+          <section id="periodTasks" class="pf-card">
+            <h2>By period <small id="taskCount"></small></h2>
+            <div class="scope-tabs" id="scopeTabs">
+              <button data-scope="day" class="active">Today</button>
+              <button data-scope="week">Week</button>
+              <button data-scope="month">Month</button>
+              <button data-scope="season">Season</button>
+            </div>
+            <ul id="taskList" class="task-list"></ul>
+            <button id="addTaskBtn" class="link-btn">+ Add task</button>
+          </section>
+    </section>
+
+    <section id="page-search" class="tab-page" aria-labelledby="searchH" hidden>
+      <div class="page-head"><h1 id="searchH">Search</h1></div>
+      <input type="search" id="searchBox" class="search-box" placeholder="Search events, to-dos, notes, settings…" aria-label="Search SANDY" enterkeyhint="search" autocomplete="off">
+      <div id="searchResults" class="search-results" aria-live="polite"></div>
+          <section id="reviewSection" class="review pf-card" aria-labelledby="reviewTitle">
+            <h2 id="reviewTitle">Notes Review <small id="reviewCount"></small></h2>
+            <div class="seg review-scope" id="reviewScope" role="group" aria-label="Review period">
+              <button type="button" data-scope="day" aria-pressed="true">Day</button>
+              <button type="button" data-scope="week" aria-pressed="false">Week</button>
+              <button type="button" data-scope="month" aria-pressed="false">Month</button>
+              <button type="button" data-scope="season" aria-pressed="false">Season</button>
+              <button type="button" data-scope="year" aria-pressed="false">Year</button>
+            </div>
+            <div class="review-nav">
+              <button type="button" id="reviewPrev" class="icon-btn" aria-label="Previous period">‹</button>
+              <span id="reviewPeriod" class="review-period" aria-live="polite"></span>
+              <button type="button" id="reviewNext" class="icon-btn" aria-label="Next period">›</button>
+            </div>
+            <div id="reviewDayPick" class="review-daypick">
+              <input type="date" id="reviewDate" aria-label="Pick a day">
+              <div id="reviewChips" class="review-chips" role="group" aria-label="Days this week"></div>
+            </div>
+            <details class="review-filters" id="reviewFilters">
+              <summary>Filters <span id="reviewFilterSummary" class="muted small"></span></summary>
+              <fieldset><legend>Calendars</legend><div id="reviewCals"></div></fieldset>
+              <label class="review-field">Event <select id="reviewEvent"><option value="">All events</option></select></label>
+              <label class="review-field">Search <input type="search" id="reviewSearch" placeholder="Words in the note"></label>
+              <button type="button" id="reviewClear" class="link-btn">Clear filters</button>
+            </details>
+            <div id="reviewList" class="review-list"></div>
+          </section>
+    </section>
+
+    <section id="page-profile" class="tab-page" aria-labelledby="profileH" hidden>
+      <div class="page-head"><h1 id="profileH" class="sr-only">Profile</h1></div>
+      <section class="pf-card pf-hero">
+        <button type="button" id="avatarBtn" class="avatar-btn" aria-label="Change profile picture"><img id="avatarImg" alt="" hidden><span id="avatarInit">?</span><span class="av-edit">Edit</span></button>
+        <input type="file" id="avatarFile" accept="image/*" hidden>
+        <div class="pf-who"><strong id="pfName">You</strong><span id="pfEmail" class="muted small"></span>
+          <button type="button" id="pfEmailBtn" class="link-btn" hidden>Change email</button></div>
+      </section>
+      <section id="appearanceSection" class="pf-card">
+        <h2>Appearance</h2>
+        <label class="pf-row"><span>Dark mode</span><span class="switch"><input type="checkbox" id="darkToggle" role="switch"><span></span></span></label>
+        <label class="pf-row"><span>Default view (Home)</span>
+          <select id="defaultView"><option value="last">Last used</option><option value="timeGridDay">Day</option><option value="timeGridWeek">Week</option><option value="dayGridMonth">Month</option><option value="season">Season (Month + Season briefing)</option><option value="listWeek">List</option></select></label>
+      </section>
+          <section id="calSection" class="pf-card">
+            <h2>Calendars</h2>
+            <label class="cal-toggle all"><input type="checkbox" id="toggleAll"> <span>All calendars</span></label>
+            <div id="calToggles"></div>
+          </section>
+          <section id="dataSection" class="pf-card">
+            <h2>Data</h2>
+            <div class="data-btns">
+              <button id="exportBtn">Export JSON</button>
+              <button id="importBtn">Import JSON</button>
+              <input type="file" id="importFile" accept="application/json,.json" hidden>
+            </div>
+            <button id="clearExamplesBtn" class="link-btn danger">Remove example events</button>
+            <div id="migrateBox" class="migrate-box" hidden>
+              <p class="small" id="migrateText"></p>
+              <div class="data-btns">
+                <button id="migrateBtn" class="primary">Import my local events</button>
+                <button id="migrateSkipBtn">Not now</button>
+              </div>
+            </div>
+            <p class="muted small" id="storageNote"></p>
+            <div id="syncBtns" class="data-btns" hidden>
+              <button id="syncNowBtn">Refresh now</button>
+              <button id="signOutBtn">Sign out</button>
+            </div>
+            <p class="muted small" id="tzNote">Times are shown in America/Chicago.</p>
+          </section>
+    </section>
   </div>
 
   <!-- Event editor -->
@@ -289,14 +335,22 @@
 
   <div id="toast" class="toast" hidden></div>
 
+  <nav id="bottomNav" class="bottom-nav" aria-label="Main">
+    <button type="button" data-tab="home" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg><span>Home</span></button>
+    <button type="button" data-tab="today"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><text x="12" y="18.2" text-anchor="middle" class="nav-day">1</text></svg><span>Today</span></button>
+    <button type="button" data-tab="todo"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="m8 12.2 2.7 2.7L16.3 9"/></svg><span>To-Do</span><b id="navTodoBadge" class="nav-badge" hidden></b></button>
+    <button type="button" data-tab="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg><span>Search</span></button>
+    <button type="button" data-tab="profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.2-4 4-5.8 7.5-5.8s6.3 1.8 7.5 5.8"/></svg><span>Profile</span></button>
+  </nav>
   <script src="config.js"></script>
-  <script src="storage.js?v=20261024-tweaks"></script>
+  <script src="storage.js?v=20261024-nav"></script>
   <script src="places.js"></script>
   <script src="motion.js?v=20261023-anim"></script>
-  <script src="account.js?v=20261024-tweaks"></script>
-  <script src="launch.js?v=20261024-tweaks"></script>
-  <script src="push.js?v=20261024-tweaks"></script>
-  <script src="app.js?v=20261024-tweaks"></script>
-  <script src="ai.js?v=20261024-tweaks"></script>
+  <script src="account.js?v=20261024-nav"></script>
+  <script src="launch.js?v=20261024-nav"></script>
+  <script src="push.js?v=20261024-nav"></script>
+  <script src="nav.js?v=20261024-nav"></script>
+  <script src="app.js?v=20261024-nav"></script>
+  <script src="ai.js?v=20261024-nav"></script>
 </body>
 </html>

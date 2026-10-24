@@ -261,7 +261,9 @@
   // Remember the last view (not the date): reopen it on today. ?view= / deep links win.
   const VIEW_KEY = 'sandy.lastView', VIEWS = ['dayGridMonth', 'timeGridWeek', 'timeGridDay', 'listWeek'];
   let savedView = null; try { savedView = localStorage.getItem(VIEW_KEY); } catch (_) {}
-  const initialViewType = params.get('view') || (VIEWS.includes(savedView) ? savedView : (narrow ? 'listWeek' : 'dayGridMonth'));
+  // Profile → Default view: a fixed view, or 'last' (the last one used, the default)
+  let defaultView = 'last'; try { defaultView = localStorage.getItem('sandy.defaultView') || 'last'; } catch (_) {}
+  const initialViewType = params.get('view') || (VIEWS.includes(defaultView) ? defaultView : defaultView === 'season' ? 'dayGridMonth' : VIEWS.includes(savedView) ? savedView : (narrow ? 'listWeek' : 'dayGridMonth'));
   // Cold open in List View: keep re-scrolling to today while events load, until the user scrolls.
   let coldListUntil = initialViewType.startsWith('list') && !params.get('review') ? Date.now() + 4000 : 0;
   const stopCold = () => { coldListUntil = 0; };
@@ -298,7 +300,7 @@
       calendar.unselect();
     },
     eventDrop: info => moveEvent(info), eventResize: info => moveEvent(info),
-    datesSet: info => { try { localStorage.setItem(VIEW_KEY, info.view.type); } catch (_) {} syncStickyOffsets(); markTitle(); if (briefReady) renderBriefing(); listDatesSet(info.view); },
+    datesSet: info => { try { if (!document.body.classList.contains('tab-today')) localStorage.setItem(VIEW_KEY, info.view.type); } catch (_) {} syncStickyOffsets(); markTitle(); if (briefReady) renderBriefing(); listDatesSet(info.view); },
     eventsSet: () => scheduleListDecorate(),
     eventDidMount: info => {
       const p = info.event.extendedProps;
@@ -1359,11 +1361,9 @@
       (Store.configError ? ` Sync is off: ${Store.configError}` : '');
   }
 
-  // mobile drawer
-  const sidebar = document.getElementById('sidebar'), scrim = document.getElementById('scrim');
-  const drawer = open => { sidebar.classList.toggle('open', open); scrim.classList.toggle('open', open); };
-  document.getElementById('menuBtn').addEventListener('click', () => drawer(!sidebar.classList.contains('open')));
-  scrim.addEventListener('click', () => drawer(false));
+  // The left menu is retired (bottom navigation, 2026-10-24): Notes Review now lives on the Search tab.
+  const drawer = open => { if (open && window.SandyNav) window.SandyNav.go('search'); };
+  const sidebar = { classList: { contains: () => false } };
 
   // ---------- Notes Review (browse Today's Notes by day / week / month / season / year) ----------
   const RV_SCOPES = ['day', 'week', 'month', 'season', 'year'];
@@ -1487,7 +1487,7 @@
       rv.scope = want;
       if (wd && /^\d{4}-\d{2}-\d{2}$/.test(wd)) rv.ref = parseLocal(wd);
       requestAnimationFrame(() => {
-        if (window.matchMedia('(max-width: 800px)').matches) drawer(true);
+        drawer(true);
         const sec = $('reviewSection'); sec.scrollIntoView({ block: 'start' }); sec.classList.add('flash');
         setTimeout(() => sec.classList.remove('flash'), 1200);
         $('reviewTitle').setAttribute('tabindex', '-1'); $('reviewTitle').focus({ preventScroll: true });
@@ -1502,9 +1502,11 @@
   function fail(err) { console.error(err); toast('Could not save: ' + (err && err.message ? err.message : err), 5000); }
   let refreshTimer;
   function scheduleRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 250); }
-  async function refresh() { renderToggles(await Store.list()); calendar.refetchEvents(); renderTasks(); renderBriefing(); renderReview(); }
+  async function refresh() { renderToggles(await Store.list()); calendar.refetchEvents(); renderTasks(); renderBriefing(); renderReview(); window.dispatchEvent(new Event('sandy:refresh')); }
   refresh();
-  window.__app = { reviewState: () => ({ scope: rv.scope, ref: ymd(rv.ref), cals: [...rv.cals], event: rv.event, q: rv.q }), reviewRange, noteKeyFor, calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList, openEditor, moveEvent, detachOccurrence, refresh, isRecurring, isDone, toast, calendars: () => CALENDARS, timeZone: () => TZ, setTZ }; // handy for debugging / tests
+  window.__app = { reviewState: () => ({ scope: rv.scope, ref: ymd(rv.ref), cals: [...rv.cals], event: rv.event, q: rv.q }), reviewRange, noteKeyFor, calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList, openEditor, moveEvent, detachOccurrence, refresh, isRecurring, isDone, toast, calendars: () => CALENDARS, timeZone: () => TZ, setTZ,
+    setDone, overdueText, fmtDay, startOfDay, addDays, isClientKey, occurrenceStart, saveSettings, renderTasks, renderBriefing, firstVisibleCal,
+    settings: () => settings, cal: id => CAL[id], VIEWS, user: () => signedInUser }; // handy for debugging / tests
 
   // ---------- Example seed data (relative to the current week) ----------
   function seedExamples() {

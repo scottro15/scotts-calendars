@@ -67,7 +67,7 @@ const T0 = new Date('2026-10-19T17:00:00Z'); // Mon Oct 19 2026, noon Chicago
       await Store.notes.set(window.__oneoff, '2026-10-21', 'Talk went well');
     });
     await p.reload(); await p.waitForSelector('.fc-list-event');
-    if (vp.name === 'mobile') { await p.click('#menuBtn'); await p.waitForTimeout(300); }
+    await p.click('#bottomNav [data-tab=search]'); await p.waitForTimeout(300); // Notes Review lives on the Search tab
     const cnt = () => p.locator('#reviewList .review-item').count();
     const tab = async s => { await p.click(`#reviewScope [data-scope=${s}]`); await p.waitForTimeout(250); };
     assert(await cnt() === 2, `${N} Day (today Mon Oct 19): 2 notes`);
@@ -121,7 +121,7 @@ const T0 = new Date('2026-10-19T17:00:00Z'); // Mon Oct 19 2026, noon Chicago
       await p.goto(BASE + '?' + q); await p.waitForSelector('#reviewList'); await p.waitForTimeout(600);
       const s = await p.evaluate(() => window.__app.reviewState());
       assert(s.scope === scope && await cnt() === n && (await p.textContent('#reviewPeriod')).includes(title), `${N} deep link ?${q}`);
-      if (vp.name === 'mobile') assert(await p.evaluate(() => document.getElementById('sidebar').classList.contains('open')), `${N} deep link opens the menu`);
+      assert(await p.evaluate(() => window.SandyNav.tab === 'search' && !document.getElementById('reviewSection').closest('[hidden]')), `${N} deep link opens the Search tab`);
     }
     // deep link survives a sign-in round trip (stored, then restored on the bare URL)
     await p.evaluate(() => localStorage.setItem('sandy.pendingReviewLink.v1', JSON.stringify({ review: 'month', date: '2026-10-05', cals: '', at: Date.now() })));

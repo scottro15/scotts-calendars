@@ -1,4 +1,4 @@
-// Browser test: consistent enter/exit animations (AI sheet, editor, scope prompt, toast, drawer) + no dead taps.
+// Browser test: consistent enter/exit animations (AI sheet, editor, scope prompt, toast, bottom-nav tabs) + no dead taps.
 //   node tests/enter_exit_anims.test.js http://127.0.0.1:8784/ [screenshotDir]
 const { chromium } = require(process.env.PW || '/workspace/shot-tools/node_modules/playwright-core');
 const BASE = process.argv[2] || 'http://127.0.0.1:8784/'; const SHOTS = process.argv[3];
@@ -44,9 +44,9 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
     assert(red ? th.h : (!th.h && th.out), `${N} toast ${red ? 'hides instantly' : 'fades out first'}`);
     await p.waitForTimeout(250); assert(await p.$eval('#toast', t => t.hidden), `${N} toast hidden after exit`);
     // drawer
-    await p.tap('#menuBtn'); await p.waitForTimeout(350); assert(await p.$eval('#sidebar', s => s.classList.contains('open')), `${N} drawer opens`);
-    await p.tap('#scrim', { position: { x: 370, y: 400 } }).catch(async () => p.mouse.click(370, 400)); await p.waitForTimeout(350);
-    assert(!(await p.$eval('#sidebar', s => s.classList.contains('open'))), `${N} drawer closes`);
+    await p.tap('#bottomNav [data-tab=profile]'); await p.waitForTimeout(350); assert(await p.isVisible('#page-profile') && await p.getAttribute('#bottomNav [data-tab=profile]', 'aria-current') === 'page', `${N} Profile tab opens (replaces the drawer)`);
+    await p.tap('#bottomNav [data-tab=home]'); await p.waitForTimeout(350);
+    assert(await p.isVisible('#calendar') && !(await p.isVisible('#page-profile')), `${N} back to Home`);
     assert(!errs.length, `${N} no page errors ` + errs.join(';'));
     await ctx.close();
   }

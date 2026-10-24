@@ -1,4 +1,4 @@
-// Browser test: animations apply (dialogs, picker, briefing collapse, scrim) and prefers-reduced-motion makes them instant.
+// Browser test: animations apply (dialogs, picker, briefing collapse, bottom-nav tabs) and prefers-reduced-motion makes them instant.
 //   node tests/motion.test.js http://127.0.0.1:8766/
 const { chromium } = require(process.env.PW || '/workspace/shot-tools/node_modules/playwright-core');
 const BASE = process.argv[2] || 'http://127.0.0.1:8766/';
@@ -38,10 +38,11 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
     assert(await p.textContent('#briefCollapse') === '▾', `${N} chevron glyph kept (rotated by CSS)`);
     await p.click('#briefCollapse'); await p.waitForTimeout(350); assert(await p.isVisible('#briefBody'), `${N} briefing expands`);
     if (vp.name === 'mobile') {
-      await p.click('#menuBtn'); await p.waitForTimeout(350);
-      assert(await p.evaluate(() => getComputedStyle(document.getElementById('scrim')).opacity) === '1', `${N} scrim fades in`);
-      await p.click('#scrim', { position: { x: 370, y: 400 } }); await p.waitForTimeout(350);
-      assert(await p.evaluate(() => getComputedStyle(document.getElementById('scrim')).visibility) === 'hidden', `${N} scrim hidden after close`);
+      await p.click('#bottomNav [data-tab=todo]'); await p.waitForTimeout(40);
+      const an = await p.evaluate(() => document.getElementById('page-todo').getAnimations().length);
+      assert(red ? an === 0 : an > 0, `${N} tab switch ${red ? 'instant' : 'slides in'}`);
+      await p.click('#bottomNav [data-tab=home]'); await p.waitForTimeout(350);
+      assert(await p.isVisible('#calendar'), `${N} back on Home`);
     }
     assert(errs.length === 0, `${N} no page errors ${errs.join('; ')}`);
     await ctx.close();
