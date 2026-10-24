@@ -68,7 +68,12 @@
     const log = document.getElementById('aiLog');
     const d = document.createElement('div'); d.className = 'ai-msg ' + role;
     if (html != null) d.innerHTML = html; else d.textContent = text;
-    log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
+    d.classList.add('msg-in'); d.addEventListener('animationend', () => d.classList.remove('msg-in'), { once: true });
+    log.appendChild(d); scrollLog(); return d;
+  }
+  function scrollLog() {
+    const log = document.getElementById('aiLog'); const reduce = window.Motion && Motion.reduced();
+    requestAnimationFrame(() => log.scrollTo({ top: log.scrollHeight, behavior: reduce ? 'auto' : 'smooth' }));
   }
 
   // ---------- context for the model: the user's own expanded occurrences (today −14 … +45 days) ----------
@@ -102,7 +107,7 @@
     stopMic(); ta.value = ''; ta.style.height = 'auto';
     addMsg('user', text); history.push({ role: 'user', content: text });
     if (!ENDPOINT) { addMsg('assistant', 'The assistant needs the online (signed-in) version of SANDY.'); return; }
-    busy = true; const wait = addMsg('assistant thinking', 'Thinking…'); document.getElementById('aiSend').disabled = true;
+    busy = true; const wait = addMsg('assistant thinking typing', null, '<span class="dot"></span><span class="dot"></span><span class="dot"></span>'); wait.setAttribute('aria-label', 'Sandy Intelligence is typing'); document.getElementById('aiSend').disabled = true;
     try {
       const tok = await token();
       const res = await fetch(ENDPOINT, { method: 'POST', headers: { 'content-type': 'application/json', ...(tok ? { authorization: 'Bearer ' + tok } : {}), ...(cfg.SUPABASE_ANON_KEY ? { apikey: cfg.SUPABASE_ANON_KEY } : {}) },
@@ -111,7 +116,7 @@
       wait.remove();
       if (!res.ok) { addMsg('assistant error', data.error || (res.status === 404 ? 'The assistant isn’t switched on yet. “Brief me” works now.' : `Something went wrong (${res.status}).`)); history.pop(); return; }
       addMsg('assistant', data.reply); history.push({ role: 'assistant', content: data.reply });
-      for (const p of data.proposals || []) renderProposal(p);
+      (data.proposals || []).forEach((p, i) => setTimeout(() => renderProposal(p), (window.Motion && Motion.reduced()) ? 0 : 120 * (i + 1)));
     } catch (e) { wait.remove(); addMsg('assistant error', 'Could not reach the assistant. Check your connection and try again.'); history.pop(); }
     finally { busy = false; document.getElementById('aiSend').disabled = false; }
   }
@@ -218,7 +223,7 @@
     h += todays.length ? `<ul>${todays.map(li).join('')}</ul>` : '<p>Nothing on the calendar today.</p>';
     h += `<strong>Overdue to-dos</strong>` + (overdue.length ? `<ul>${overdue.map(x => `<li>${esc(x.ev.title)} <small>· due ${esc(fmtDay(x.o.key))}</small></li>`).join('')}</ul>` : '<p>None. Nice!</p>');
     h += `<strong>Overlaps</strong>` + (overlaps.length ? `<ul>${overlaps.map(([a, b]) => `<li>${esc(a.ev.title)} (${esc(when(a))}) overlaps ${esc(b.ev.title)} (${esc(when(b))})</li>`).join('')}</ul>` : '<p>No overlaps today.</p>');
-    bubble.innerHTML = h + '</div>'; log.scrollTop = log.scrollHeight;
+    bubble.innerHTML = h + '</div>'; scrollLog();
   }
 
   // ---------- mic (Web Speech API where available; otherwise the keyboard's dictation key works) ----------
