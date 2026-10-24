@@ -40,7 +40,7 @@
     this.classList.remove('anim-in');
     if (reduced()) { nativeClose.call(this, rv); return; }
     const tok = this._closeTok = (this._closeTok || 0) + 1;
-    runExit(this, 'closing', () => { if (this.open && this._closeTok === tok) nativeClose.call(this, rv); }, 160);
+    runExit(this, 'closing', () => { if (this.open && this._closeTok === tok) nativeClose.call(this, rv); }, this.id === 'eventDialog' ? 260 : 200);
   };
 
   function wireDialog(d) {
@@ -84,7 +84,19 @@
 
   // Toast: fade/slide in.
   const toastEl = document.getElementById('toast');
-  if (toastEl) watchPop(toastEl);
+  if (toastEl) {
+    watchPop(toastEl);
+    // Intercept hide: fade/slide out first, then set [hidden] for real.
+    const desc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'hidden');
+    Object.defineProperty(toastEl, 'hidden', { configurable: true, get() { return desc.get.call(this); },
+      set(v) {
+        clearTimeout(this._hideT); this.classList.remove('toast-out');
+        if (!v || reduced() || desc.get.call(this)) { desc.set.call(this, v); return; }
+        this.classList.add('toast-out'); this._hideT = setTimeout(() => { this.classList.remove('toast-out'); desc.set.call(this, true); }, 180);
+      } });
+  }
+  // Inline reveals (custom category, repeat options, checklist, day note…): small fade-down on unhide.
+  document.querySelectorAll('#customCatWrap, #taskFields, #intervalWrap, #untilWrap, #weekdayWrap, #scopeHint, #migrateBox, #briefSeasons, #reviewDayPick').forEach(watchPop);
 
   window.Motion = { reduced, runExit, slide, swap };
 })();

@@ -454,3 +454,29 @@ body.ai-open { overflow: hidden; }
 @keyframes aiSpark { 0% { transform: scale(.6) rotate(-20deg); filter: brightness(1); } 55% { transform: scale(1.35) rotate(12deg); filter: brightness(1.6) drop-shadow(0 0 6px #fbbf24); } 100% { transform: none; filter: none; } }
 @keyframes aiShimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
 @media (prefers-reduced-motion: reduce) { .ai-sheet.ai-anim .ai-panel, .ai-sheet.ai-anim .ai-backdrop, .ai-sheet.ai-anim .ai-spark, .ai-sheet.ai-anim .ai-title { animation: none; } }
+
+/* ---- unified enter/exit (Sandy Intelligence style): slide up + scale, backdrop fade ---- */
+@keyframes sheet-in { from { opacity: 0; transform: translateY(28px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes sheet-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(28px) scale(.96); } }
+@keyframes aiDown { from { transform: none; opacity: 1; } to { transform: translateY(40px) scale(.96); opacity: 0; } }
+@keyframes aiFadeOut { to { opacity: 0; } }
+.ai-sheet.ai-closing { pointer-events: none; }
+.ai-sheet.ai-closing .ai-panel { animation: aiDown 260ms cubic-bezier(.4,0,1,1) both; transform-origin: 50% 100%; }
+.ai-sheet.ai-closing .ai-backdrop { animation: aiFadeOut 260ms ease-in both; }
+dialog.anim-in { animation: sheet-in 280ms cubic-bezier(.2,.9,.3,1.1); }
+dialog.closing { animation: sheet-out 200ms cubic-bezier(.4,0,1,1) forwards; pointer-events: none; }
+dialog.closing::backdrop { animation: bd-out 200ms ease-in forwards; }
+#eventDialog.anim-in { animation: aiUp 380ms cubic-bezier(.2,.9,.3,1.15); transform-origin: 50% 100% !important; }
+#eventDialog.anim-in::backdrop { animation: bd-in 300ms ease-out; }
+#eventDialog.closing { animation: aiDown 260ms cubic-bezier(.4,0,1,1) forwards; transform-origin: 50% 100% !important; }
+#eventDialog.closing::backdrop { animation: bd-out 260ms ease-in forwards; }
+#monthPicker.anim-in { animation-name: pop-in; } #monthPicker.closing { animation-name: pop-out; }
+@keyframes toast-out { to { opacity: 0; transform: translateY(8px); } }
+.toast.toast-out { animation: toast-out 170ms ease-in forwards; }
+@keyframes onb-in { from { opacity: 0; transform: translateY(24px) scale(.97); } }
+.onb-card { animation: onb-in 380ms cubic-bezier(.2,.9,.3,1.1) both; }
+.auth-gate:not([hidden]) > * { animation: onb-in 320ms cubic-bezier(.2,.9,.3,1.1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .ai-sheet.ai-closing .ai-panel, .ai-sheet.ai-closing .ai-backdrop,
+  .toast.toast-out, .onb-card, .auth-gate > * { animation: none !important; }
+}

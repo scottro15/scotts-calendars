@@ -1,5 +1,5 @@
 // Google-Calendar-style pager: neighbour visible mid-swipe, 30% / flick commit, event-start swipes, tap still opens. node tests/swipe_pager.test.js URL
-const { chromium } = require('/workspace/shot-tools/node_modules/playwright-core');
+const { chromium } = require(process.env.PW || '/workspace/shot-tools/node_modules/playwright-core');
 const B=process.argv[2]||'http://127.0.0.1:8824/';
 const ok=(c,m)=>{ if(!c) throw new Error('FAIL '+m); console.log('ok -',m); };
 (async()=>{ const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});

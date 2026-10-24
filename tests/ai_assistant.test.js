@@ -65,7 +65,7 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
   assert(await p.evaluate(async id => !!(await Store.get(id)), ids.t), 'cancel keeps item');
   await ctx.unroute('https://ai.test/fn'); await ctx.route('https://ai.test/fn', r => r.fulfill({ status: 429, contentType: 'application/json', body: JSON.stringify({ error: 'Daily AI limit reached (50 requests).' }) }));
   await p.fill('#aiText', 'hi'); await p.tap('#aiSend'); await p.waitForSelector('.ai-msg.error'); assert(/Daily AI limit/.test(await p.$eval('.ai-msg.error', e => e.textContent)), 'rate-limit message shown');
-  await p.tap('.ai-x'); assert(await p.$eval('#aiSheet', e => e.hidden), 'closes');
+  await p.tap('.ai-x'); await p.waitForTimeout(350); assert(await p.$eval('#aiSheet', e => e.hidden), 'closes');
   await p.emulateMedia({ reducedMotion: 'reduce' }); await p.tap('#aiBtn'); await p.waitForSelector('#aiSheet:not([hidden])');
   assert(await p.$eval('.ai-panel', e => getComputedStyle(e).animationName) === 'none', 'reduced motion: no animation'); await p.tap('.ai-x');
   assert(!errs.length, 'no page errors ' + errs.join(';'));

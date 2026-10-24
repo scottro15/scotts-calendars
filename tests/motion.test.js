@@ -15,8 +15,8 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
     // event editor open
     await p.click('#addBtn');
     const st = await p.evaluate(() => { const d = document.getElementById('eventDialog'); const cs = getComputedStyle(d); return { cls: d.classList.contains('anim-in'), name: cs.animationName, dur: parseFloat(cs.animationDuration) * 1000 }; });
-    assert(st.cls && st.name === 'dlg-in', `${N} editor gets anim-in / dlg-in`);
-    assert(red ? st.dur <= 1 : st.dur >= 150 && st.dur <= 300, `${N} editor open duration ${st.dur}ms`);
+    assert(st.cls && st.name === 'aiUp', `${N} editor gets anim-in / aiUp slide-up`);
+    assert(red ? st.dur <= 1 : st.dur >= 250 && st.dur <= 450, `${N} editor open duration ${st.dur}ms`);
     // Escape: animated close (still open briefly unless reduced), then closed
     await p.waitForTimeout(300); await p.keyboard.press('Escape');
     const mid = await p.evaluate(() => { const d = document.getElementById('eventDialog'); return { open: d.open, closing: d.classList.contains('closing') }; });

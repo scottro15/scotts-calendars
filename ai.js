@@ -51,10 +51,18 @@
     window.SandyAI = { open, close, briefHtml, buildContext, applyProposal, briefData };
   }
   function open() {
-    const s = document.getElementById('aiSheet'); s.hidden = false; s.classList.remove('ai-anim'); void s.offsetWidth; s.classList.add('ai-anim'); document.body.classList.add('ai-open');
+    const s = document.getElementById('aiSheet'); closeTok++; s.classList.remove('ai-closing', 'ai-anim'); s.hidden = false; void s.offsetWidth; s.classList.add('ai-anim'); document.body.classList.add('ai-open');
     if (!document.getElementById('aiLog').children.length) addMsg('assistant', 'Hi, I’m Sandy Intelligence! Tell me what to add, move or check off, or tap “Brief me”. I’ll show each change for you to confirm first.');
   }
-  function close() { document.getElementById('aiSheet').hidden = true; document.body.classList.remove('ai-open'); stopMic(); }
+  let closeTok = 0;
+  function close() {
+    const s = document.getElementById('aiSheet'); if (s.hidden || s.classList.contains('ai-closing')) return;
+    stopMic(); const tok = ++closeTok;
+    const fin = () => { if (tok !== closeTok) return; s.hidden = true; s.classList.remove('ai-closing'); document.body.classList.remove('ai-open'); };
+    s.classList.remove('ai-anim');
+    if (window.Motion && Motion.reduced()) { fin(); return; }
+    s.classList.add('ai-closing'); setTimeout(fin, 280); // exit animation is 260ms
+  }
 
   function addMsg(role, text, html) {
     const log = document.getElementById('aiLog');

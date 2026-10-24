@@ -1,5 +1,5 @@
 // Swipe navigation (touch, 390px). node tests/swipe_nav.test.js
-const { chromium } = require('/workspace/shot-tools/node_modules/playwright-core');
+const { chromium } = require(process.env.PW || '/workspace/shot-tools/node_modules/playwright-core');
 const B=process.argv[2]||'http://127.0.0.1:8767/';
 const ok=(c,m)=>{ if(!c) throw new Error('FAIL '+m); console.log('ok -',m); };
 (async()=>{ const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});

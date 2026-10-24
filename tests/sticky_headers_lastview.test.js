@@ -1,5 +1,5 @@
 // Sticky toolbar/day headers in all views, cold-open List scroll to today, last-view restore. node tests/sticky_headers_lastview.test.js
-const { chromium } = require('/workspace/shot-tools/node_modules/playwright-core');
+const { chromium } = require(process.env.PW || '/workspace/shot-tools/node_modules/playwright-core');
 const B=process.argv[2]||'http://127.0.0.1:8766/', S='/workspace/calendar-app/screenshots/';
 const ok=(c,m)=>{ if(!c) throw new Error('FAIL '+m); console.log('ok -',m); };
 (async()=>{ const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
