@@ -24,11 +24,11 @@
     A = window.__app;
     const sheet = document.createElement('div');
     sheet.id = 'aiSheet'; sheet.className = 'ai-sheet'; sheet.hidden = true;
-    sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-label', 'AI assistant');
+    sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-label', 'Sandy Intelligence');
     sheet.innerHTML = `
       <div class="ai-backdrop" data-close></div>
       <div class="ai-panel">
-        <div class="ai-head"><strong>✨ Assistant</strong><button type="button" class="ai-x" data-close aria-label="Close">✕</button></div>
+        <div class="ai-head"><strong><span class="ai-spark" aria-hidden="true">✨</span> <span class="ai-title">Sandy Intelligence</span></strong><button type="button" class="ai-x" data-close aria-label="Close">✕</button></div>
         <div class="ai-quick"><button type="button" id="aiBrief">☀️ Brief me</button></div>
         <div class="ai-log" id="aiLog" aria-live="polite"></div>
         <form class="ai-input" id="aiForm" autocomplete="off">
@@ -51,8 +51,8 @@
     window.SandyAI = { open, close, briefHtml, buildContext, applyProposal, briefData };
   }
   function open() {
-    const s = document.getElementById('aiSheet'); s.hidden = false; document.body.classList.add('ai-open');
-    if (!document.getElementById('aiLog').children.length) addMsg('assistant', 'Hi! Tell me what to add, move or check off, or tap “Brief me”. I’ll show each change for you to confirm first.');
+    const s = document.getElementById('aiSheet'); s.hidden = false; s.classList.remove('ai-anim'); void s.offsetWidth; s.classList.add('ai-anim'); document.body.classList.add('ai-open');
+    if (!document.getElementById('aiLog').children.length) addMsg('assistant', 'Hi, I’m Sandy Intelligence! Tell me what to add, move or check off, or tap “Brief me”. I’ll show each change for you to confirm first.');
   }
   function close() { document.getElementById('aiSheet').hidden = true; document.body.classList.remove('ai-open'); stopMic(); }
 
@@ -124,7 +124,7 @@
   }
   async function renderProposal(p) {
     const { ev, rows } = await describe(p);
-    const card = addMsg('assistant card', null, `<div class="ai-card-title">${esc(p.summary || VERB[p.type] || p.type)}</div>
+    const card = addMsg('assistant card', null, `<div class="ai-card-from">✨ Sandy Intelligence suggests</div><div class="ai-card-title">${esc(p.summary || VERB[p.type] || p.type)}</div>
       <dl>${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
       <div class="ai-card-btns"><button type="button" class="primary" data-ok>Confirm</button><button type="button" data-no>Cancel</button></div>`);
     card.classList.add('ai-card');

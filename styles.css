@@ -442,3 +442,15 @@ html, body { overscroll-behavior-x: none; }
 .ai-mic { background: #f3f4f6; border: 1px solid #d1d5db; } .ai-mic.on { background: #fee2e2; border-color: #dc2626; animation: aiPulse 1s infinite; }
 @keyframes aiPulse { 50% { box-shadow: 0 0 0 6px rgba(220,38,38,.2); } }
 body.ai-open { overflow: hidden; }
+/* Sandy Intelligence: open animation (slide/scale up + sparkle) */
+.ai-card-from { font-size: 13px; font-weight: 600; color: #6d28d9; margin-bottom: 2px; }
+.ai-spark, .ai-title { display: inline-block; }
+.ai-sheet.ai-anim .ai-panel { animation: aiUp 380ms cubic-bezier(.2,.9,.3,1.15) both; transform-origin: 50% 100%; }
+.ai-sheet.ai-anim .ai-backdrop { animation: aiFade 300ms ease-out both; }
+.ai-sheet.ai-anim .ai-spark { animation: aiSpark 450ms ease-out 120ms both; }
+.ai-sheet.ai-anim .ai-title { background: linear-gradient(100deg, #111827 40%, #a78bfa 50%, #111827 60%) 0 0 / 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: aiShimmer 450ms ease-out 100ms both; }
+@keyframes aiUp { from { transform: translateY(40px) scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes aiFade { from { opacity: 0; } }
+@keyframes aiSpark { 0% { transform: scale(.6) rotate(-20deg); filter: brightness(1); } 55% { transform: scale(1.35) rotate(12deg); filter: brightness(1.6) drop-shadow(0 0 6px #fbbf24); } 100% { transform: none; filter: none; } }
+@keyframes aiShimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .ai-sheet.ai-anim .ai-panel, .ai-sheet.ai-anim .ai-backdrop, .ai-sheet.ai-anim .ai-spark, .ai-sheet.ai-anim .ai-title { animation: none; } }

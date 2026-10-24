@@ -23,6 +23,10 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
   });
   await p.reload(); await p.waitForSelector('#aiBtn');
   await p.tap('#aiBtn'); await p.waitForSelector('#aiSheet:not([hidden])');
+  assert(await p.$eval('#aiSheet', e => e.classList.contains('ai-anim') && getComputedStyle(e.querySelector('.ai-panel')).animationName === 'aiUp' && getComputedStyle(e.querySelector('.ai-spark')).animationName === 'aiSpark'), 'open animation runs');
+  assert(/Sandy Intelligence/.test(await p.$eval('.ai-head', e => e.textContent)) && /Sandy Intelligence/.test(await p.$eval('#aiLog', e => e.textContent)), 'named Sandy Intelligence');
+  assert((await p.$eval('#aiBtn', e => e.textContent)).trim() === '✨ AI', 'button still says AI');
+  await p.waitForTimeout(600); if (SHOTS) await p.screenshot({ path: `${SHOTS}/31_sandy_intelligence_open_mobile.png` });
   const fs = await p.$eval('#aiText', e => getComputedStyle(e).fontSize); assert(fs === '16px', 'input is 16px (no zoom): ' + fs);
   const col = await p.$eval('.ai-msg.assistant', e => getComputedStyle(e).color); assert(col === 'rgb(17, 24, 39)', 'dark readable text ' + col);
   // Brief me
@@ -36,7 +40,7 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
   // Add proposal
   next = () => ({ reply: 'Here you go. Tap Confirm to save.', proposals: [{ type: 'add', title: 'Film with Nick', calendar: 'mam', start: '2026-10-23T16:00', end: '2026-10-23T17:00', summary: 'Add film with Nick, Fri 4–5 PM' }] });
   await p.fill('#aiText', 'Add film with Nick today 4pm'); await p.tap('#aiSend');
-  await p.waitForSelector('.ai-card [data-ok]');
+  await p.waitForSelector('.ai-card [data-ok]'); assert(/Sandy Intelligence suggests/.test(await p.$eval('.ai-card', e => e.textContent)), 'card names Sandy Intelligence');
   assert(sent[0].context.today === '2026-10-23' && sent[0].context.events.some(e => e.title === 'Maryville practice' && e.occ === '2026-10-23'), 'context has expanded occurrences');
   assert(sent[0].messages.at(-1).content === 'Add film with Nick today 4pm', 'message sent');
   assert(!(await p.evaluate(async () => (await Store.list()).some(e => e.title === 'Film with Nick'))), 'not saved before Confirm');
@@ -62,6 +66,8 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
   await ctx.unroute('https://ai.test/fn'); await ctx.route('https://ai.test/fn', r => r.fulfill({ status: 429, contentType: 'application/json', body: JSON.stringify({ error: 'Daily AI limit reached (50 requests).' }) }));
   await p.fill('#aiText', 'hi'); await p.tap('#aiSend'); await p.waitForSelector('.ai-msg.error'); assert(/Daily AI limit/.test(await p.$eval('.ai-msg.error', e => e.textContent)), 'rate-limit message shown');
   await p.tap('.ai-x'); assert(await p.$eval('#aiSheet', e => e.hidden), 'closes');
+  await p.emulateMedia({ reducedMotion: 'reduce' }); await p.tap('#aiBtn'); await p.waitForSelector('#aiSheet:not([hidden])');
+  assert(await p.$eval('.ai-panel', e => getComputedStyle(e).animationName) === 'none', 'reduced motion: no animation'); await p.tap('.ai-x');
   assert(!errs.length, 'no page errors ' + errs.join(';'));
   await b.close(); console.log('PASS ai_assistant');
 })().catch(e => { console.error(e); process.exit(1); });
