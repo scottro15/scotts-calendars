@@ -30,7 +30,7 @@ const INVITED = 'invited@example.com';
   assert(await p.isVisible('#authGate'), 'stranger stays at the sign-in gate');
   await p.screenshot({ path: __dirname + '/../screenshots/20_signin_not_invited_mobile.png' });
   await p.fill('#authEmail', INVITED); await p.click('#authForm button[type=submit]');
-  await p.waitForFunction(() => /Check /.test(document.getElementById('authMsg').textContent));
+  await p.waitForFunction(() => /We emailed /.test(document.getElementById("authMsg").textContent));
   assert(otp[1].create_user === false, 'invited email: link sent, still create_user:false');
   await b.close(); console.log('ALL INVITE-ONLY TESTS PASSED');
 })().catch(e => { console.error(e.message); process.exit(1); });

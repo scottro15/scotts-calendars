@@ -453,6 +453,13 @@
           throw error;
         }
       },
+      // Code sign-in (same email as the magic link carries {{ .Token }}). Needed on iPhone, where the
+      // Home Screen app has its own storage and the emailed link always opens in Safari.
+      async verifyCode(email, token) {
+        const { data, error } = await sb.auth.verifyOtp({ email: email.trim(), token: String(token).trim(), type: 'email' });
+        if (error) throw error;
+        return data && data.session ? data.session.user : null;
+      },
       async signOut() { await sb.auth.signOut(); },
       onSignIn(fn) { return sb.auth.onAuthStateChange((evt, session) => { if (session && (evt === 'SIGNED_IN' || evt === 'INITIAL_SESSION')) fn(session.user); }); },
       // Invite-only: any account that exists in Supabase Auth was invited (sign-ups are off),

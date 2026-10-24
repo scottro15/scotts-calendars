@@ -749,3 +749,20 @@ html.dark .seg button[aria-pressed="true"] { background: #e5e7eb; color: #0b1220
 .pf-who { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
 .pf-who strong { font-size: 20px; overflow-wrap: anywhere; }
 .pf-who .muted { overflow-wrap: anywhere; }
+
+/* ===================== Code sign-in (iPhone Home Screen app) ===================== */
+.auth-code { display: flex; flex-direction: column; gap: 10px; }
+.auth-code label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
+#authCode { font-size: 1.6rem !important; letter-spacing: .35em; text-align: center; padding: 12px 8px !important; border: 1px solid #d1d5db; border-radius: 10px; font-variant-numeric: tabular-nums; }
+#authCode:focus { outline: 2px solid var(--accent, #2563eb); outline-offset: 1px; }
+#authCode.invalid { border-color: #dc2626; animation: code-shake 260ms; }
+.auth-err { color: #dc2626; margin: 0; font-size: 14px; }
+.auth-code button.primary { min-height: 44px; }
+.auth-code-links { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.link-btn { background: none !important; border: none !important; color: var(--accent, #2563eb) !important; padding: 8px 0; min-height: 44px; font-size: 15px; cursor: pointer; }
+.auth-swap { animation: onb-in 280ms cubic-bezier(.2,.9,.3,1.1) both; }
+@keyframes code-shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+html.reduce-motion .auth-swap, html.reduce-motion #authCode.invalid { animation: none !important; }
+html.dark .auth-card { background: var(--panel); color: var(--text); }
+html.dark #authCode { background: var(--bg); color: var(--text); border-color: var(--line); }
+html.dark .auth-err { color: #f87171; }

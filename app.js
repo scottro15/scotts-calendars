@@ -185,21 +185,48 @@
     emailEl.value = localStorage.getItem('sandy.lastEmail') || '';
     const showFor = user => {
       gate.hidden = false;
-      formEl.hidden = !!user; outBtn.hidden = !user;
-      msg.textContent = user ? `Signed in as ${user.email}, which doesn't have access to these calendars.` : 'Sign in with your email. We\'ll send you a one-time link.';
+      formEl.hidden = !!user; outBtn.hidden = !user; document.getElementById('authCodeForm').hidden = true;
+      msg.textContent = user ? `Signed in as ${user.email}, which doesn't have access to these calendars.` : 'Sign in with your email. We\'ll send you a link and a code.';
     };
     let user = null;
     try { user = await Store.auth.user(); } catch (e) { console.error(e); }
     if (Store.auth.isOwner(user)) return user;
     showFor(user);
     outBtn.onclick = async () => { await Store.auth.signOut(); showFor(null); };
-    formEl.onsubmit = async e => {
-      e.preventDefault();
-      const email = emailEl.value.trim();
-      msg.textContent = 'Sending…'; localStorage.setItem('sandy.lastEmail', email);
-      try { await Store.auth.sendMagicLink(email); msg.textContent = `Check ${email} for a sign-in link. Open it on this device. This page will continue automatically.`; }
-      catch (err) { msg.textContent = err && err.notInvited ? 'That email hasn\'t been invited yet. SANDY is invite-only for now.' : 'Could not send the link: ' + (err.message || err); }
+    const codeForm = document.getElementById('authCodeForm');
+    const codeEl = document.getElementById('authCode');
+    const codeErr = document.getElementById('authCodeErr');
+    const codeBtn = document.getElementById('authCodeBtn');
+    const setErr = t => { codeErr.textContent = t || ''; codeErr.hidden = !t; codeEl.classList.toggle('invalid', !!t); };
+    const showCode = on => {
+      formEl.hidden = on; codeForm.hidden = !on; setErr('');
+      if (on) { codeEl.value = ''; codeForm.classList.remove('auth-swap'); void codeForm.offsetWidth; codeForm.classList.add('auth-swap'); setTimeout(() => codeEl.focus(), 50); }
+      else { formEl.classList.remove('auth-swap'); void formEl.offsetWidth; formEl.classList.add('auth-swap'); }
     };
+    let sentTo = '';
+    const send = async email => {
+      msg.textContent = 'Sending…'; localStorage.setItem('sandy.lastEmail', email);
+      try {
+        await Store.auth.sendMagicLink(email); sentTo = email;
+        msg.textContent = `We emailed ${email} a sign-in link and code. On iPhone's Home Screen app, type the code below.`;
+        showCode(true);
+      } catch (err) { showCode(false); msg.textContent = err && err.notInvited ? 'That email hasn\'t been invited yet. SANDY is invite-only for now.' : (/rate|seconds|429/i.test((err && err.message) || '') ? 'Too many requests. Wait a minute, then try again.' : 'Could not send the email: ' + (err.message || err)); }
+    };
+    formEl.onsubmit = async e => { e.preventDefault(); await send(emailEl.value.trim()); };
+    codeEl.oninput = () => { codeEl.value = codeEl.value.replace(/\D/g, '').slice(0, 8); if (!codeErr.hidden) setErr(''); };
+    codeForm.onsubmit = async e => {
+      e.preventDefault();
+      const code = codeEl.value.replace(/\D/g, '');
+      if (code.length < 6) { setErr('Enter the full code from your email (6–8 digits).'); return; }
+      codeBtn.disabled = true; codeBtn.textContent = 'Checking…';
+      try { await Store.auth.verifyCode(sentTo, code); msg.textContent = 'Signed in. Loading…'; }
+      catch (err) {
+        const m = (err && (err.message || err.code)) || '';
+        setErr(/expired|invalid|otp/i.test(m) ? 'That code is wrong or has expired. Check the newest email, or tap Resend email.' : /rate|429/i.test(m) ? 'Too many tries. Wait a minute, then try again.' : 'Could not sign in: ' + m);
+      } finally { codeBtn.disabled = false; codeBtn.textContent = 'Sign in'; }
+    };
+    document.getElementById('authResend').onclick = () => send(sentTo || emailEl.value.trim());
+    document.getElementById('authChangeEmail').onclick = () => { showCode(false); msg.textContent = 'Sign in with your email. We\'ll send you a link and a code.'; emailEl.focus(); };
     return new Promise(resolve => {
       Store.auth.onSignIn(u => { if (Store.auth.isOwner(u)) { gate.hidden = true; resolve(u); } else showFor(u); });
     });
