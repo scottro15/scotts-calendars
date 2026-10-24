@@ -511,3 +511,21 @@ dialog.closing::backdrop { animation: bd-out 200ms ease-in forwards; }
 .fb-list { max-height: 60vh; overflow: auto; }
 .fb-item { padding: 8px 0; border-top: 1px solid #e5e7eb; }
 .fb-body { white-space: pre-wrap; color: #111; }
+
+/* ---------- Reminders (editor) + notifications (Account) ---------- */
+.rem-box { border: 1px solid #e5e7eb; border-radius: 10px; padding: 6px 10px 8px; margin: 8px 0; }
+.rem-box legend { padding: 0 4px; font-weight: 600; }
+.rem-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.rem-row { display: flex; align-items: center; gap: 6px; }
+.rem-row.msg-up { animation: msgUp .28s cubic-bezier(.2,.9,.3,1.1) both; }
+.rem-row input { width: 4.5em; }
+.rem-row select { width: auto; flex: 0 1 auto; }
+.rem-row .rem-del { margin-left: auto; font-size: 15px; padding: 2px 8px; background: transparent; }
+.rem-add { margin-top: 6px; background: none; border: 0; color: #2563eb; padding: 4px 0; cursor: pointer; font-weight: 600; }
+.rem-add[hidden] { display: none; }
+.push-box { margin-top: 10px; }
+.push-box .push-status { margin: 4px 0 8px; }
+.push-steps { margin: 8px 0 12px; padding-left: 1.3em; line-height: 1.6; }
+.push-steps li { animation: msgUp .3s cubic-bezier(.2,.9,.3,1.1) both; }
+.push-steps li:nth-child(2) { animation-delay: 60ms; } .push-steps li:nth-child(3) { animation-delay: 120ms; } .push-steps li:nth-child(4) { animation-delay: 180ms; }
+@media (prefers-reduced-motion: reduce) { .rem-row.msg-up, .push-steps li { animation: none; } }

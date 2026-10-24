@@ -84,8 +84,11 @@
       is_task: isTask, task_scope: isTask ? (ev.scope || 'day') : null,
       done: !!ev.done, completed_dates: ev.completedDates || [],
       example: !!ev.example, source: 'app',
+      reminders: cleanReminders(ev.reminders),
     };
   }
+  // minutes before start; max 6, 0..267840 (186 days), no duplicates (matches the DB check)
+  const cleanReminders = a => [...new Set((Array.isArray(a) ? a : []).map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 267840))].sort((x, y) => x - y).slice(0, 6);
   function fromRow(row) {
     const ev = {
       id: row.id, kind: row.is_task ? 'task' : 'event', calendar: row.calendar, category: row.category, title: row.title,
@@ -94,7 +97,7 @@
         freq: row.recur_freq, interval: row.recur_interval || 1, until: row.recur_until || null,
         byWeekday: row.recur_freq === 'weekly' ? (row.recur_by_weekday || undefined) : undefined,
       },
-      exdates: row.exdates || [], location: row.location || '', notes: row.notes || '',
+      exdates: row.exdates || [], location: row.location || '', notes: row.notes || '', reminders: row.reminders || [],
       example: !!row.example, source: row.source, createdAt: row.created_at, updatedAt: row.updated_at,
     };
     if (row.series_id) { ev.seriesId = row.series_id; ev.originalDate = row.original_date; }
@@ -134,7 +137,16 @@
         const sorted = [...events].sort((a, b) => (a.seriesId ? 1 : 0) - (b.seriesId ? 1 : 0));
         const saved = [];
         for (let i = 0; i < sorted.length; i += 500) {
-          const rows = must(await sb.from('events').upsert(sorted.slice(i, i + 500).map(toRow)).select());
+          let batch = sorted.slice(i, i + 500).map(toRow);
+          if (this.remindersSupported === false) batch = batch.map(({ reminders, ...r }) => r);
+          let res = await sb.from('events').upsert(batch).select();
+          // before the push migration runs there is no reminders column: save everything else
+          if (res.error && /reminders/.test(res.error.message || '') && this.remindersSupported !== false) {
+            this.remindersSupported = false; batch = batch.map(({ reminders, ...r }) => r);
+            res = await sb.from('events').upsert(batch).select();
+          }
+          const rows = must(res);
+          if (rows[0] && 'reminders' in rows[0]) this.remindersSupported = true;
           saved.push(...rows.map(fromRow));
         }
         return saved;

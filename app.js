@@ -1040,6 +1040,7 @@
     f('scope').value = d.scope || 'day';
     f('done').checked = ev ? isDone(ev, occKey) : false;
     f('location').value = d.location || ''; f('notes').value = d.notes || '';
+    renderReminders(d.reminders || []);
     document.getElementById('notesLabel').textContent = recurring ? 'Notes (every occurrence)' : 'Notes';
     await setupDayNote(ev, occKey);
     await setupChecklist(ev, occKey);
@@ -1166,8 +1167,44 @@
     v.location = f('location').value.trim();
     v.notes = f('notes').value.trim();
     if (v.kind === 'task') v.scope = f('scope').value;
+    v.reminders = readReminders();
     return v;
   }
+
+  // ---------- Reminders: up to 6 per event/to-do, minutes .. 6 months before (like Google Calendar) ----------
+  const REM_UNITS = [['minutes', 1], ['hours', 60], ['days', 1440], ['weeks', 10080], ['months', 44640]];
+  const REM_MAX = 267840, remList = document.getElementById('remList'), remAdd = document.getElementById('remAdd');
+  const remSplit = m => { for (let i = REM_UNITS.length - 1; i > 0; i--) if (m && m % REM_UNITS[i][1] === 0) return [m / REM_UNITS[i][1], REM_UNITS[i][0]]; return [m, 'minutes']; };
+  function remRow(m, animate) {
+    const [n, u] = remSplit(m);
+    const li = document.createElement('li'); li.className = 'rem-row' + (animate ? ' msg-up' : '');
+    li.innerHTML = `<input type="number" name="remN" min="0" max="999" step="1" inputmode="numeric" aria-label="How long before" required>
+      <select name="remU" aria-label="Unit">${REM_UNITS.map(([k]) => `<option value="${k}">${k}</option>`).join('')}</select>
+      <span class="muted">before</span><button type="button" class="rem-del icon-btn" aria-label="Remove reminder">✕</button>`;
+    li.querySelector('input').value = n; li.querySelector('select').value = u;
+    li.querySelector('.rem-del').addEventListener('click', () => { li.remove(); syncRem(); remAdd.focus(); });
+    remList.append(li);
+  }
+  function syncRem() { remAdd.hidden = remList.children.length >= 6; document.getElementById('remHint').hidden = !(f('allDay').checked && remList.children.length); }
+  function renderReminders(list) { remList.innerHTML = ''; [...list].slice(0, 6).forEach(m => remRow(m)); syncRem(); }
+  function readReminders() {
+    const out = [...remList.children].map(li => {
+      const n = Math.max(0, Math.round(+li.querySelector('input').value || 0));
+      const u = (REM_UNITS.find(([k]) => k === li.querySelector('select').value) || REM_UNITS[0])[1];
+      return Math.min(REM_MAX, n * u);
+    });
+    return [...new Set(out)].sort((a, b) => a - b).slice(0, 6);
+  }
+  function afterReminders(list) {
+    if (!list || !list.length) return;
+    if (Store.adapter && Store.adapter.remindersSupported === false) { setTimeout(() => toast('Saved. Reminders turn on after the database update.'), 1600); return; }
+    if (window.SandyPush) window.SandyPush.nudge();
+  }
+  remAdd.addEventListener('click', () => {
+    const used = new Set(readReminders()); const pick = (f('allDay').checked ? [1440, 0, 10080] : [30, 10, 60, 1440]).find(m => !used.has(m)) ?? 0;
+    remRow(pick, true); syncRem(); remList.lastElementChild.querySelector('input').focus();
+  });
+  f('allDay').addEventListener('change', syncRem);
 
   document.getElementById('cancelBtn').addEventListener('click', () => dlg.close());
   form.addEventListener('submit', async e => {
@@ -1192,7 +1229,7 @@
         const changes = { ...v, kind: existing.kind };
         if (existing.kind === 'task') changes.done = f('done').checked;
         await Store.saveMany(detachOccurrence(existing, editing.occKey, changes));
-        dlg.close(); toast('Saved this event only'); refresh(); return;
+        dlg.close(); toast('Saved this event only'); refresh(); afterReminders(v.reminders); return;
       }
 
       const ev = existing ? { ...existing } : {};
@@ -1215,6 +1252,7 @@
       } else { delete ev.scope; delete ev.done; delete ev.completedDates; }
       await Store.save(ev);
       dlg.close(); toast(scope === 'all' && editing.recurring ? 'Saved all events in the series' : 'Saved'); refresh();
+      afterReminders(v.reminders);
     } catch (err) { fail(err); }
   });
 
@@ -1279,6 +1317,7 @@
     document.getElementById('syncBtns').hidden = false;
     document.getElementById('signOutBtn').addEventListener('click', async () => { await Store.auth.signOut(); location.reload(); });
     if (window.SandyAccount) window.SandyAccount.mountAccount({ store: Store, user, mount: document.getElementById('dataSection') });
+    if (window.SandyPush) window.SandyPush.mount({ store: Store, user });
     if (window.SandyLaunch) window.SandyLaunch.mount({ store: Store, user, timeZone: () => TZ, setTZ: z => { if (setTZ(z)) { calendar.render(); refresh(); } } });
     document.getElementById('syncNowBtn').addEventListener('click', () => reloadFromServer(true));
     const local = await Store.localDataForMigration();

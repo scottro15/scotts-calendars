@@ -17,4 +17,6 @@ window.CALENDAR_CONFIG = {
   // Leave empty to use free OpenStreetMap suggestions. Browser keys are public by design; the key's
   // website + API restrictions in Google Cloud are what protect it.
   GOOGLE_MAPS_API_KEY: '',
+  // Web Push (reminder notifications): PUBLIC VAPID key only. The private key lives only as an Edge Function secret.
+  VAPID_PUBLIC_KEY: 'BPaeiWhjWtYiwgVHbjz8CNHzP8VzQ3l6jqqq4pkWcOqFAOJk44AbKKXHWoWkBErDF8Q_VOppwI1nIwQO_2sPUIQ',
 };
