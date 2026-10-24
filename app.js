@@ -595,7 +595,7 @@
           allDay: !!ev.allDay,
           backgroundColor: c.color, borderColor: c.color, textColor: '#fff',
           editable: true, // dragging one occurrence of a series detaches just that occurrence
-          classNames: [ev.example ? 'is-example' : '', done ? 'task-done' : '', ev.seriesId ? 'is-exception' : '', hasNote(ev, o.key) ? 'has-day-note' : '', ev.kind === 'task' && ev.allDay ? 'sandy-todo-glow' : ''].filter(Boolean),
+          classNames: [ev.example ? 'is-example' : '', done ? 'task-done' : '', ev.seriesId ? 'is-exception' : '', hasNote(ev, o.key) ? 'has-day-note' : '', ev.kind === 'task' && ev.allDay ? 'sandy-todo-glow' : '', isClientKey(ev) ? 'sandy-client-key' : ''].filter(Boolean),
           extendedProps: { kind: ev.kind, dayNote: hasNote(ev, o.key), notionUrl: notionOf(ev, o.key), sourceId: ev.id, occKey: o.key, calendar: ev.calendar, category: ev.category, location: ev.location, example: ev.example, exception: !!ev.seriesId },
         });
       }
@@ -693,6 +693,11 @@
   const briefSeasonsEl = document.getElementById('briefSeasons');
   const briefListEl = document.getElementById('briefList');
   const briefCollapse = document.getElementById('briefCollapse');
+  // Tap anywhere on the Briefing header (not its buttons/links) to open/close it (Scott 2026-10-24)
+  document.querySelector('#briefing .brief-head').addEventListener('click', e => {
+    if (e.target.closest('button, a, input, select, textarea, label, [role=button]')) return;
+    briefCollapse.click();
+  });
   const briefBody = document.getElementById('briefBody');
   let briefScope = 'day';
   let briefToken = 0;
@@ -1007,6 +1012,10 @@
         : `Repeating event: changes apply to every occurrence.`;
     } else note.hidden = true;
   }
+
+  // MSC client sessions / reach-outs / check-ins: bold + underlined titles in List and Day view
+  const CLIENT_KEY_CATS = new Set(['clientsession', 'clientreachout', 'clientcheckin']);
+  function isClientKey(ev) { return ev.calendar === 'msc' && CLIENT_KEY_CATS.has(String(ev.category || '').toLowerCase().replace(/[^a-z]/g, '')); }
 
   async function openEditor(id, occKey, prefill = {}) {
     form.reset();
