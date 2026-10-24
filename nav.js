@@ -141,7 +141,8 @@
   async function renderToday() {
     const a = A(); if (!a) return;
     const d = await todayData();
-    $('todayDate').textContent = a.fmtDay(d.today);
+    { const td = new Date(d.today.getTime()); const wd = td.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }); const md = td.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+      $('todayDate').textContent = `${wd}, ${md}`; const sub = $('todaySub'); if (sub) sub.textContent = `Today · ${td.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}`; }
     const dot = ev => `<span class="dot" style="background:${esc((a.cal(ev.calendar) || {}).color || '#666')}"></span>`;
     const when = x => x.ev.allDay ? 'All day' : `${t12(x.o.start)}–${t12(x.o.end || x.o.start)}`;
     const calColor = ev => esc((a.cal(ev.calendar) || {}).color || '#9ca3af');
@@ -149,9 +150,14 @@
     const mins = m => m < 60 ? `${m} min` : `${Math.floor(m / 60)} hr${m >= 120 ? 's' : ''}${m % 60 ? ` ${m % 60} min` : ''}`;
     let h = '';
     const nTasks = d.items.filter(x => x.ev.kind === 'task').length, nEv = d.items.length - nTasks;
-    h += `<div class="tc-summary"><div class="tc-stats"><span><b>${nEv}</b> event${nEv === 1 ? '' : 's'}</span><span><b>${nTasks}</b> to-do${nTasks === 1 ? '' : 's'}</span><span class="${d.overdue.length ? 'bad' : ''}"><b>${d.overdue.length}</b> overdue</span></div>`;
-    if (d.nowOn) h += `<p class="tc-next">Now: <button type="button" class="tc-link tc-item" data-id="${esc(d.nowOn.ev.id)}" data-key="${esc(d.nowOn.o.key)}">${esc(d.nowOn.ev.title)}</button> until ${esc(t12(d.nowOn.o.end))}</p>`;
-    if (d.next) h += `<p class="tc-next">Up next: <button type="button" class="tc-link tc-item" data-id="${esc(d.next.ev.id)}" data-key="${esc(d.next.o.key)}">${esc(d.next.ev.title)}</button> at ${esc(t12(d.next.o.start))} <span class="muted">(in ${mins(Math.max(1, Math.round((d.next.o.start - d.now) / 60000)))})</span></p>`;
+    const pill = (cls, n, word) => `<span class="tc-pill ${cls}"><b>${n}</b> ${word}</span>`;
+    h += `<div class="tc-summary"><div class="tc-stats">${pill('tc-p-ev', nEv, 'event' + (nEv === 1 ? '' : 's'))}${pill('tc-p-todo', nTasks, 'to-do' + (nTasks === 1 ? '' : 's'))}${pill('tc-p-od' + (d.overdue.length ? ' bad' : ''), d.overdue.length, 'overdue')}</div>`;
+    if (d.nowOn || d.next) {
+      h += '<div class="tc-upnext">';
+      if (d.nowOn) h += `<p class="tc-next"><span class="tc-next-k">Now</span><span class="tc-next-v"><button type="button" class="tc-link tc-item" data-id="${esc(d.nowOn.ev.id)}" data-key="${esc(d.nowOn.o.key)}">${esc(d.nowOn.ev.title)}</button> until ${esc(t12(d.nowOn.o.end))}</span></p>`;
+      if (d.next) h += `<p class="tc-next"><span class="tc-next-k">Up next</span><span class="tc-next-v"><button type="button" class="tc-link tc-item" data-id="${esc(d.next.ev.id)}" data-key="${esc(d.next.o.key)}">${esc(d.next.ev.title)}</button> at ${esc(t12(d.next.o.start))} <span class="muted">(in ${mins(Math.max(1, Math.round((d.next.o.start - d.now) / 60000)))})</span></span></p>`;
+      h += '</div>';
+    }
     h += '</div>';
     if (d.gaps.length) h += `<section class="tc-sec tc-card tc-heads"><h3>Heads Up</h3><ul class="tc-warn">${d.gaps.map(g => g.kind === 'overlap'
       ? `<li>⚠️ <b>${esc(g.p.ev.title)}</b> overlaps <b>${esc(g.n.ev.title)}</b> (${esc(t12(g.n.o.start))})</li>`

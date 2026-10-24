@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <title>SANDY — the scheduling app</title>
-  <link rel="stylesheet" href="styles.css?v=20261024-smart">
+  <link rel="stylesheet" href="styles.css?v=20261024-fix3">
   <!-- FullCalendar v6 is vendored locally (vendor/) so the app works offline and on GitHub Pages. -->
   <script src="vendor/fullcalendar.min.js"></script>
   <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
@@ -56,7 +56,7 @@
     <main class="main" id="page-home">
       <!-- Today tab: briefing card (shown only on the Today tab) -->
       <section id="todayCard" class="today-card" aria-labelledby="todayH">
-        <div class="tc-head"><h2 id="todayH">Today</h2><span id="todayDate" class="muted small"></span></div>
+        <div class="tc-head"><h2 id="todayH"><span id="todayDate" class="tc-date">Today</span></h2><span id="todaySub" class="tc-sub">Today</span></div>
         <div id="todayBody"></div>
         <div id="todayNudges" class="tc-nudges" aria-label="Sandy Intelligence prep nudges">
           <div class="tc-nudge-head">✨ Sandy Intelligence <span class="tc-soon">coming soon</span></div>
@@ -355,15 +355,15 @@
     <button type="button" data-tab="profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.2-4 4-5.8 7.5-5.8s6.3 1.8 7.5 5.8"/></svg><span>Profile</span></button>
   </nav>
   <script src="config.js"></script>
-  <script src="storage.js?v=20261024-smart"></script>
+  <script src="storage.js?v=20261024-fix3"></script>
   <script src="places.js"></script>
-  <script src="motion.js?v=20261023-anim"></script>
-  <script src="account.js?v=20261024-smart"></script>
-  <script src="launch.js?v=20261024-smart"></script>
-  <script src="push.js?v=20261024-smart"></script>
-  <script src="smartparse.js?v=20261024-smart"></script>
-  <script src="nav.js?v=20261024-smart"></script>
-  <script src="app.js?v=20261024-smart"></script>
-  <script src="ai.js?v=20261024-smart"></script>
+  <script src="motion.js?v=20261024-fix3"></script>
+  <script src="account.js?v=20261024-fix3"></script>
+  <script src="launch.js?v=20261024-fix3"></script>
+  <script src="push.js?v=20261024-fix3"></script>
+  <script src="smartparse.js?v=20261024-fix3"></script>
+  <script src="nav.js?v=20261024-fix3"></script>
+  <script src="app.js?v=20261024-fix3"></script>
+  <script src="ai.js?v=20261024-fix3"></script>
 </body>
 </html>

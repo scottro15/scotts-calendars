@@ -188,6 +188,7 @@ To test without a key: `node tests/location_autocomplete.test.js http://127.0.0.
 - `supabase/schema.sql`: tables, RLS, trigger, realtime
 - `tools/cal.py`: bot CLI
 - `tests/briefing_and_picker.test.js`: browser test of the Briefing panel (Day/Week/Month/Season, season buttons, calendar toggles, tasks by scope, collapse) and the month/year picker (tap and keyboard, prev/next year, any year, invalid year), on desktop and phone sizes. Run it like the other local tests, against a copy served with an empty `config.js`: `node tests/briefing_and_picker.test.js http://127.0.0.1:8766/`
+- `tests/dark_list_todo_today_header.test.js`: 390px light + dark: List text contrast (WCAG ≥ 4.5 on tinted rows), to-do text inside its colored bar in List, Day and Today, and the Today header (big bold date, count pills, space before Up Next).
 - `tests/local_mode.test.js`: browser test of local mode (device time zones Chicago, Tokyo and LA, occurrence edits, restore, categories)
 - `tests/supabase_mode.test.js` + `supabase/local-test/`: end-to-end test against a **local stand-in** (Postgres 17 + PostgREST + `dev_proxy.py`, with stub `auth.*` functions and locally-minted test tokens). It covers sign-in gating, migration, app→bot and bot→app sync, and exceptions. It never talks to a real Supabase project, and none of its files are used in production.
 

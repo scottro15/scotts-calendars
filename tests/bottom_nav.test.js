@@ -44,7 +44,7 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); console.log('o
     const tc = await p.textContent('#todayCard');
     assert(/Tight: Team standup ends 11:30 AM, Client session Ana starts 5 min later/.test(tc), `${N} tight gap flagged`);
     assert(/Client session Ana overlaps Gym class/.test(tc), `${N} overlap flagged`);
-    assert(/Up next: Team standup at 11:00 AM/.test(tc), `${N} up next`);
+    assert(/Up next:?\s*Team standup at 11:00 AM/.test(tc), `${N} up next`);
     assert(/Overdue to-dos[\s\S]*File taxes[\s\S]*Overdue 3 days/i.test(tc), `${N} overdue to-do with age`);
     assert(/Sandy Intelligence/.test(tc), `${N} Sandy Intelligence placeholder`);
     if (mob) await p.screenshot({ path: `${SHOTS}/2_today_${vp.name}.png` });

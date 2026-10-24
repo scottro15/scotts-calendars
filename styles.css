@@ -811,3 +811,65 @@ button.tc-item.tc-ev.is-task .tc-when { min-width: 64px; }
 .quick-add .qa-field #qaText, .qa-hl { line-height: 22px; letter-spacing: normal; }
 @media (max-width: 420px) { .quick-add .qa-field { flex-basis: 100%; } }
 html.dark button.tc-item.tc-ev .overdue-badge { background: #3b1219; color: #fca5a5; }
+
+/* ===== Fix pass 2026-10-24 (Scott): dark List text, to-do text inside its bar, Today header ===== */
+/* 1) Dark mode List view: tint rows from the dark panel, not white, so light text stays readable */
+html.dark .fc-list tr.sandy-tint > td { background: color-mix(in srgb, var(--cal) 20%, #111a2b); color: #f1f5f9; }
+html.dark .fc-list tr.sandy-tint:hover > td { background: color-mix(in srgb, var(--cal) 30%, #111a2b); }
+html.dark .fc-list tr.sandy-tint.sandy-ongoing > td { background: color-mix(in srgb, var(--cal) 34%, #111a2b); }
+html.dark .fc-list tr.sandy-tint.sandy-ongoing:hover > td { background: color-mix(in srgb, var(--cal) 40%, #111a2b); }
+html.dark .fc-list .fc-list-event-time { color: #cbd5e1; }
+html.dark .fc-list .fc-list-event-title, html.dark .fc-list .fc-list-event-title a { color: #f8fafc; }
+html.dark .fc-list tr.sandy-ongoing > td { background: #172554; }
+html.dark .fc-list tr.sandy-today-first .fc-list-day-cushion,
+html.dark #calendar .fc-list-sticky .fc-list-day.sandy-today-first .fc-list-day-cushion { background: #1e3a8a; color: #f8fafc; }
+html.dark #calendar .fc-list-sticky .fc-list-day .fc-list-day-cushion { background: var(--fc-neutral-bg-color); color: var(--text); }
+html.dark .fc .fc-list-day-cushion, html.dark .fc .fc-list-day-cushion a { color: var(--text); }
+html.dark .fc .fc-list-empty { background: var(--panel); color: var(--muted); }
+html.dark .todo-check .box { background: #0f172a; }
+html.dark .fc-timegrid-event .notion-link { background: #e5e7eb; }
+
+/* 2) To-dos: checkbox sits beside the text, and the text stays inside the colored row/block */
+.fc-list td.fc-list-event-title > .todo-check { float: left; margin: -6px 4px -6px -8px; }
+.fc-list td.fc-list-event-title > .todo-check + a { display: block; overflow: hidden; }
+.fc-timegrid-event .fc-event-main:has(> .todo-check) { display: flex; align-items: flex-start; gap: 2px; min-width: 0; overflow: hidden; }
+.fc-timegrid-event .fc-event-main > .todo-check { width: 24px; height: 24px; margin: -3px 0 -3px -3px; }
+.fc-timegrid-event .fc-event-main > .todo-check .box { width: 16px; height: 16px; }
+.fc-timegrid-event .fc-event-main > .todo-check + .fc-event-main-frame { flex: 1 1 auto; min-width: 0; height: auto; }
+.fc-timegrid-event-short .fc-event-main > .todo-check + .fc-event-main-frame { flex-direction: row; align-items: baseline; }
+.fc-timegrid-event-short .fc-event-main > .todo-check + .fc-event-main-frame .fc-event-title-container, .fc-timegrid-event-short .fc-event-main > .todo-check + .fc-event-main-frame .fc-event-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.tc-item.tc-ev.is-task .tc-title { min-width: 0; }
+
+/* 3) Today header: big bold date, secondary line, tidy count pills, room before Up Next */
+.tc-head { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.tc-head h2 { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 800; letter-spacing: -.01em; color: #0f172a; }
+.tc-sub { font-size: 13px; font-weight: 600; color: #6366f1; letter-spacing: .02em; }
+.tc-summary { margin: 14px 0 18px; }
+.tc-stats { display: flex; gap: 6px; flex-wrap: wrap; margin: 0; }
+.tc-stats .tc-pill { display: inline-flex; align-items: center; gap: 4px; background: #fff; border: 1px solid #e5e7eb; border-radius: 999px; padding: 4px 11px; font-size: 13px; line-height: 1.2; color: #334155; }
+.tc-stats .tc-pill b { color: #0f172a; font-weight: 800; }
+.tc-stats .tc-pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #94a3b8; }
+.tc-stats .tc-p-ev::before { background: #6366f1; }
+.tc-stats .tc-p-todo::before { background: #10b981; }
+.tc-stats .tc-pill.bad { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+.tc-stats .tc-pill.bad b { color: #b91c1c; }
+.tc-stats .tc-pill.bad::before { background: #ef4444; }
+.tc-upnext { margin-top: 16px; padding-top: 14px; border-top: 1px solid #e5e7eb; display: grid; gap: 8px; }
+.tc-upnext .tc-next { margin: 0; display: flex; gap: 10px; align-items: baseline; line-height: 1.35; }
+.tc-next-k { flex: none; min-width: 58px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.tc-next-v { min-width: 0; }
+html.dark .tc-head h2 { color: #f8fafc; }
+html.dark .tc-sub { color: #a5b4fc; }
+html.dark .tc-stats .tc-pill { background: #16213a; border-color: #2a3852; color: #cbd5e1; }
+html.dark .tc-stats .tc-pill b { color: #f8fafc; }
+html.dark .tc-stats .tc-pill.bad { background: #3b1219; border-color: #7f1d1d; color: #fca5a5; }
+html.dark .tc-stats .tc-pill.bad b { color: #fecaca; }
+html.dark .tc-upnext { border-top-color: #2a3852; }
+/* Dark mode: other spots that used fixed dark-gray text */
+html.dark .brief-item .bi-time, html.dark dialog label, html.dark fieldset.recur legend, html.dark dialog .field,
+html.dark .onb-field, html.dark .ai-msg.thinking, html.dark .ai-card dt { color: #cbd5e1; }
+html.dark .scope-dialog, html.dark .scope-dialog h2, html.dark .scope-dialog p, html.dark .scope-dialog .muted, html.dark .scope-dialog .small,
+html.dark .scope-dialog .scope-opt, html.dark .scope-dialog .scope-opt strong, html.dark .scope-dialog .scope-opt span, html.dark .scope-dialog #scopeCancel,
+html.dark .acct-del h2, html.dark .acct-del p, html.dark .acct-del label { color: #f1f5f9; }
+html.dark .scope-dialog .scope-opt:disabled, html.dark .scope-dialog .scope-opt:disabled * { color: #94a3b8; }
+html.dark .scope-dialog #scopeCancel { background: var(--panel); border-color: #475569; }
