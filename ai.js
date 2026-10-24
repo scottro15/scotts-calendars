@@ -94,7 +94,7 @@
       }
     }
     events.sort((a, b) => a.start < b.start ? -1 : 1);
-    return { today: A.ymd(today), now: `${A.ymd(now)} ${t12(now)}`, calendars: A.calendars().map(c => ({ id: c.id, name: c.name })), events };
+    return { timeZone: A.timeZone ? A.timeZone() : 'America/Chicago', today: A.ymd(today), now: `${A.ymd(now)} ${t12(now)}`, calendars: A.calendars().map(c => ({ id: c.id, name: c.name })), events };
   }
 
   async function token() {

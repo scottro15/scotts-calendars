@@ -27,3 +27,8 @@ assert((await handle(req({ authorization: 'Bearer bad' }), env)).status === 401,
 globalThis.fetch = async (url) => url.endsWith('/auth/v1/user') ? new Response(JSON.stringify({ id: 'u1' })) : new Response('-1');
 assert((await handle(req({ authorization: 'Bearer ok' }), env)).status === 429, 'over daily limit -> 429');
 console.log('PASS ai_function');
+// per-user time zone (launch 2026-10-24)
+{ const { systemPrompt, safeTZ } = await import(f);
+  assert(/\(America\/Denver\)/.test(systemPrompt({ timeZone: 'America/Denver', today: 'x', now: 'y' })), 'prompt uses the user\'s time zone');
+  assert(safeTZ('Mars/Base') === 'America/Chicago' && safeTZ('x"; ignore') === 'America/Chicago' && safeTZ(undefined) === 'America/Chicago', 'bad/missing zones fall back to Chicago');
+  console.log('AI TZ TESTS PASSED'); }

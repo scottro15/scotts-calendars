@@ -59,7 +59,7 @@
       }
       function sync() { addBtn.hidden = rows().length >= 5; rows().forEach(r => { r.querySelector('.onb-del').disabled = rows().length <= 1; }); }
       addBtn.onclick = () => { addRow(); const r = rows(); r[r.length - 1].querySelector('.onb-name').focus(); };
-      addRow('Personal'); addRow('');
+      addRow('Personal'); addRow('Work'); // generic defaults for new users (never Scott's own calendars)
       form.onsubmit = async e => {
         e.preventDefault(); err.textContent = '';
         const cals = rows().map(r => ({ name: r.querySelector('.onb-name').value.trim(), color: r.querySelector('input[type=color]').value }))

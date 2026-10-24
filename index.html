@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#111827">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <title>SANDY — the scheduling app</title>
-  <link rel="stylesheet" href="styles.css?v=20261023-chat">
+  <link rel="stylesheet" href="styles.css?v=20261024-launch">
   <!-- FullCalendar v6 is vendored locally (vendor/) so the app works offline and on GitHub Pages. -->
   <script src="vendor/fullcalendar.min.js"></script>
   <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
@@ -102,7 +102,7 @@
           <button id="syncNowBtn">Refresh now</button>
           <button id="signOutBtn">Sign out</button>
         </div>
-        <p class="muted small">All times are Central (America/Chicago).</p>
+        <p class="muted small" id="tzNote">Times are shown in America/Chicago.</p>
       </section>
     </aside>
     <div id="scrim" class="scrim"></div>
@@ -281,8 +281,9 @@
   <script src="storage.js"></script>
   <script src="places.js"></script>
   <script src="motion.js?v=20261023-anim"></script>
-  <script src="account.js"></script>
-  <script src="app.js"></script>
-  <script src="ai.js?v=20261023-chat"></script>
+  <script src="account.js?v=20261024-launch"></script>
+  <script src="launch.js?v=20261024-launch"></script>
+  <script src="app.js?v=20261024-launch"></script>
+  <script src="ai.js?v=20261024-launch"></script>
 </body>
 </html>

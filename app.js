@@ -34,7 +34,8 @@
   // Wall-clock values are held in Date objects whose *UTC* fields are the Chicago
   // date/time (so there is no DST arithmetic and the device's own zone never matters).
   // FullCalendar runs with timeZone 'UTC' and `now` = current Chicago time.
-  const TZ = 'America/Chicago';
+  // Per-user zone (profiles.time_zone); America/Chicago until the profile loads (and in local mode).
+  let TZ = 'America/Chicago';
   const pad = n => String(n).padStart(2, '0');
   const W = (y, m, d, h = 0, mi = 0) => { const x = new Date(Date.UTC(2000, 0, 1, h, mi)); x.setUTCFullYear(y, m, d); return x; }; // any year, incl. < 100
   const ymd = d => `${String(d.getUTCFullYear()).padStart(4, '0')}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
@@ -45,7 +46,14 @@
     const [h, mi] = time.split(':').map(Number);
     return W(y, m - 1, d, h, mi);
   }
-  const chicagoFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const mkFmt = z => new Intl.DateTimeFormat('en-US', { timeZone: z, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  let chicagoFmt = mkFmt(TZ);
+  function setTZ(z) { // switch "now"/"today" to another IANA zone; stored wall-clock times are unchanged
+    if (!z || z === TZ) return false;
+    try { chicagoFmt = mkFmt(z); TZ = z; } catch (e) { console.warn('bad time zone', z); return false; }
+    const n = document.getElementById('tzNote'); if (n) n.textContent = `Times are shown in ${TZ.replace(/_/g, ' ')}.`;
+    return true;
+  }
   function nowWall() { // current time in Chicago, as a wall-clock Date
     const p = Object.fromEntries(chicagoFmt.formatToParts(new Date()).map(x => [x.type, x.value]));
     return W(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute);
@@ -162,6 +170,10 @@
       try { rows = await Store.calendars(); } catch (e) { console.error(e); rows = null; }
     }
     if (rows && rows.length) useCalendars(rows); // null = table not there yet: keep the built-in three
+    try { // per-user time zone (falls back to the browser's when there's no profile yet)
+      const prof = await Store.profile();
+      setTZ((prof && prof.time_zone) || Intl.DateTimeFormat().resolvedOptions().timeZone);
+    } catch (e) { console.warn('profile:', e); }
   }
 
   async function requireOwnerSignIn() {
@@ -1267,6 +1279,7 @@
     document.getElementById('syncBtns').hidden = false;
     document.getElementById('signOutBtn').addEventListener('click', async () => { await Store.auth.signOut(); location.reload(); });
     if (window.SandyAccount) window.SandyAccount.mountAccount({ store: Store, user, mount: document.getElementById('dataSection') });
+    if (window.SandyLaunch) window.SandyLaunch.mount({ store: Store, user, timeZone: () => TZ, setTZ: z => { if (setTZ(z)) { calendar.render(); refresh(); } } });
     document.getElementById('syncNowBtn').addEventListener('click', () => reloadFromServer(true));
     const local = await Store.localDataForMigration();
     if (local) {
@@ -1443,7 +1456,7 @@
   function scheduleRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 250); }
   async function refresh() { renderToggles(await Store.list()); calendar.refetchEvents(); renderTasks(); renderBriefing(); renderReview(); }
   refresh();
-  window.__app = { reviewState: () => ({ scope: rv.scope, ref: ymd(rv.ref), cals: [...rv.cals], event: rv.event, q: rv.q }), reviewRange, noteKeyFor, calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList, openEditor, moveEvent, detachOccurrence, refresh, isRecurring, isDone, toast, calendars: () => CALENDARS }; // handy for debugging / tests
+  window.__app = { reviewState: () => ({ scope: rv.scope, ref: ymd(rv.ref), cals: [...rv.cals], event: rv.event, q: rv.q }), reviewRange, noteKeyFor, calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList, openEditor, moveEvent, detachOccurrence, refresh, isRecurring, isDone, toast, calendars: () => CALENDARS, timeZone: () => TZ, setTZ }; // handy for debugging / tests
 
   // ---------- Example seed data (relative to the current week) ----------
   function seedExamples() {
