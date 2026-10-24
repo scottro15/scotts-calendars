@@ -144,18 +144,20 @@
     $('todayDate').textContent = a.fmtDay(d.today);
     const dot = ev => `<span class="dot" style="background:${esc((a.cal(ev.calendar) || {}).color || '#666')}"></span>`;
     const when = x => x.ev.allDay ? 'All day' : `${t12(x.o.start)}–${t12(x.o.end || x.o.start)}`;
-    const row = (x, extra = '') => `<li><button type="button" class="tc-item" data-id="${esc(x.ev.id)}" data-key="${esc(x.o.key)}">${dot(x.ev)}<span class="tc-when">${esc(when(x))}</span><span class="tc-title${a.isClientKey(x.ev) ? ' client-key' : ''}">${x.ev.kind === 'task' ? (a.isDone(x.ev, x.o.key) ? '☑︎ ' : '☐ ') : ''}${esc(x.ev.title)}</span>${extra}</button></li>`;
+    const calColor = ev => esc((a.cal(ev.calendar) || {}).color || '#9ca3af');
+    const row = (x, extra = '') => `<li><button type="button" class="tc-item tc-ev${x.ev.kind === 'task' ? ' is-task' : ''}${a.isDone(x.ev, x.o.key) ? ' is-done' : ''}" style="--cal:${calColor(x.ev)}" data-id="${esc(x.ev.id)}" data-key="${esc(x.o.key)}"><span class="tc-when">${esc(when(x))}</span><span class="tc-title${a.isClientKey(x.ev) ? ' client-key' : ''}">${x.ev.kind === 'task' ? (a.isDone(x.ev, x.o.key) ? '☑︎ ' : '☐ ') : ''}${esc(x.ev.title)}</span>${extra}</button></li>`;
     const mins = m => m < 60 ? `${m} min` : `${Math.floor(m / 60)} hr${m >= 120 ? 's' : ''}${m % 60 ? ` ${m % 60} min` : ''}`;
     let h = '';
     const nTasks = d.items.filter(x => x.ev.kind === 'task').length, nEv = d.items.length - nTasks;
-    h += `<div class="tc-stats"><span><b>${nEv}</b> event${nEv === 1 ? '' : 's'}</span><span><b>${nTasks}</b> to-do${nTasks === 1 ? '' : 's'}</span><span class="${d.overdue.length ? 'bad' : ''}"><b>${d.overdue.length}</b> overdue</span></div>`;
+    h += `<div class="tc-summary"><div class="tc-stats"><span><b>${nEv}</b> event${nEv === 1 ? '' : 's'}</span><span><b>${nTasks}</b> to-do${nTasks === 1 ? '' : 's'}</span><span class="${d.overdue.length ? 'bad' : ''}"><b>${d.overdue.length}</b> overdue</span></div>`;
     if (d.nowOn) h += `<p class="tc-next">Now: <button type="button" class="tc-link tc-item" data-id="${esc(d.nowOn.ev.id)}" data-key="${esc(d.nowOn.o.key)}">${esc(d.nowOn.ev.title)}</button> until ${esc(t12(d.nowOn.o.end))}</p>`;
     if (d.next) h += `<p class="tc-next">Up next: <button type="button" class="tc-link tc-item" data-id="${esc(d.next.ev.id)}" data-key="${esc(d.next.o.key)}">${esc(d.next.ev.title)}</button> at ${esc(t12(d.next.o.start))} <span class="muted">(in ${mins(Math.max(1, Math.round((d.next.o.start - d.now) / 60000)))})</span></p>`;
-    if (d.gaps.length) h += `<div class="tc-sec"><h3>Heads-up</h3><ul class="tc-warn">${d.gaps.map(g => g.kind === 'overlap'
+    h += '</div>';
+    if (d.gaps.length) h += `<section class="tc-sec tc-card tc-heads"><h3>Heads Up</h3><ul class="tc-warn">${d.gaps.map(g => g.kind === 'overlap'
       ? `<li>⚠️ <b>${esc(g.p.ev.title)}</b> overlaps <b>${esc(g.n.ev.title)}</b> (${esc(t12(g.n.o.start))})</li>`
-      : `<li>⏱️ Tight: <b>${esc(g.p.ev.title)}</b> ends ${esc(t12(g.p.o.end))}, <b>${esc(g.n.ev.title)}</b> starts ${g.min ? `${g.min} min later` : 'right after'}</li>`).join('')}</ul></div>`;
-    h += `<div class="tc-sec"><h3>On today</h3>${d.items.length ? `<ul class="tc-list">${d.items.map(x => row(x)).join('')}</ul>` : '<p class="muted small">Nothing on the calendar today.</p>'}</div>`;
-    if (d.overdue.length) h += `<div class="tc-sec"><h3>Overdue to-dos</h3><ul class="tc-list">${d.overdue.map(x => row(x, `<span class="overdue-badge">Overdue ${esc(a.overdueText(d.now - (x.ev.allDay ? a.startOfDay(x.o.start) : (x.o.end || x.o.start))))}</span>`)).join('')}</ul></div>`;
+      : `<li>⏱️ Tight: <b>${esc(g.p.ev.title)}</b> ends ${esc(t12(g.p.o.end))}, <b>${esc(g.n.ev.title)}</b> starts ${g.min ? `${g.min} min later` : 'right after'}</li>`).join('')}</ul></section>`;
+    h += `<section class="tc-sec tc-card tc-on"><h3>On Today</h3>${d.items.length ? `<ul class="tc-list">${d.items.map(x => row(x)).join('')}</ul>` : '<p class="muted small">Nothing on the calendar today.</p>'}</section>`;
+    if (d.overdue.length) h += `<section class="tc-sec tc-card tc-overdue"><h3>Overdue To-Dos</h3><ul class="tc-list">${d.overdue.map(x => row(x, `<span class="overdue-badge">Overdue ${esc(a.overdueText(d.now - (x.ev.allDay ? a.startOfDay(x.o.start) : (x.o.end || x.o.start))))}</span>`)).join('')}</ul></section>`;
     $('todayBody').innerHTML = h;
   }
 
@@ -203,6 +205,7 @@
     $('todoGroup').value = todoUI.group; $('todoShowDone').checked = todoUI.showDone;
     $('qaCat').innerHTML = '<option value="">No category</option>' + cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
     const avail = Inbox.available && Cats.available;
+    if ($('qaText').value) qaPaint();
     $('qaText').disabled = $('qaAdd').disabled = !Inbox.available;
     $('qaText').placeholder = Inbox.available ? 'Jot a to-do or note…' : 'Quick jots turn on after the database update';
     const vis = items.filter(it => todoUI.filter === 'all' || (todoUI.filter === 'inbox' ? !it.calendar : it.calendar === todoUI.filter));
@@ -311,13 +314,65 @@
       }, 700);
     }, { once: true });
   }
+  // ---- Smart quick add (Todoist-style): recognized dates, times and categories show as blue chips while typing.
+  const qa = { disabled: new Set(), parsed: null, prev: new Set() };
+  const fmtTime = hm => { const [h, m] = hm.split(':').map(Number); return `${(h % 12) || 12}${m ? ':' + String(m).padStart(2, '0') : ''} ${h < 12 ? 'AM' : 'PM'}`; };
+  function qaParse() {
+    const a = A(); const text = $('qaText').value;
+    if (!window.SandyParse || !a) return { tokens: [], date: null, time: null, category: null, title: text.trim() };
+    const p = window.SandyParse.parse(text, { now: a.nowWall(), categories: Cats.available ? (Cats.cache || []) : [], disabled: qa.disabled });
+    if ($('qaKind').value === 'note') { p.tokens = p.tokens.filter(t => t.kind === 'category'); p.date = p.time = null; p.title = text.trim(); }
+    return p;
+  }
+  function qaPaint() {
+    const inp = $('qaText'), hl = $('qaHl'), text = inp.value;
+    // forget tapped-off chips once their words are gone
+    if (qa.disabled.size) for (const k of [...qa.disabled]) if (!text.toLowerCase().replace(/\s+/g, ' ').includes(k.slice(k.indexOf(':') + 1))) qa.disabled.delete(k);
+    const p = qa.parsed = qaParse();
+    let h = '', last = 0;
+    for (const t of p.tokens) { h += esc(text.slice(last, t.start)) + `<span class="qa-chip qa-${t.kind}${qa.prev.has(t.key) ? '' : ' qa-new'}" data-key="${esc(t.key)}">${esc(text.slice(t.start, t.end))}</span>`; last = t.end; }
+    h += esc(text.slice(last));
+    qa.prev = new Set(p.tokens.map(t => t.key));
+    hl.innerHTML = h + '\u200b';
+    $('quickAdd').classList.toggle('has-text', !!text);
+    hl.scrollLeft = inp.scrollLeft;
+    const pv = $('qaPreview'); const a = A();
+    if (!p.tokens.length || !a) { pv.hidden = true; pv.innerHTML = ''; return; }
+    const parts = [];
+    if (p.date) parts.push(['date', '📅 ' + a.fmtDay(a.parseLocal(p.date)) + (p.time ? ' · ' + fmtTime(p.time) : '')]);
+    if (p.category) parts.push(['category', '# ' + p.category.name]);
+    pv.innerHTML = `<span class="muted small">${p.date ? 'Adds a to-do' : 'Adds to Inbox'}${p.title ? ` “${esc(p.title)}”` : ''}:</span> ` + parts.map(([k, l]) => `<button type="button" class="qa-pv qa-${k}" data-kind="${k}" title="Tap to keep as plain text">${esc(l)} <span aria-hidden="true">✕</span><span class="sr-only"> (remove)</span></button>`).join('');
+    pv.hidden = false;
+  }
+  function qaUnrecognize(keys) { for (const k of keys) qa.disabled.add(k); qaPaint(); }
+  function qaTapInput() {
+    // Tap on an inline chip (caret lands inside it, nothing selected) → keep those words as plain text.
+    const inp = $('qaText'); const p = qa.parsed; if (!p || inp.selectionStart !== inp.selectionEnd) return;
+    const pos = inp.selectionStart; const t = p.tokens.find(x => pos > x.start && pos < x.end);
+    if (t) qaUnrecognize([t.key]);
+  }
   async function quickAdd(e) {
     e.preventDefault();
-    const body = $('qaText').value.trim(); if (!body) { $('qaText').focus(); return; }
-    const item = { id: uid(), body, kind: $('qaKind').value, calendar: todoUI.filter !== 'all' && todoUI.filter !== 'inbox' ? todoUI.filter : null, categoryId: $('qaCat').value || null, done: false, createdAt: new Date().toISOString() };
+    const a = A(); const raw = $('qaText').value.trim(); if (!raw) { $('qaText').focus(); return; }
+    const p = qaParse();
+    const calFilter = todoUI.filter !== 'all' && todoUI.filter !== 'inbox' ? todoUI.filter : null;
+    const categoryId = (p.category && p.category.id) || $('qaCat').value || null;
     $('qaAdd').disabled = true;
-    try { await Inbox.save(item); $('qaText').value = ''; await renderTodo(); const row = document.querySelector(`[data-inbox="${CSS.escape(item.id)}"]`); if (row) row.classList.add('just-added'); }
-    catch (err) { toast('Could not save: ' + err.message); }
+    try {
+      let sel;
+      if (p.date) {
+        const start = p.time ? `${p.date}T${p.time}` : p.date;
+        const ev = { id: uid(), kind: 'task', title: p.title.slice(0, 200), calendar: calFilter && a.cal(calFilter) ? calFilter : a.firstVisibleCal(), allDay: !p.time, start, end: start, recurrence: { freq: 'none', interval: 1 }, location: '', notes: '', todoCategoryId: categoryId };
+        await a.Store.save(ev); if (a.refresh) a.refresh();
+        sel = `[data-ev="${CSS.escape(ev.id)}"]`;
+        toast(`Added “${ev.title}” · ${a.fmtDay(a.parseLocal(p.date))}${p.time ? ' ' + fmtTime(p.time) : ''}`);
+      } else {
+        const item = { id: uid(), body: $('qaKind').value === 'note' ? raw : p.title, kind: $('qaKind').value, calendar: calFilter, categoryId, done: false, createdAt: new Date().toISOString() };
+        await Inbox.save(item); sel = `[data-inbox="${CSS.escape(item.id)}"]`;
+      }
+      $('qaText').value = ''; qa.disabled.clear(); qaPaint();
+      await renderTodo(); const row = document.querySelector(sel); if (row) row.classList.add('just-added');
+    } catch (err) { toast('Could not save: ' + err.message); }
     $('qaAdd').disabled = false; $('qaText').focus();
   }
   async function manageCats() {
@@ -536,6 +591,13 @@
     // Today icon shows today's date
     // To-Do
     $('quickAdd').addEventListener('submit', quickAdd);
+    $('qaText').addEventListener('input', qaPaint);
+    $('qaText').addEventListener('scroll', () => { $('qaHl').scrollLeft = $('qaText').scrollLeft; });
+    $('qaText').addEventListener('keyup', () => { $('qaHl').scrollLeft = $('qaText').scrollLeft; });
+    $('qaText').addEventListener('click', () => setTimeout(qaTapInput, 0));
+    $('qaKind').addEventListener('change', qaPaint);
+    $('qaPreview').addEventListener('pointerdown', e => { if (e.target.closest('.qa-pv')) e.preventDefault(); }); // keep the iPhone keyboard up
+    $('qaPreview').addEventListener('click', e => { const b = e.target.closest('.qa-pv'); if (!b || !qa.parsed) return; const k = b.dataset.kind; qaUnrecognize(qa.parsed.tokens.filter(t => k === 'date' ? t.kind !== 'category' : t.kind === k).map(t => t.key)); const i = $('qaText'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
     $('todoList').addEventListener('click', todoClick);
     $('todoList').addEventListener('change', todoCatChange);
     $('todoFilter').addEventListener('click', e => { const b = e.target.closest('[data-f]'); if (!b) return; todoUI.filter = b.dataset.f; saveTodoUI(); renderTodo(); });

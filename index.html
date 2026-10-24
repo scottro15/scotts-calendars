@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <title>SANDY — the scheduling app</title>
-  <link rel="stylesheet" href="styles.css?v=20261024-otp">
+  <link rel="stylesheet" href="styles.css?v=20261024-smart">
   <!-- FullCalendar v6 is vendored locally (vendor/) so the app works offline and on GitHub Pages. -->
   <script src="vendor/fullcalendar.min.js"></script>
   <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
@@ -94,13 +94,14 @@
     <section id="page-todo" class="tab-page" aria-labelledby="todoH" hidden>
       <div class="page-head"><h1 id="todoH">To-Do</h1><span id="todoCount" class="muted small"></span></div>
       <form id="quickAdd" class="quick-add" autocomplete="off">
-        <input id="qaText" maxlength="2000" placeholder="Jot a to-do or note…" aria-label="Jot a to-do or note" enterkeyhint="done">
+        <div class="qa-field"><div id="qaHl" class="qa-hl" aria-hidden="true"></div><input id="qaText" maxlength="2000" autocapitalize="sentences" spellcheck="false" placeholder="Jot a to-do or note…" aria-label="Jot a to-do or note" enterkeyhint="done"></div>
         <div class="qa-opts">
           <select id="qaKind" aria-label="Type"><option value="todo">To-do</option><option value="note">Note</option></select>
           <select id="qaCat" aria-label="Category"><option value="">No category</option></select>
           <button class="primary" id="qaAdd">Add</button>
         </div>
       </form>
+      <div id="qaPreview" class="qa-preview" aria-live="polite" hidden></div>
       <div class="todo-bar">
         <div class="chips" id="todoFilter" role="group" aria-label="Filter by calendar"></div>
         <label class="small">Group by <select id="todoGroup"><option value="calendar">Calendar</option><option value="category">Category</option><option value="date">Date</option></select></label>
@@ -354,14 +355,15 @@
     <button type="button" data-tab="profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.2-4 4-5.8 7.5-5.8s6.3 1.8 7.5 5.8"/></svg><span>Profile</span></button>
   </nav>
   <script src="config.js"></script>
-  <script src="storage.js?v=20261024-otp"></script>
+  <script src="storage.js?v=20261024-smart"></script>
   <script src="places.js"></script>
   <script src="motion.js?v=20261023-anim"></script>
-  <script src="account.js?v=20261024-otp"></script>
-  <script src="launch.js?v=20261024-otp"></script>
-  <script src="push.js?v=20261024-otp"></script>
-  <script src="nav.js?v=20261024-otp"></script>
-  <script src="app.js?v=20261024-otp"></script>
-  <script src="ai.js?v=20261024-otp"></script>
+  <script src="account.js?v=20261024-smart"></script>
+  <script src="launch.js?v=20261024-smart"></script>
+  <script src="push.js?v=20261024-smart"></script>
+  <script src="smartparse.js?v=20261024-smart"></script>
+  <script src="nav.js?v=20261024-smart"></script>
+  <script src="app.js?v=20261024-smart"></script>
+  <script src="ai.js?v=20261024-smart"></script>
 </body>
 </html>
