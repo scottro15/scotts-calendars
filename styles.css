@@ -889,3 +889,52 @@ html.dark .scope-dialog .scope-opt:focus, html.dark .scope-dialog .scope-opt:act
 html.dark .scope-dialog .scope-opt:focus:not(:focus-visible):not(:active):not(:hover) { background: #1c2638; border-color: #60a5fa; }
 html.dark .scope-dialog .scope-opt, html.dark .scope-dialog #scopeCancel { -webkit-tap-highlight-color: rgba(96,165,250,.25); }
 html.dark .scope-dialog #scopeCancel:hover, html.dark .scope-dialog #scopeCancel:focus, html.dark .scope-dialog #scopeCancel:active { background: #1e293b; color: #f1f5f9; }
+
+/* ===== Maryville game events (Scott 2026-10-24): red glowing border + big red H / A, away venue + drive ===== */
+:root { --game: #dc2626; --game-glow: rgba(239, 68, 68, .75); }
+html.dark { --game: #ef4444; --game-glow: rgba(248, 113, 113, .8); }
+@keyframes sandy-game-pulse { 0%, 100% { box-shadow: 0 0 5px 1px var(--game-glow); } 50% { box-shadow: 0 0 12px 3px var(--game-glow); } }
+.game-ha { flex: none; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
+  width: 24px; height: 24px; margin-right: 7px; border-radius: 6px; border: 2px solid var(--game); background: #fff; color: var(--game);
+  font: 900 17px/1 system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: 0; vertical-align: middle; text-decoration: none; }
+html.dark .game-ha { background: #0b1220; }
+/* List view */
+.fc-list tr.sandy-game { position: relative; }
+.fc-list tr.sandy-game::after { content: ''; position: absolute; inset: 2px 3px; border: 2px solid var(--game); border-radius: 9px; pointer-events: none;
+  box-shadow: 0 0 8px 2px var(--game-glow); animation: sandy-game-pulse 2.4s ease-in-out infinite; }
+.fc-list tr.sandy-game > td { padding-top: 10px; padding-bottom: 10px; }
+.fc-list tr.sandy-game > td:first-child { padding-left: 14px; }
+.fc-list tr.sandy-game > td:last-child { padding-right: 14px; }
+.fc-list .sandy-game .game-line { display: flex; align-items: center; min-width: 0; }
+.fc-list .sandy-game .game-line > a { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.game-meta { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; font-size: 12.5px; line-height: 1.3; min-width: 0; }
+.game-meta a.game-loc, .game-dir-link { color: #1d4ed8; text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+.game-dist { color: #374151; font-weight: 600; overflow-wrap: anywhere; }
+.game-ico { margin-right: 3px; }
+html.dark .game-meta a.game-loc, html.dark .game-dir-link { color: #93c5fd; }
+html.dark .game-dist { color: #e2e8f0; }
+/* Day + Week views (same DOM; FullCalendar may reuse a block across the two) */
+.fc-timegrid-event.sandy-game { border: 2px solid var(--game) !important; border-radius: 6px; animation: sandy-game-pulse 2.4s ease-in-out infinite; z-index: 3; }
+.fc-timegrid-event-harness:has(> .sandy-game) { z-index: 3; }
+.fc-timegrid-event.sandy-game .fc-event-main { overflow: hidden; }
+.fc-timegrid-event.sandy-game .game-frame { overflow: hidden; }
+.fc-timegrid-event.sandy-game .fc-event-title-container { padding-right: 0; min-width: 0; flex: 0 0 auto; }
+.fc-timegrid-event.sandy-game .fc-event-title { font-weight: 700; overflow-wrap: anywhere; white-space: normal; min-width: 0; }
+.game-meta.compact > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; display: block; }
+.fc-timegrid-event.sandy-game .game-meta a.game-loc, .fc-timegrid-event.sandy-game .game-dist { color: #fff; }
+/* Day: badge on the left beside time + title, venue + drive underneath */
+.fc-timeGridDay-view .sandy-game .game-frame { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-auto-rows: min-content; column-gap: 7px; align-content: start; }
+.fc-timeGridDay-view .sandy-game .game-frame > .game-ha { grid-row: 1 / span 2; grid-column: 1; align-self: center; margin: 0; }
+.fc-timeGridDay-view .sandy-game .fc-event-time { grid-column: 2; font-size: 11px; line-height: 1.2; margin: 0; }
+.fc-timeGridDay-view .sandy-game .fc-event-title-container { grid-column: 2; }
+.fc-timeGridDay-view .sandy-game .fc-event-title { font-size: 14px; line-height: 1.2; }
+.fc-timeGridDay-view .sandy-game .game-meta { grid-column: 1 / -1; font-size: 12px; gap: 0; margin-top: 3px; line-height: 1.25; min-height: 0; overflow: hidden; }
+/* Week: badge on its own top row, no venue line */
+.fc-timeGridWeek-view .sandy-game .game-meta { display: none; }
+.fc-timeGridWeek-view .sandy-game .game-frame > .game-ha { width: 20px; height: 20px; margin: 1px 0 2px; font-size: 14px; border-radius: 5px; }
+.fc-daygrid-event .game-ha { width: 16px; height: 16px; font-size: 11px; margin-right: 3px; border-width: 1.5px; border-radius: 4px; }
+/* Editor */
+.game-dir { display: flex; flex-direction: column; gap: 2px; margin: -4px 0 8px; font-size: 14px; }
+@media (prefers-reduced-motion: reduce) {
+  .fc-list tr.sandy-game::after, .fc-timegrid-event.sandy-game { animation: none; box-shadow: 0 0 8px 2px var(--game-glow); }
+}

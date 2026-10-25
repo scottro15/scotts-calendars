@@ -349,6 +349,7 @@
         host.insertBefore(todoCheckEl(p.sourceId, p.occKey, info.el.classList.contains('task-done'), CAL[p.calendar]?.color), host.firstChild);
         info.el.classList.add('has-todo-check');
       }
+      if (p.game && window.SandyGames) SandyGames.decorate(info.el, p.game, info.view.type);
       if (info.view.type.startsWith('list')) { // remember times so the now-line can find its spot
         const e = info.event; const cc = CAL[info.event.extendedProps.calendar]?.color;
         if (cc) { info.el.style.setProperty('--cal', cc); info.el.classList.add('sandy-tint'); info.el.dataset.cal = info.event.extendedProps.calendar; }
@@ -375,7 +376,8 @@
     views: { timeGridDay: { dayHeaderFormat: { weekday: 'long' } } },
     eventTimeFormat: { hour: 'numeric', minute: '2-digit', meridiem: 'short' },
     events: async (info, ok, fail) => { try { ok(await buildFcEvents(info.start, info.end)); } catch (err) { fail(err); } },
-    eventDidMount: info => { const cc = CAL[info.event.extendedProps.calendar]?.color; if (cc) { info.el.style.setProperty('--cal', cc); info.el.classList.add('sandy-tint'); } },
+    eventDidMount: info => { const cc = CAL[info.event.extendedProps.calendar]?.color; if (cc) { info.el.style.setProperty('--cal', cc); info.el.classList.add('sandy-tint'); }
+      if (info.event.extendedProps.game && window.SandyGames) SandyGames.decorate(info.el, info.event.extendedProps.game, info.view.type); },
   };
   const ghosts = {};
   for (const d of [1, -1]) {
@@ -616,6 +618,7 @@
         const done = ev.kind === 'task' && isDone(ev, o.key);
         const prefix = ev.kind === 'task' ? (done ? '✓ ' : '☐ ') : '';
         const scope = ev.kind === 'task' ? ` [${SCOPE_LABEL[ev.scope] || 'Day'}]` : '';
+        const game = ev.kind !== 'task' && window.SandyGames ? SandyGames.info(ev) : null;
         out.push({
           id: `${ev.id}::${o.key}`,
           title: prefix + ev.title + scope,
@@ -624,8 +627,8 @@
           allDay: !!ev.allDay,
           backgroundColor: c.color, borderColor: c.color, textColor: '#fff',
           editable: true, // dragging one occurrence of a series detaches just that occurrence
-          classNames: [ev.example ? 'is-example' : '', done ? 'task-done' : '', ev.seriesId ? 'is-exception' : '', hasNote(ev, o.key) ? 'has-day-note' : '', ev.kind === 'task' && ev.allDay ? 'sandy-todo-glow' : '', isClientKey(ev) ? 'sandy-client-key' : ''].filter(Boolean),
-          extendedProps: { kind: ev.kind, dayNote: hasNote(ev, o.key), notionUrl: notionOf(ev, o.key), sourceId: ev.id, occKey: o.key, calendar: ev.calendar, category: ev.category, location: ev.location, example: ev.example, exception: !!ev.seriesId },
+          classNames: [ev.example ? 'is-example' : '', done ? 'task-done' : '', ev.seriesId ? 'is-exception' : '', hasNote(ev, o.key) ? 'has-day-note' : '', ev.kind === 'task' && ev.allDay ? 'sandy-todo-glow' : '', isClientKey(ev) ? 'sandy-client-key' : '', game ? 'sandy-game' : ''].filter(Boolean),
+          extendedProps: { kind: ev.kind, dayNote: hasNote(ev, o.key), notionUrl: notionOf(ev, o.key), sourceId: ev.id, occKey: o.key, calendar: ev.calendar, category: ev.category, location: ev.location, example: ev.example, exception: !!ev.seriesId, game },
         });
       }
     }
@@ -1078,6 +1081,7 @@
     f('scope').value = d.scope || 'day';
     f('done').checked = ev ? isDone(ev, occKey) : false;
     f('location').value = d.location || ''; f('notes').value = d.notes || '';
+    if (window.SandyGames) SandyGames.editor(document.getElementById('gameDir'), ev ? d : null);
     renderReminders(d.reminders || []);
     document.getElementById('notesLabel').textContent = recurring ? 'Notes (every occurrence)' : 'Notes';
     await setupDayNote(ev, occKey);
