@@ -1012,3 +1012,17 @@ html.dark .inv-row.st-revoked .inv-status { color: #f87171; }
 html.dark #eventDialog .dialog-actions { background: var(--panel); border-top-color: var(--line); box-shadow: 0 -6px 14px rgba(0, 0, 0, .35); }
 html.dark .rem-box { border-color: #334155; }
 html.dark .rem-add { color: #93c5fd; }
+
+/* ---- Light-mode readability pass, 2026-10-25 (Scott, light1): WCAG AA, same look, deeper shades. Scoped to light so dark mode is untouched. ---- */
+/* Day/Week/Month blocks: calendar colour deepened only as much as white text needs (--cal-block, set in app.js only when needed) */
+html:not(.dark) .fc-timegrid-event.sandy-block[style*="--cal-block"], html:not(.dark) .fc-daygrid-block-event.sandy-block[style*="--cal-block"] { background-color: var(--cal-block) !important; }
+html:not(.dark) .sandy-now-label { background: #dc2626; }
+html:not(.dark) .fc .fc-day-other .fc-daygrid-day-top { opacity: 1; }
+html:not(.dark) .fc .fc-day-other .fc-daygrid-day-number { color: #6b7280; }
+html:not(.dark) .tc-sub { color: #4f46e5; }
+html:not(.dark) .tc-next-k, html:not(.dark) .tc-next-v .muted { color: #4b5563; }
+html:not(.dark) .qa-pv span[aria-hidden] { opacity: .85; }
+html:not(.dark) .review-chips button[aria-pressed="true"] { background: #b45309; border-color: #b45309; }
+html:not(.dark) .ri-meta { color: #4b5563; }
+html:not(.dark) .sr-item mark { color: #1f2937; }
+html:not(.dark) .ai-sheet.ai-anim .ai-title { background-image: linear-gradient(100deg, #111827 40%, #7c3aed 50%, #111827 60%); }

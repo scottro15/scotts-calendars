@@ -350,7 +350,7 @@
         info.el.classList.add('has-todo-check');
       }
       if (p.game && window.SandyGames) SandyGames.decorate(info.el, p.game, info.view.type);
-      if (!info.view.type.startsWith('list')) { const bc = CAL[p.calendar]?.color; if (bc) info.el.style.setProperty('--cal', bc); } // dark mode deepens block colours via .sandy-block (styles.css)
+      if (!info.view.type.startsWith('list')) { const bc = CAL[p.calendar]?.color; if (bc) { info.el.style.setProperty('--cal', bc); const sh = blockShade(bc); if (sh) info.el.style.setProperty('--cal-block', sh); } } // dark mode deepens block colours via .sandy-block; light mode uses --cal-block only when white text would be below AA (styles.css)
       if (info.view.type.startsWith('list')) { // remember times so the now-line can find its spot
         const e = info.event; const cc = CAL[info.event.extendedProps.calendar]?.color;
         if (cc) { info.el.style.setProperty('--cal', cc); info.el.classList.add('sandy-tint'); info.el.dataset.cal = info.event.extendedProps.calendar; }
@@ -603,6 +603,22 @@
     // never let the tap reach FullCalendar (which would open the editor)
     for (const t of ['click', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'touchstart', 'touchend']) a.addEventListener(t, e => e.stopPropagation());
     return a;
+  }
+  // Light mode: the calendar colour deepened toward black just enough that white event text (also at the .9 opacity of examples)
+  // meets WCAG AA. Returns null when the colour already passes, so those calendars keep their exact colour.
+  const _shadeCache = {};
+  function blockShade(hex) {
+    if (hex in _shadeCache) return _shadeCache[hex];
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return (_shadeCache[hex] = null);
+    const c = [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16));
+    const lum = rgb => { const l = rgb.map(v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }); return .2126 * l[0] + .7152 * l[1] + .0722 * l[2]; };
+    const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+    for (let k = 0; k <= 60; k++) {
+      const bg = c.map(v => Math.round(v * (1 - k / 100)));
+      const ok = cr([255, 255, 255], bg) >= 4.6 && cr([255, 255, 255], bg.map(v => .9 * v + 25.5)) >= 4.6 && cr(bg.map(v => .9 * 255 + .1 * v), bg) >= 4.6;
+      if (ok) return (_shadeCache[hex] = k ? '#' + bg.map(v => v.toString(16).padStart(2, '0')).join('') : null);
+    }
+    return (_shadeCache[hex] = null);
   }
   async function noteSet() { return new Set((await Store.notes.all()).map(n => `${n.eventId}|${n.date}`)); }
   async function buildFcEvents(rs, re) {

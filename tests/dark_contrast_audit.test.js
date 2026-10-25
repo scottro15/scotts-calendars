@@ -1,17 +1,23 @@
-// Browser test (Scott 2026-10-24 dark2): walk every screen in DARK mode at iPhone size (390x844) and check that
+// Browser test (Scott 2026-10-24 dark2, light mode added 2026-10-25 light1): walk every screen in DARK and LIGHT mode at iPhone size (390x844) and check that
 // all visible text meets WCAG AA against its effective background (4.5:1 normal text, 3:1 large text / icon glyphs).
 // Covers Home (Today card: Heads Up, On Today, Overdue; briefing), List/Day/Week/Month views (incl. game badges),
 // To-Do (quick-add chips, inbox editor, categories), Search (hint, results incl. Today's Notes, empty state, Notes
 // Review), Profile, event editor (new / existing with day note + checklist / game), scope dialog, month picker,
 // AI panel and toast. Inputs: value text and placeholders. Also checks the List day-box border (both modes).
 //   node tests/dark_contrast_audit.test.js http://127.0.0.1:8787/ [screenshotDir]
-//   env: THEME=light  -> audit light mode instead (report only, never fails)   SNAP=file.json -> dump measured styles
+//   By default runs both themes (dark, then light) and fails if either has text below AA.
+//   env: THEME=dark|light -> audit one theme only   SNAP=file.json -> dump measured styles
 //        SHOTPREFIX=before_  -> screenshot name prefix     REPORT_ONLY=1 -> print failures but exit 0
+if (!process.env.THEME) { // default: both themes, each in its own process
+  const { spawnSync } = require('child_process'); let code = 0;
+  for (const t of ['dark', 'light']) { const r = spawnSync(process.execPath, process.argv.slice(1), { stdio: 'inherit', env: { ...process.env, THEME: t } }); if (r.status !== 0) code = 1; }
+  console.log(code ? 'CONTRAST AUDIT FAILED (see above)' : 'BOTH THEMES PASS'); process.exit(code);
+}
 const { chromium } = require(process.env.PW || '/workspace/shot-tools/node_modules/playwright-core');
 const fs = require('fs');
 const BASE = process.argv[2] || 'http://127.0.0.1:8787/'; const SHOTS = process.argv[3] || '/workspace/shots-dark2';
 const THEME = process.env.THEME || 'dark'; const DARK = THEME === 'dark'; const PFX = process.env.SHOTPREFIX || '';
-const REPORT_ONLY = !!process.env.REPORT_ONLY || !DARK;
+const REPORT_ONLY = !!process.env.REPORT_ONLY;
 fs.mkdirSync(SHOTS, { recursive: true });
 let fails = 0, checked = 0; const failList = []; const snap = {};
 const assert = (c, m) => { if (!c) { fails++; console.log('FAIL -', m); } else console.log('ok -', m); };
