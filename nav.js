@@ -163,10 +163,14 @@
     h += `<section class="tc-sec tc-card tc-heads"${d.gaps.length ? '' : ' hidden'}><h3>Heads Up</h3><ul class="tc-warn tc-leave" id="tcLeave" aria-live="polite" hidden></ul>${d.gaps.length ? `<ul class="tc-warn">${d.gaps.map(g => g.kind === 'overlap'
       ? `<li>⚠️ <b>${esc(g.p.ev.title)}</b> overlaps <b>${esc(g.n.ev.title)}</b> (${esc(t12(g.n.o.start))})</li>`
       : `<li>⏱️ Tight: <b>${esc(g.p.ev.title)}</b> ends ${esc(t12(g.p.o.end))}, <b>${esc(g.n.ev.title)}</b> starts ${g.min ? `${g.min} min later` : 'right after'}</li>`).join('')}</ul>` : ''}</section>`;
+    // Sandy Intelligence: evening preview of tomorrow (tomorrow.js)
+    let tm = null;
+    if (window.SandyTomorrow && SandyTomorrow.isEvening(d.now)) { try { tm = await SandyTomorrow.data(a, d.now); h += SandyTomorrow.html(tm); } catch (e) { console.warn('tomorrow:', e); tm = null; } }
     h += `<section class="tc-sec tc-card tc-on"><h3>On Today</h3>${d.items.length ? `<ul class="tc-list">${d.items.map(x => row(x)).join('')}</ul>` : '<p class="muted small">Nothing on the calendar today.</p>'}</section>`;
     if (d.overdue.length) h += `<section class="tc-sec tc-card tc-overdue"><h3>Overdue To-Dos</h3><ul class="tc-list">${d.overdue.map(x => row(x, `<span class="overdue-badge">Overdue ${esc(a.overdueText(d.now - (x.ev.allDay ? a.startOfDay(x.o.start) : (x.o.end || x.o.start))))}</span>`)).join('')}</ul></section>`;
     $('todayBody').innerHTML = h;
     if (window.SandyLeave) SandyLeave.render($('tcLeave'), d.items, d.now).catch(e => console.warn('leave-by:', e));
+    if (tm) SandyTomorrow.fillLeave($('tmLeave'), tm).catch(e => console.warn('tomorrow leave-by:', e));
   }
 
   // ------------------------------------------------------------------ To-Do

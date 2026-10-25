@@ -181,6 +181,18 @@ const AUDITOR = `(() => {
   await ctx.grantPermissions(['geolocation']); await ctx.setGeolocation({ latitude: 38.95, longitude: -90.2 });
   await p.click('#tcLeave .lb-loc-yes'); await p.waitForSelector('#tcLeave [data-origin=current]', { timeout: 8000 }); await settle(300);
   await audit('today-heads-current', '#todayCard .tc-heads');
+  // Tomorrow preview (SI B): 7 PM, tomorrow has an early drive, a checklist line, a Bring line and a to-do
+  const tmIds = await p.evaluate(async () => { const S = window.__app.Store; const mk = o => ({ id: crypto.randomUUID(), kind: 'event', allDay: false, recurrence: { freq: 'none' }, location: '', calendar: 'mam', category: 'Practice', ...o });
+    const a = mk({ title: 'Morning shootaround', start: '2026-11-18T07:00', end: '2026-11-18T08:00', location: 'Test Gym A, Testville', notes: '- [ ] Ball bag\nBring: water' });
+    const t = mk({ kind: 'task', title: 'Print scouting report', allDay: true, start: '2026-11-18', end: '2026-11-18' });
+    await S.save(a); await S.save(t); return [a.id, t.id]; });
+  await p.clock.setSystemTime(new Date('2026-11-18T01:00:00Z')); await p.evaluate(() => window.SandyNav.renderToday());
+  await p.waitForFunction(() => { const l = document.getElementById('tmLeave'); return l && !l.hidden; }, null, { timeout: 8000 }); await settle(300);
+  assert(await p.$('#tcTomorrow .tm-prep-check') && await p.$('#tcTomorrow .tm-prep-bring') && await p.$('#tcTomorrow .tm-prep-early'), `${THEME} tomorrow card: prep items shown`);
+  await p.evaluate(() => document.getElementById('tcTomorrow').scrollIntoView({ block: 'center' })); await settle(200);
+  await audit('today-tomorrow', '#tcTomorrow', 'today_tomorrow_' + THEME);
+  await p.evaluate(async ids => { for (const id of ids) await window.__app.Store.remove(id); window.__app.refresh(); }, tmIds);
+  await p.clock.setSystemTime(new Date('2026-11-17T16:30:00Z')); await settle(300);
   await view('listWeek');
   // List view screenshot scrolled to the event list (day groups)
   await p.evaluate(() => { const el = document.querySelector('#calendar .fc-list-day'); if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 140); }); await settle(400);

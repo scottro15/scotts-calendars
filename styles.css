@@ -1106,3 +1106,23 @@ html.dark input:-webkit-autofill, html.dark input:-webkit-autofill:hover, html.d
 .lb-alerts input:disabled + span { opacity: 0.5; }
 .lb-row.lb-ask .lb-ask-btns { display: inline-flex; gap: 12px; margin-left: 4px; }
 html.dark .pf-note { color: #cbd5e1; }
+
+/* ---------- Sandy Intelligence: Tomorrow preview (evenings, tomorrow.js) ---------- */
+.tc-tomorrow { border-left: 4px solid #6366f1; }
+.tc-tomorrow .tm-date { text-transform: none; letter-spacing: 0; font-weight: 600; }
+.tc-tomorrow .tm-stats { margin: 0 0 8px; }
+.tc-tomorrow .tm-first { margin: 0 0 4px; display: flex; gap: 10px; align-items: baseline; line-height: 1.35; }
+.tc-tomorrow .tm-leave { margin: 2px 0 6px; font-size: 14px; }
+.tc-tomorrow .tm-h4 { margin: 10px 0 4px; font-size: 12px; font-weight: 700; color: #374151; }
+.tm-prep { list-style: none; margin: 0; padding: 0; }
+.tm-prep li { display: grid; grid-template-columns: 1.5em 1fr; align-items: baseline; padding: 5px 0; font-size: 14px; line-height: 1.35; }
+.tm-prep li + li { border-top: 1px solid #f1f5f9; }
+.tm-prep .tm-k { font-weight: 600; color: #374151; }
+.tm-prep .tm-for { color: #4b5563; }
+.tc-tomorrow .tm-more, .tc-tomorrow .tm-none, .tc-tomorrow .tm-empty { margin: 4px 0 0; }
+html:not(.dark) .tc-tomorrow .muted { color: #4b5563; }
+html.dark .tc-tomorrow { border-left-color: #818cf8; }
+html.dark .tc-tomorrow .tm-h4, html.dark .tm-prep .tm-k { color: #e2e8f0; }
+html.dark .tm-prep .tm-for, html.dark .tc-tomorrow .muted { color: #cbd5e1; }
+html.dark .tm-prep li + li { border-top-color: #243047; }
+html.dark .tc-tomorrow button.tc-link { background: none; box-shadow: none; } /* flat inline links (html.dark button paints a panel) */

@@ -290,10 +290,19 @@
     if (yes) { forceLocate = true; await getPos(); }
     if (lastArgs && lastArgs[0].isConnected) return render(...lastArgs);
   }
+  /** Tomorrow preview: the first drive of the day starting at dayStart (from home or a back-to-back event). */
+  async function firstLeave(items, dayStart) {
+    const h = await getHome();
+    const c = candidates(items, new Date(dayStart.getTime() - 1), h)[0];
+    if (!c) return null;
+    if (!c.from) return { c, needHome: true };
+    const r = await drive(c.from, c.loc);
+    return { c, r, leave: r.ok ? leaveAt(c.x.o.start, r.mins) : null };
+  }
   /** Opened from a "Check your drive" push (?locate=1): check location even before the 1-hour window. */
   function locateSoon() { forceLocate = true; }
   function invalidate() { home = undefined; prefs = undefined; }
-  window.SandyLeave = { render, getHome, setHome, invalidate, candidates, leaveAt, mapsUrl, BUFFER_MIN, B2B_MIN, NEAR_M, CHECK_AHEAD_MIN,
+  window.SandyLeave = { render, firstLeave, getHome, setHome, invalidate, candidates, leaveAt, mapsUrl, BUFFER_MIN, B2B_MIN, NEAR_M, CHECK_AHEAD_MIN,
     answerAsk, locateSoon, useLoc, setUseLoc, locState, clearPos, getAlertPrefs, setAlertPrefs, savePlans,
     _test: { geocode, route, drive, norm, meters, wallToUtc, sentSig } };
 })();
