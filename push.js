@@ -21,7 +21,7 @@
 
   let regP = null;
   function registration() {
-    if (!regP) regP = navigator.serviceWorker.register('sw.js', { scope: './' }).then(() => navigator.serviceWorker.ready);
+    if (!regP) regP = navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' }).then(() => navigator.serviceWorker.ready);
     return regP;
   }
 
@@ -147,4 +147,34 @@
 
   function toast(m) { if (window.__app && window.__app.toast) window.__app.toast(m); }
   window.SandyPush = { mount, enable, disable, state, nudge, showInstall };
+})();
+
+/* Fresh-build check (2026-10-25, hssu2). sw.js does no caching, but an installed Home Screen app can sit on an old
+   page (GitHub Pages sends index.html with max-age=600 and iOS keeps the PWA alive in memory), so a new deploy only
+   showed after a full close/reopen. When the app comes back to the foreground (at most once a minute) it fetches
+   index.html with no-store, compares its ?v= build tag with the running one and, if newer, reloads - unless a dialog
+   or editor is open (then it waits for the next foreground). Also nudges the service worker to re-check sw.js. */
+(function () {
+  const tagOf = s => { const m = String(s || '').match(/styles\.css\?v=([\w.-]+)/); return m ? m[1] : ''; };
+  const link = document.querySelector('link[rel="stylesheet"][href*="styles.css?v="]');
+  const running = tagOf(link && link.getAttribute('href'));
+  let last = 0, busy = false;
+  async function check() {
+    if (!running || busy || Date.now() - last < 60000 || location.protocol !== 'https:' && !window.__SANDY_UPDATE_TEST) return;
+    busy = true; last = Date.now();
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {});
+      const r = await fetch(location.pathname + '?fresh=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return;
+      const live = tagOf(await r.text());
+      if (live && live !== running && !document.querySelector('dialog[open], .sheet.open, .modal.open')) {
+        // load the new build by a URL the HTTP cache has never seen; remember it so a still-stale cache can't loop
+        const k = 'sandy.updateTried'; if (sessionStorage.getItem(k) === live) return; sessionStorage.setItem(k, live);
+        window.SandyUpdate.reloading = live; const u = new URL(location.href); u.searchParams.set('build', live); location.replace(u.href);
+      }
+    } catch (_) {} finally { busy = false; }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+  window.addEventListener('pageshow', e => { if (e.persisted) check(); });
+  setTimeout(check, 4000); // also right after launch: the page itself may have come from the 10-minute HTTP cache
+  window.SandyUpdate = { check, running, tagOf };
 })();

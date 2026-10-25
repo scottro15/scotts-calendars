@@ -1,8 +1,10 @@
 /* SANDY - Sandy Intelligence: Away-game travel plan on the Today tab.
-   For Maryville University AWAY and NEUTRAL games in the next 3 days (games.js decides home/away/neutral):
-     - departure: leave home (Profile → Home; else Maryville University) in time to arrive ARRIVE_EARLY_MIN before
-       tip-off, using the same free OSM drive time as leave-by (falls back to the "Drive from Maryville University"
-       line in the game's notes);
+   For Maryville University and Harris-Stowe (HSSU) AWAY and NEUTRAL games in the next 3 days (games.js decides
+   the team and home/away/neutral):
+     - departure: leave home (Profile → Home) in time to arrive ARRIVE_EARLY_MIN before tip-off, using the same free
+       OSM drive time as leave-by. With no Profile home, Maryville trips start from Maryville University and HSSU
+       trips use the "Drive from home" line in the game's notes (HSSU events carry it); if routing fails, the
+       game's notes "Drive from …" line is used;
      - estimated return: game end (or tip-off + 2 h) + POST_GAME_MIN + the drive back;
      - weather at the venue at tip-off from Open-Meteo (free, no key; forecasts up to 16 days), cached 1 hour.
    Times are Central (event wall clock); Open-Meteo is asked for America/Chicago times so they line up. */
@@ -21,11 +23,14 @@
   const floor5 = d => new Date(Math.floor(d.getTime() / (5 * MIN)) * 5 * MIN);
   const ceil5 = d => new Date(Math.ceil(d.getTime() / (5 * MIN)) * 5 * MIN);
 
-  /** Maryville away / neutral game? (games.js info + "Maryville" in the category or title) */
+  const TEAMS = new Set(['maryville', 'hssu']);
+  /** Maryville or HSSU away / neutral game? (games.js info: team from the category or title) */
   function isTrip(ev) {
     if (!ev || ev.kind === 'task' || !window.SandyGames) return null;
     const g = SandyGames.info(ev); if (!g || (g.ha !== 'A' && g.ha !== 'N')) return null;
-    if (!/maryville/i.test(String(ev.category || '') + ' ' + String(ev.title || ''))) return null;
+    // the team must be named on the event (games.js falls back to Maryville's look for unnamed teams, e.g. Jennings HS)
+    const names = String(ev.category || '') + ' ' + String(ev.title || '');
+    if (!TEAMS.has(g.team) || !(window.SandyGames.TEAMS || []).some(t => t.id === g.team && t.re.test(names))) return null;
     return g;
   }
   /** "about 5 hr 59 min" / "5 h 59 m" / "45 min" -> minutes */
@@ -57,10 +62,10 @@
   async function driveFor(x) {
     const L = window.SandyLeave; let from = null;
     if (L) { const h = await L.getHome(); if (h && h.address) from = { kind: 'home', label: 'home', address: h.address, lat: h.lat, lon: h.lon }; }
-    if (!from) from = { kind: 'campus', label: MARYVILLE.label, address: MARYVILLE.address };
-    if (L && x.g.location) { const r = await L.drive(from, x.g.location); if (r && r.ok) return { mins: r.mins, miles: r.miles, from: from.label, source: 'route' }; }
-    const n = parseDur(x.g.drive); // from the game's notes (always from Maryville University)
-    if (n) return { mins: n, miles: x.g.miles, from: MARYVILLE.label, source: 'notes' };
+    if (!from && x.g.team === 'maryville') from = { kind: 'campus', label: MARYVILLE.label, address: MARYVILLE.address };
+    if (from && L && x.g.location) { const r = await L.drive(from, x.g.location); if (r && r.ok) return { mins: r.mins, miles: r.miles, from: from.label, source: 'route' }; }
+    const n = parseDur(x.g.drive); // the game's notes: "Drive from Maryville University: …" / "Drive from home: …" (HSSU)
+    if (n) { const f = String(x.g.from || (x.g.team === 'maryville' ? MARYVILLE.label : 'home')); return { mins: n, miles: x.g.miles, from: /^home$/i.test(f) ? 'home' : f, source: 'notes' }; }
     return null;
   }
 
@@ -105,10 +110,11 @@
 
   // ---------- rendering
   function shell(list, today) {
-    return list.map((x, i) => `<section class="tc-sec tc-card tc-travel" id="tcTravel${i}" data-id="${esc(x.ev.id)}" data-key="${esc(x.o.key)}" aria-label="Travel plan">
-      <h3>🚌 Travel plan <span class="tv-kind">· ${x.g.ha === 'A' ? 'Away' : 'Neutral site'}</span></h3>
+    return list.map((x, i) => `<section class="tc-sec tc-card tc-travel tv-team-${esc(x.g.team)}" id="tcTravel${i}" data-id="${esc(x.ev.id)}" data-key="${esc(x.o.key)}" aria-label="Travel plan">
+      <h3>🚌 Travel plan <span class="tv-kind">· ${x.g.team === 'hssu' ? '<span class="tv-team">HSSU</span> · ' : ''}${x.g.ha === 'A' ? 'Away' : 'Neutral site'}</span></h3>
       <p class="tc-next tv-game"><span class="tc-next-k">Game</span><span class="tc-next-v"><button type="button" class="tc-link tc-item" data-id="${esc(x.ev.id)}" data-key="${esc(x.o.key)}">${esc(x.ev.title)}</button> <span class="tv-when">${esc(dayLbl(x.o.start, today))} ${esc(t12(x.o.start))}</span></span></p>
       ${x.g.location ? `<p class="tv-venue">📍 <a href="${esc(SandyGames.mapsUrl(x.g.location))}" target="_blank" rel="noopener noreferrer">${esc(x.g.location)}</a></p>` : ''}
+      ${x.g.team === 'hssu' && x.g.url && x.g.dirFrom ? `<p class="tv-venue tv-dir"><a href="${esc(x.g.url)}" target="_blank" rel="noopener noreferrer">🧭 Directions from ${esc(x.g.dirFrom)}</a></p>` : ''}
       <ul class="tv-rows" aria-live="polite"><li class="tv-pending" data-state="pending">Working out the trip…</li></ul></section>`).join('');
   }
   async function fill(sec, x, now) {
@@ -119,7 +125,7 @@
       const p = plan(x, dr);
       h += `<li class="tv-leave" data-state="ok" data-leave="${esc(t12(p.leave))}" data-back="${esc(t12(p.back))}"><span class="tv-k">Leave</span><span class="tv-v"><b>${esc(dayLbl(p.leave, x.today))} ${esc(t12(p.leave))}</b> from ${esc(dr.from)} <span class="tv-sub">${esc(dur(dr.mins))} drive${dr.miles ? `, ${esc(dr.miles)} mi` : ''} · there ${ARRIVE_EARLY_MIN} min before tip-off</span></span></li>`;
       h += `<li class="tv-back"><span class="tv-k">Back</span><span class="tv-v"><b>about ${esc(p.overnight ? dayLbl(p.back, x.today) + ' ' : '')}${esc(t12(p.back))}</b> <span class="tv-sub">${x.o.end && x.o.end > x.o.start ? `game ends ${esc(t12(x.end))}` : 'if the game runs 2 hr'} + ${POST_GAME_MIN} min + drive</span></span></li>`;
-      if (dr.source === 'notes') h += `<li class="tv-note"><span class="tv-k"></span><span class="tv-v tv-sub">Drive time from the game's notes (from Maryville University).</span></li>`;
+      if (dr.source === 'notes') h += `<li class="tv-note"><span class="tv-k"></span><span class="tv-v tv-sub">Drive time from the game's notes (from ${esc(dr.from)}).</span></li>`;
     } else h += `<li class="tv-leave" data-state="fail"><span class="tv-k">Leave</span><span class="tv-v">Couldn't work out the drive${x.g.location ? '' : ' (no venue on the event)'}.</span></li>`;
     h += `<li class="tv-wx" data-state="pending"><span class="tv-k">Weather</span><span class="tv-v tv-wxv">Checking the forecast…</span></li>`;
     if (!sec.isConnected) return;
