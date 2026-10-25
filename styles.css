@@ -938,3 +938,77 @@ html.dark .game-dist { color: #e2e8f0; }
 @media (prefers-reduced-motion: reduce) {
   .fc-list tr.sandy-game::after, .fc-timegrid-event.sandy-game { animation: none; box-shadow: 0 0 8px 2px var(--game-glow); }
 }
+
+/* ===== Dark-mode readability pass + List day boxes, 2026-10-24 (Scott, dark2) ===== */
+/* List view: each day's weekday/date box gets a thin border (soft white in dark, gray in light) and a little air above it */
+#calendar .fc-list-day .fc-list-day-cushion { border: 1px solid #94a3b8; border-radius: 8px; margin: 8px 4px 4px; }
+#calendar .fc-list-day:first-child .fc-list-day-cushion { margin-top: 4px; }
+html.dark #calendar .fc-list-day .fc-list-day-cushion { border-color: rgba(255, 255, 255, .85); }
+#calendar .fc-list-day > th { border-left: 0; border-right: 0; }
+/* Search: result meta + Today's Notes snippets in bright text; highlighted words keep light text on the amber mark */
+html.dark .sr-m { color: #cbd5e1; }
+html.dark .sr-item mark { background: #854d0e; color: #fef3c7; }
+html.dark .search-hint, html.dark .search-empty, html.dark .sr-group h3, html.dark .sr-group h3 .muted { color: #cbd5e1; }
+/* Notes Review (Search page): dark cards, bright note text */
+html.dark .review-item { background: color-mix(in srgb, var(--c) 14%, #16213a); border-color: #2a3852; border-left-color: var(--c); color: #f1f5f9; }
+html.dark .review-item:hover { background: color-mix(in srgb, var(--c) 22%, #16213a); }
+html.dark .ri-head { color: #f8fafc; }
+html.dark .ri-meta { color: #cbd5e1; }
+html.dark .ri-body { color: #e5e7eb; }
+html.dark .review-day h3 { color: #fbbf24; }
+html.dark .review-chips button[aria-pressed="true"] { background: #f59e0b; border-color: #f59e0b; color: #1c1917; }
+/* Placeholders: readable gray on dark inputs */
+html.dark ::placeholder { color: #94a3b8; opacity: 1; }
+html.dark .quick-add .qa-field #qaText::placeholder { color: #94a3b8; -webkit-text-fill-color: #94a3b8; }
+/* Event editor: checklist + Today's Note boxes were light panels under light text */
+html.dark .checklist-box { background: #0c2235; border-color: #2a3852; border-left-color: #0ea5e9; }
+html.dark .checklist-head h3 { color: #7dd3fc; }
+html.dark .checklist-box .muted { color: #cbd5e1; }
+html.dark dialog .checklist-items label { color: #f1f5f9; }
+html.dark dialog .checklist-items label:hover { background: #12324d; }
+html.dark .checklist-items input:checked + span { color: #94a3b8; }
+html.dark .checklist-items input:disabled + span { color: #94a3b8; }
+html.dark .day-note { background: #261a0b; border-color: #b45309; border-left-color: #f59e0b; }
+html.dark .day-note h3 { color: #fcd34d; }
+html.dark .day-note-date { color: #fde68a; }
+html.dark .day-note p.small, html.dark .day-note .muted { color: #fcd34d; }
+html.dark .day-note textarea { background: #0f1729; border-color: #92400e; color: var(--text); }
+/* To-Do quick add chips + "now" pill: a shade deeper so white text passes AA */
+html.dark .qa-chip { background: #2563eb; box-shadow: 0 0 0 1px #2563eb; }
+html.dark .sandy-now-label { background: #dc2626; }
+/* Day / Week / Month blocks: deepen the calendar colour so white titles and times stay readable */
+html.dark .fc-timegrid-event.sandy-block[style*="--cal"], html.dark .fc-daygrid-block-event.sandy-block[style*="--cal"] { background-color: color-mix(in srgb, var(--cal) 72%, #000) !important; }
+html.dark .fc-timegrid-event.sandy-block .fc-event-main, html.dark .fc-daygrid-block-event.sandy-block .fc-event-main { color: #fff; }
+/* Month view: days from the next/previous month stay dimmer but readable */
+html.dark .fc .fc-day-other .fc-daygrid-day-top { opacity: 1; }
+html.dark .fc .fc-day-other .fc-daygrid-day-number { color: #8b97ab; }
+/* AI sheet title: the shimmer gradient ended on near-black text in dark mode */
+html.dark .ai-title { color: #f1f5f9; }
+html.dark .ai-sheet.ai-anim .ai-title { background-image: linear-gradient(100deg, #f1f5f9 40%, #c4b5fd 50%, #f1f5f9 60%); }
+/* Sandy Intelligence sheet in dark mode: dark bubbles and cards (assistant bubbles/cards were white) */
+html.dark .ai-head, html.dark .ai-input { border-color: var(--line); }
+html.dark .ai-x { color: #e5e7eb; }
+html.dark .ai-quick button { background: #1c2638; color: #e5e7eb; border-color: #334155; }
+html.dark .ai-msg { color: #f1f5f9; }
+html.dark .ai-msg.user { background: #2563eb; color: #fff; }
+html.dark .ai-msg.assistant { background: #1c2638; }
+html.dark .ai-msg.thinking { color: #cbd5e1; }
+html.dark .ai-msg.error { background: #3b1219; color: #fca5a5; }
+html.dark .ai-card { background: #16213a !important; border-color: #2a3852; }
+html.dark .ai-card-from { color: #c4b5fd; }
+html.dark .ai-card dt { color: #cbd5e1; }
+html.dark .ai-card-btns button:not(.primary) { background: #0f172a; color: #e5e7eb; border-color: #475569; }
+html.dark .ai-card-status { color: #6ee7b7; }
+html.dark .ai-mic { background: #1c2638; border-color: #334155; }
+html.dark .ai-msg.typing .dot { background: #94a3b8; }
+/* Signed-in extras (time zone, feedback, invites, feedback inbox): text was near-black on the dark sheet */
+html.dark .tz-field, html.dark .launch-dlg h2, html.dark .launch-dlg p, html.dark .launch-dlg label, html.dark .launch-dlg li, html.dark .launch-dlg b,
+html.dark .fb-body { color: #f1f5f9; }
+html.dark .launch-dlg .muted, html.dark .launch-dlg p.muted, html.dark .launch-dlg li.muted { color: #cbd5e1; }
+html.dark .inv-row, html.dark .fb-item { border-top-color: var(--line); }
+html.dark .inv-row.st-accepted .inv-status { color: #4ade80; }
+html.dark .inv-row.st-revoked .inv-status { color: #f87171; }
+/* Event editor in dark: sticky Save/Cancel footer was a white bar; reminders box border was bright white */
+html.dark #eventDialog .dialog-actions { background: var(--panel); border-top-color: var(--line); box-shadow: 0 -6px 14px rgba(0, 0, 0, .35); }
+html.dark .rem-box { border-color: #334155; }
+html.dark .rem-add { color: #93c5fd; }

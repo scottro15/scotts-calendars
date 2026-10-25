@@ -350,6 +350,7 @@
         info.el.classList.add('has-todo-check');
       }
       if (p.game && window.SandyGames) SandyGames.decorate(info.el, p.game, info.view.type);
+      if (!info.view.type.startsWith('list')) { const bc = CAL[p.calendar]?.color; if (bc) info.el.style.setProperty('--cal', bc); } // dark mode deepens block colours via .sandy-block (styles.css)
       if (info.view.type.startsWith('list')) { // remember times so the now-line can find its spot
         const e = info.event; const cc = CAL[info.event.extendedProps.calendar]?.color;
         if (cc) { info.el.style.setProperty('--cal', cc); info.el.classList.add('sandy-tint'); info.el.dataset.cal = info.event.extendedProps.calendar; }
@@ -627,7 +628,7 @@
           allDay: !!ev.allDay,
           backgroundColor: c.color, borderColor: c.color, textColor: '#fff',
           editable: true, // dragging one occurrence of a series detaches just that occurrence
-          classNames: [ev.example ? 'is-example' : '', done ? 'task-done' : '', ev.seriesId ? 'is-exception' : '', hasNote(ev, o.key) ? 'has-day-note' : '', ev.kind === 'task' && ev.allDay ? 'sandy-todo-glow' : '', isClientKey(ev) ? 'sandy-client-key' : '', game ? 'sandy-game' : ''].filter(Boolean),
+          classNames: [ev.example ? 'is-example' : '', done ? 'task-done' : '', ev.seriesId ? 'is-exception' : '', hasNote(ev, o.key) ? 'has-day-note' : '', ev.kind === 'task' && ev.allDay ? 'sandy-todo-glow' : '', isClientKey(ev) ? 'sandy-client-key' : '', game ? 'sandy-game' : '', 'sandy-block'].filter(Boolean),
           extendedProps: { kind: ev.kind, dayNote: hasNote(ev, o.key), notionUrl: notionOf(ev, o.key), sourceId: ev.id, occKey: o.key, calendar: ev.calendar, category: ev.category, location: ev.location, example: ev.example, exception: !!ev.seriesId, game },
         });
       }
