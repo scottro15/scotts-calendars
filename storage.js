@@ -18,6 +18,7 @@
   const KEY = 'scottcal.events.v1';
   const SETTINGS_KEY = 'scottcal.settings.v1';
   const CATS_KEY = 'scottcal.categories.v1';
+  const CALS_KEY = 'scottcal.calendars.v1'; // local mode: the user's own calendar list (absent = built-in three)
   const NOTES_KEY = 'scottcal.occurrenceNotes.v1'; const LINKS_KEY = 'scott-calendar-links-v1'; const CHECKS_KEY = 'scott-calendar-checks-v1';
   const MIGRATED_KEY = 'scottcal.migratedToSupabase.v1';
   const CFG = window.CALENDAR_CONFIG || {};
@@ -53,7 +54,9 @@
       localStorage.setItem(CATS_KEY, JSON.stringify(cats));
     },
     // Day notes ("Today's Note"): one note per (event_id, occurrence_date). Never touches events.
-    async loadCalendars() { return null; }, // local mode: the app's built-in calendars
+    // Calendars: null = the app's built-in three; once the user adds or edits one, the full list lives on the device.
+    async loadCalendars() { const r = readJSON(CALS_KEY, null); return Array.isArray(r) && r.length ? r : null; },
+    async saveCalendars(rows) { localStorage.setItem(CALS_KEY, JSON.stringify(rows)); return rows; },
     async loadProfile() { return null; },
     async loadNotes() { return readJSON(NOTES_KEY, []); },
     async upsertNote(n) { const all = readJSON(NOTES_KEY, []); const i = all.findIndex(x => x.eventId === n.eventId && x.date === n.date); if (i >= 0) all[i] = n; else all.push(n); localStorage.setItem(NOTES_KEY, JSON.stringify(all)); return n; },
@@ -167,6 +170,7 @@
         return data;
       },
       async createCalendars(list) { return must(await sb.from('calendars').insert(list).select()); },
+      async updateCalendar(slug, patch) { return must(await sb.from('calendars').update(patch).eq('slug', slug).select()); },
       async loadProfile() {
         const { data, error } = await sb.from('profiles').select('*').maybeSingle();
         if (error) { if (isMissingTable(error)) return null; throw new Error(error.message); }
@@ -372,6 +376,8 @@
 
       async calendars() { return adapter.loadCalendars ? adapter.loadCalendars() : null; },
       async createCalendars(list) { return adapter.createCalendars(list); },
+      async updateCalendar(slug, patch) { return adapter.updateCalendar(slug, patch); },
+      async saveCalendars(rows) { return adapter.saveCalendars(rows); }, // local mode only: replace the whole list
       async profile() { return adapter.loadProfile ? adapter.loadProfile() : null; },
       async saveProfile(p) { return adapter.saveProfile(p); },
       async exportAccount() { return adapter.exportAccount ? adapter.exportAccount() : JSON.parse(await store.exportJSON()); },

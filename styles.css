@@ -1052,3 +1052,31 @@ html.dark .lb-row button.tc-link { background: none; } /* keep the inline links 
 html.dark .tc-heads .tc-leave:not([hidden]) + .tc-warn li:first-child { border-top-color: #243047; }
 html.dark .home-form input#homeAddr { background: #0f1729; border-color: #334155; color: var(--text); }
 html.dark .home-msg.ok { color: #6ee7b7; }
+
+/* ---------- Calendars screen: plain list first, tap one to edit (2026-10-25, cal-add) ---------- */
+.cal-dlg .cal-list { list-style: none; margin: 8px 0 0; padding: 0; border-top: 1px solid var(--line); }
+.cal-dlg .cal-list > li { border-bottom: 1px solid var(--line); }
+.cal-dlg .cal-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 10px 4px; border: 0; border-radius: 0; background: none; color: var(--text); font: inherit; font-size: 16px; text-align: left; cursor: pointer; }
+.cal-dlg .cal-item:hover, .cal-dlg .cal-item:focus-visible { background: rgba(99, 102, 241, .07); }
+.cal-dlg .cal-sw { width: 16px; height: 16px; border-radius: 5px; flex: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .15); }
+.cal-dlg .cal-nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.cal-dlg .cal-edit-lbl { font-size: 13px; font-weight: 600; color: #1d4ed8; }
+.cal-dlg li.open .cal-edit-lbl { color: #4b5563; }
+.cal-dlg li.open .cal-edit-lbl::after { content: ' ▴'; }
+.cal-dlg .cal-edit { padding: 2px 4px 12px; }
+.cal-dlg .cal-edit label, .cal-dlg .cal-new label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-top: 6px; }
+.cal-dlg .cal-edit input:not([type=color]), .cal-dlg .cal-new input:not([type=color]) { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; font-size: 16px; }
+.cal-dlg .cal-edit-row { display: flex; gap: 10px; align-items: flex-end; }
+.cal-dlg .cal-edit-row label:first-child { flex: 1; }
+.cal-dlg label.cal-color { flex: none; }
+.cal-dlg label.cal-color input { display: block; margin-top: 4px; width: 48px; height: 40px; }
+.cal-dlg .cal-add-btn { margin-top: 12px; font-size: 15px; }
+.cal-dlg .cal-new { display: flex; gap: 10px; align-items: flex-end; margin-top: 12px; }
+.cal-dlg .cal-new[hidden] { display: none; }
+.cal-dlg .cal-new label:first-child { flex: 1; }
+.cal-dlg h2:focus { outline: none; }
+html.dark .cal-dlg .cal-item { background: none; color: var(--text); }
+html.dark .cal-dlg .cal-item:hover, html.dark .cal-dlg .cal-item:focus-visible { background: rgba(148, 163, 184, .12); }
+html.dark .cal-dlg .cal-edit-lbl { color: #93c5fd; }
+html.dark .cal-dlg li.open .cal-edit-lbl { color: #cbd5e1; }
+html.dark .cal-dlg .cal-edit label, html.dark .cal-dlg .cal-new label { color: #cbd5e1; }

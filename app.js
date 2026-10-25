@@ -162,6 +162,9 @@
   }
   const signedInUser = Store.auth ? await requireOwnerSignIn() : null;
   // ---------- Per-user calendars (step 2) ----------
+  if (!Store.auth) { // local mode: the device's own list once the user has added or edited a calendar
+    try { const rows = await Store.calendars(); if (rows && rows.length) useCalendars(rows); } catch (e) { console.error('calendars:', e); }
+  }
   if (Store.auth) {
     let rows = null;
     try { rows = await Store.calendars(); } catch (e) { console.error('calendars:', e); }

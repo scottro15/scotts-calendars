@@ -17,8 +17,9 @@
   const PALETTE = ['#2563eb', '#ea580c', '#16a34a', '#7c3aed', '#db2777', '#0f766e', '#ca8a04', '#dc2626'];
   const browserTZ = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Chicago'; } catch { return 'America/Chicago'; } };
   const zones = () => { try { return Intl.supportedValuesOf('timeZone'); } catch { return ['America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'UTC']; } };
-  function slugify(name, taken) {
-    let base = name.toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'calendar';
+  function slugify(name, taken = new Set()) { // taken: slugs already used (a Set or an array); the new slug is added to it
+    if (!(taken instanceof Set)) taken = new Set(taken || []);
+    let base = String(name || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'calendar';
     if (!/^[a-z0-9]/.test(base)) base = 'c' + base;
     let s = base, i = 2; while (taken.has(s)) s = `${base}-${i++}`; taken.add(s); return s;
   }

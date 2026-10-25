@@ -553,32 +553,63 @@
       d.querySelector('form').innerHTML = `<h2>Check your inbox</h2><p>We sent a confirmation link to <b>${esc(em)}</b>. Open it to finish the change.</p><div class="dialog-actions"><span class="spacer"></span><button class="primary" value="ok">OK</button></div>`;
     };
   }
+  // Calendars screen: opens on a plain list; tapping a calendar opens its editor (name, short name, colour).
+  // Works signed in (calendars table, per user) and in local mode (the list is kept on this device).
   async function manageCalendars() {
-    const a = A(); const sb = sbc(); if (!sb) { toast('Sign in to add or edit calendars.'); return; }
+    const a = A(); const sb = sbc(); const S = a.Store;
     const cals = a.calendars();
-    const d = dialog('cal-dlg', `<form method="dialog"><h2>Calendars</h2>
-      <ul class="cal-rows">${cals.map(c => `<li class="msg-up" data-slug="${esc(c.id)}"><input type="color" value="${esc(c.color)}" aria-label="Color"><input class="cn" value="${esc(c.name)}" maxlength="80" aria-label="Name"><input class="cs" value="${esc(c.short || '')}" maxlength="20" placeholder="Short" aria-label="Short name"></li>`).join('')}</ul>
-      <h3>Add a calendar</h3>
-      <div class="cal-new"><input type="color" id="ncColor" value="#2563eb" aria-label="Color"><input id="ncName" maxlength="80" placeholder="e.g. Kids' sports"></div>
+    const sw = c => `<span class="cal-sw" style="background:${esc(c.color)}" aria-hidden="true"></span>`;
+    const d = dialog('cal-dlg', `<form method="dialog" novalidate><h2 tabindex="-1" autofocus>Calendars</h2>
+      <p class="muted small">Tap a calendar to rename it or change its color.</p>
+      <ul class="cal-list">${cals.map(c => `<li data-slug="${esc(c.id)}">
+        <button type="button" class="cal-item" aria-expanded="false">${sw(c)}<span class="cal-nm">${esc(c.name)}</span><span class="cal-edit-lbl">Edit</span></button>
+        <div class="cal-edit" hidden>
+          <label>Name<input class="cn" value="${esc(c.name)}" maxlength="80"></label>
+          <div class="cal-edit-row"><label>Short name<input class="cs" value="${esc(c.short || '')}" maxlength="20" placeholder="Short"></label>
+          <label class="cal-color">Color<input type="color" value="${esc(c.color)}"></label></div>
+        </div></li>`).join('')}</ul>
+      <button type="button" id="calAddBtn" class="link-btn cal-add-btn" aria-expanded="false">+ Add a calendar</button>
+      <div class="cal-new" hidden>
+        <label>New calendar name<input id="ncName" maxlength="80" placeholder="e.g. Personal" autocapitalize="words"></label>
+        <label class="cal-color">Color<input type="color" id="ncColor" value="#2563eb"></label>
+      </div>
       <p class="onb-err" role="alert"></p>
       <div class="dialog-actions"><span class="spacer"></span><button value="cancel" formnovalidate>Cancel</button><button id="calSave" class="primary">Save</button></div></form>`);
+    const open = (li, on) => { const ed = li.querySelector('.cal-edit'), b = li.querySelector('.cal-item'); ed.hidden = !on; b.setAttribute('aria-expanded', String(on)); li.classList.toggle('open', on); if (on) ed.classList.add('msg-up'); };
+    d.querySelectorAll('.cal-list li').forEach(li => li.querySelector('.cal-item').addEventListener('click', () => {
+      const on = li.querySelector('.cal-edit').hidden; d.querySelectorAll('.cal-list li').forEach(x => open(x, false)); open(li, on);
+      if (on) li.querySelector('.cn').focus();
+    }));
+    d.querySelectorAll('.cal-list li input[type=color]').forEach(inp => inp.addEventListener('input', () => { inp.closest('li').querySelector('.cal-sw').style.background = inp.value; }));
+    d.querySelector('#calAddBtn').addEventListener('click', e => { const nw = d.querySelector('.cal-new'); nw.hidden = false; nw.classList.add('msg-up'); e.currentTarget.setAttribute('aria-expanded', 'true'); e.currentTarget.hidden = true; d.querySelector('#ncName').focus(); });
     d.querySelector('#calSave').onclick = async e => {
-      e.preventDefault(); const err = d.querySelector('.onb-err'); e.target.disabled = true;
+      e.preventDefault(); const err = d.querySelector('.onb-err'); err.textContent = ''; e.target.disabled = true;
       try {
-        for (const li of d.querySelectorAll('.cal-rows li')) {
+        const edits = [];
+        for (const li of d.querySelectorAll('.cal-list li')) {
           const c = cals.find(x => x.id === li.dataset.slug); const name = li.querySelector('.cn').value.trim(), short = li.querySelector('.cs').value.trim(), color = li.querySelector('input[type=color]').value;
-          if (!name) throw new Error('Calendar names cannot be empty.');
-          if (name !== c.name || (short || null) !== (c.short || null) || color.toLowerCase() !== String(c.color).toLowerCase()) {
-            const { error } = await sb.from('calendars').update({ name, short: short || null, color }).eq('slug', c.id); if (error) throw new Error(error.message);
-          }
+          if (!name) { open(li, true); throw new Error('Calendar names cannot be empty.'); }
+          if (name !== c.name || short !== (c.short || '') || color.toLowerCase() !== String(c.color).toLowerCase()) edits.push({ c, name, short: short || null, color });
         }
         const nn = d.querySelector('#ncName').value.trim();
+        if (nn && cals.some(c => c.name.trim().toLowerCase() === nn.toLowerCase())) throw new Error(`You already have a calendar called "${nn}".`);
+        let added = null;
         if (nn) {
-          const slugify = (window.SandyAccount && window.SandyAccount.slugify) || (s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'cal');
-          let slug = slugify(nn); for (let i = 2; cals.some(c => c.id === slug); i++) slug = slugify(nn).slice(0, 36) + '-' + i;
-          await a.Store.createCalendars([{ slug, name: nn, short: nn.slice(0, 12), color: d.querySelector('#ncColor').value, sort: cals.length }]);
+          const slugify = (window.SandyAccount && window.SandyAccount.slugify) || (s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'calendar');
+          const taken = new Set(cals.map(c => c.id)); // existing slugs, so the new one never collides
+          let slug = slugify(nn, taken); for (let i = 2; taken.has(slug) && !window.SandyAccount; i++) slug = slugify(nn).slice(0, 26) + '-' + i;
+          added = { slug, name: nn, short: nn.slice(0, 12), color: d.querySelector('#ncColor').value, sort: cals.length };
         }
-        d.close(); toast('Calendars saved'); setTimeout(() => { try { sessionStorage.setItem('sandy.tab', 'profile'); } catch (_) {} location.reload(); }, 500);
+        if (!edits.length && !added) { d.close(); return; }
+        if (sb) {
+          for (const x of edits) await S.updateCalendar(x.c.id, { name: x.name, short: x.short, color: x.color });
+          if (added) await S.createCalendars([added]);
+        } else { // local mode: keep the whole list on this device
+          const rows = cals.map((c, i) => { const x = edits.find(y => y.c.id === c.id); return { slug: c.id, name: x ? x.name : c.name, short: x ? x.short : (c.short || null), color: x ? x.color : c.color, sort: i }; });
+          if (added) rows.push(added);
+          await S.saveCalendars(rows);
+        }
+        d.close(); toast(added ? `Added “${added.name}”` : 'Calendars saved'); setTimeout(() => { try { sessionStorage.setItem('sandy.tab', 'profile'); } catch (_) {} location.reload(); }, 500);
       } catch (ex) { err.textContent = ex.message || String(ex); e.target.disabled = false; }
     };
   }

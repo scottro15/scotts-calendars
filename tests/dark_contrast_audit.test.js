@@ -230,6 +230,11 @@ const AUDITOR = `(() => {
   // ---- Profile
   await p.click('#bottomNav [data-tab=profile]'); await settle();
   await audit('profile', '.topbar, #bottomNav, #page-profile', 'profile_' + THEME);
+  // Calendars screen (2026-10-25): plain list, one calendar's editor open, add form open
+  await p.click('#manageCalsBtn'); await p.waitForSelector('dialog.cal-dlg[open]'); await settle(400);
+  await audit('dlg-calendars-list', 'dialog[open]', 'calendars_list_' + THEME);
+  await p.click('dialog.cal-dlg .cal-list > li:nth-child(2) .cal-item'); await p.click('#calAddBtn'); await p.fill('#ncName', 'Personal'); await p.mouse.move(2, 840); await settle(300);
+  await audit('dlg-calendars-edit-add', 'dialog[open]', 'calendars_edit_' + THEME); await closeDialogs();
 
   // ---- Signed-in-only UI, mounted with stand-ins (no network): Account section, notifications box, time zone /
   //      feedback / admin buttons, and their dialogs; first-run welcome; sign-in screen
