@@ -1168,3 +1168,33 @@ html.dark .tc-travel .tv-venue a { color: #93c5fd; }
 html.dark .tv-rows li + li { border-top-color: #243047; }
 html.dark .tc-travel button.tc-link { background: none; box-shadow: none; }
 .tc-tomorrow .tc-link, .tc-practice .tc-link, .tc-travel .tc-link { text-align: left; }
+
+/* ---------- Sandy Intelligence chat history + New chat (SI E) ---------- */
+.ai-quick { flex-wrap: wrap; }
+.ai-quick-gap { flex: 1; }
+.ai-quick #aiHist, .ai-quick #aiNew { font-size: 14px; padding: 8px 10px; }
+.ai-quick #aiHist.on { background: #ede9fe; border-color: #a78bfa; color: #4c1d95; }
+.ai-quick button:disabled { opacity: .55; }
+.ai-body { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
+.ai-hist { position: absolute; inset: 0; overflow-y: auto; background: var(--panel, #fff); padding: 10px 14px 16px; z-index: 2; -webkit-overflow-scrolling: touch; }
+.ai-hist[hidden] { display: none; }
+.ai-hist-head { display: flex; align-items: center; justify-content: space-between; font-size: 17px; }
+.ai-hist-where, .ai-hist-msg { font-size: 14px; color: #4b5563; margin: 4px 0 10px; }
+.ai-hist-list { list-style: none; margin: 0; padding: 0; }
+.ai-hist-row { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #e5e7eb; }
+.ai-hist-row.current { background: #f5f3ff; border-radius: 10px; }
+.ai-hist-open { flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 10px 6px; color: #111827; display: flex; flex-direction: column; gap: 2px; }
+.ai-hist-title { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-hist-when { font-size: 13px; color: #4b5563; }
+.ai-hist-del { flex: none; font-size: 13px; padding: 6px 10px; border-radius: 8px; border: 1px solid #d1d5db; background: #fff; color: #991b1b; }
+.ai-hist-del.confirm { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+.ai-msg.ai-resumed { align-self: center; max-width: 100%; background: none; padding: 0 4px; font-size: 13px; color: #4b5563; text-align: center; }
+.ai-msg.ai-resumed span { font-weight: 600; }
+.ai-msg.note { align-self: flex-end; background: none; padding: 0 4px; font-size: 13px; color: #4b5563; }
+html.dark .ai-quick #aiHist.on { background: #2e2350; border-color: #7c3aed; color: #ede9fe; }
+html.dark .ai-hist-where, html.dark .ai-hist-msg, html.dark .ai-hist-when, html.dark .ai-msg.ai-resumed, html.dark .ai-msg.note { color: #cbd5e1; }
+html.dark .ai-hist-row { border-color: #2a3852; }
+html.dark .ai-hist-row.current { background: #1e1b3a; }
+html.dark .ai-hist-open { color: #f1f5f9; }
+html.dark .ai-hist-del { background: #0f172a; border-color: #475569; color: #fca5a5; }
+html.dark .ai-hist-del.confirm { background: #b91c1c; border-color: #b91c1c; color: #fff; }

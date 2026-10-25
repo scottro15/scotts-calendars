@@ -354,8 +354,17 @@ const AUDITOR = `(() => {
       const c = add('assistant card', '<div class="ai-card-from">✨ Sandy Intelligence suggests</div><div class="ai-card-title">Move Film study</div><dl><dt>Item</dt><dd>Film study</dd><dt>New start</dt><dd>Wed, Nov 18 · 4:00 PM</dd></dl><div class="ai-card-btns"><button type="button" class="primary">Confirm</button><button type="button">Cancel</button></div>'); c.classList.add('ai-card');
       const c2 = add('assistant card', '<div class="ai-card-from">✨ Sandy Intelligence suggests</div><div class="ai-card-title">Add Lift</div><div class="ai-card-btns"><span class="ai-card-status">✓ Saved</span></div>'); c2.classList.add('ai-card');
       add('error', 'Could not reach Sandy Intelligence. Try again.');
+      add('note', 'I confirmed: Add Lift, Wed 6–7 PM'); add('ai-resumed', '<span>Move film study to 4pm tomorrow</span> · Sat, Nov 14'); // chat history (SI E)
     }); await settle(400);
     await audit('ai-panel-messages', '.ai-panel', 'ai_' + THEME);
+    // Chat history panel (SI E): two saved chats (one open), one row asking "Delete?"
+    await p.evaluate(async () => { const C = window.SandyAI.Chats; for (const c of await C.list()) await C.remove(c.id);
+      await C.save({ id: 'audit-chat-1', title: 'What do I have Saturday afternoon?', messages: [{ role: 'user', content: 'What do I have Saturday afternoon?' }, { role: 'assistant', content: 'Film at 4.' }] });
+      await C.save({ id: 'audit-chat-2', title: 'Can you move my Tuesday meeting with Bill to Wednesday at 3…', messages: [{ role: 'user', content: 'Can you move my Tuesday meeting' }] });
+      await window.SandyAI.openChat('audit-chat-1'); await window.SandyAI.showHistory(); });
+    await p.waitForSelector('.ai-hist-row'); await p.click('[data-del="audit-chat-2"]'); await settle(300);
+    await audit('ai-history', '.ai-panel', 'ai_history_' + THEME);
+    await p.evaluate(async () => { window.SandyAI.hideHistory(); const C = window.SandyAI.Chats; for (const c of await C.list()) await C.remove(c.id); await window.SandyAI.newChat(); });
   }
   await p.keyboard.press('Escape'); await closeDialogs();
   await p.evaluate(() => window.__app.toast('Saved')); await settle(300); await audit('toast', '#toast');

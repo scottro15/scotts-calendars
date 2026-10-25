@@ -11,7 +11,6 @@
   let A, history = [], busy = false;
 
   function whenReady(fn) { if (window.__app) fn(); else setTimeout(() => whenReady(fn), 50); }
-  whenReady(init);
 
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const t12 = d => { let h = d.getUTCHours(); const m = d.getUTCMinutes(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return m ? `${h}:${String(m).padStart(2, '0')} ${ap}` : `${h} ${ap}`; };
@@ -29,8 +28,11 @@
       <div class="ai-backdrop" data-close></div>
       <div class="ai-panel">
         <div class="ai-head"><strong><span class="ai-spark" aria-hidden="true">✨</span> <span class="ai-title">Sandy Intelligence</span></strong><button type="button" class="ai-x" data-close aria-label="Close">✕</button></div>
-        <div class="ai-quick"><button type="button" id="aiBrief">☀️ Brief me</button></div>
-        <div class="ai-log" id="aiLog" aria-live="polite"></div>
+        <div class="ai-quick"><button type="button" id="aiBrief">☀️ Brief me</button><span class="ai-quick-gap"></span><button type="button" id="aiHist" aria-expanded="false" aria-controls="aiHistPanel">🕘 History</button><button type="button" id="aiNew">＋ New chat</button></div>
+        <div class="ai-body">
+          <div class="ai-log" id="aiLog" aria-live="polite"></div>
+          <div class="ai-hist" id="aiHistPanel" hidden role="region" aria-label="Chat history"></div>
+        </div>
         <form class="ai-input" id="aiForm" autocomplete="off">
           <textarea id="aiText" rows="1" placeholder="Ask or tell me… e.g. “Add film with Nick tomorrow 4pm”" enterkeyhint="send"></textarea>
           <button type="button" id="aiMic" class="ai-mic" aria-label="Speak" hidden>🎤</button>
@@ -48,11 +50,13 @@
     ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
     document.getElementById('aiForm').addEventListener('submit', e => { e.preventDefault(); send(); });
     setupMic(ta);
-    window.SandyAI = { open, close, briefHtml, buildContext, applyProposal, briefData };
+    document.getElementById('aiNew').addEventListener('click', newChat);
+    document.getElementById('aiHist').addEventListener('click', () => (document.getElementById('aiHistPanel').hidden ? showHistory() : hideHistory()));
+    window.SandyAI = { open, close, briefHtml, buildContext, applyProposal, briefData, Chats, newChat, openChat, showHistory, hideHistory, current: () => ({ id: chatId, title: chatTitle, history: history.slice() }) };
   }
   function open() {
     const s = document.getElementById('aiSheet'); closeTok++; s.classList.remove('ai-closing', 'ai-anim'); s.hidden = false; void s.offsetWidth; s.classList.add('ai-anim'); document.body.classList.add('ai-open');
-    if (!document.getElementById('aiLog').children.length) addMsg('assistant', 'Hi, I’m Sandy Intelligence! Tell me what to add, move or check off, or tap “Brief me”. I’ll show each change for you to confirm first.');
+    if (!document.getElementById('aiLog').children.length) greet();
   }
   let closeTok = 0;
   function close() {
@@ -64,10 +68,12 @@
     s.classList.add('ai-closing'); setTimeout(fin, 280); // exit animation is 260ms
   }
 
-  function addMsg(role, text, html) {
+  const greet = () => addMsg('assistant', 'Hi, I’m Sandy Intelligence! Tell me what to add, move or check off, or tap “Brief me”. I’ll show each change for you to confirm first.');
+  function addMsg(role, text, html, still) {
     const log = document.getElementById('aiLog');
     const d = document.createElement('div'); d.className = 'ai-msg ' + role;
     if (html != null) d.innerHTML = html; else d.textContent = text;
+    if (still) { log.appendChild(d); return d; }
     d.classList.add('msg-in'); d.addEventListener('animationend', () => d.classList.remove('msg-in'), { once: true });
     log.appendChild(d); scrollLog(); return d;
   }
@@ -105,20 +111,140 @@
     const ta = document.getElementById('aiText'); const text = ta.value.trim();
     if (!text || busy) return;
     stopMic(); ta.value = ''; ta.style.height = 'auto';
-    addMsg('user', text); history.push({ role: 'user', content: text });
+    hideHistory(); addMsg('user', text); history.push({ role: 'user', content: text }); persist();
     if (!ENDPOINT) { addMsg('assistant', 'The assistant needs the online (signed-in) version of SANDY.'); return; }
-    busy = true; const wait = addMsg('assistant thinking typing', null, '<span class="dot"></span><span class="dot"></span><span class="dot"></span>'); wait.setAttribute('aria-label', 'Sandy Intelligence is typing'); document.getElementById('aiSend').disabled = true;
+    busy = true; setChatBtns(); const wait = addMsg('assistant thinking typing', null, '<span class="dot"></span><span class="dot"></span><span class="dot"></span>'); wait.setAttribute('aria-label', 'Sandy Intelligence is typing'); document.getElementById('aiSend').disabled = true;
     try {
       const tok = await token();
       const res = await fetch(ENDPOINT, { method: 'POST', headers: { 'content-type': 'application/json', ...(tok ? { authorization: 'Bearer ' + tok } : {}), ...(cfg.SUPABASE_ANON_KEY ? { apikey: cfg.SUPABASE_ANON_KEY } : {}) },
-        body: JSON.stringify({ messages: history, context: await buildContext() }) });
+        body: JSON.stringify({ messages: history.map(m => ({ role: m.role, content: m.content })), context: await buildContext() }) });
       const data = await res.json().catch(() => ({}));
       wait.remove();
-      if (!res.ok) { addMsg('assistant error', data.error || (res.status === 404 ? 'The assistant isn’t switched on yet. “Brief me” works now.' : `Something went wrong (${res.status}).`)); history.pop(); return; }
-      addMsg('assistant', data.reply); history.push({ role: 'assistant', content: data.reply });
+      if (!res.ok) { addMsg('assistant error', data.error || (res.status === 404 ? 'The assistant isn’t switched on yet. “Brief me” works now.' : `Something went wrong (${res.status}).`)); history.pop(); persist(); return; }
+      addMsg('assistant', data.reply); history.push({ role: 'assistant', content: data.reply }); persist();
       (data.proposals || []).forEach((p, i) => setTimeout(() => renderProposal(p), (window.Motion && Motion.reduced()) ? 0 : 120 * (i + 1)));
-    } catch (e) { wait.remove(); addMsg('assistant error', 'Could not reach the assistant. Check your connection and try again.'); history.pop(); }
-    finally { busy = false; document.getElementById('aiSend').disabled = false; }
+    } catch (e) { wait.remove(); addMsg('assistant error', 'Could not reach the assistant. Check your connection and try again.'); history.pop(); persist(); }
+    finally { busy = false; document.getElementById('aiSend').disabled = false; setChatBtns(); }
+  }
+
+
+  // ---------- chat history (SI E): saved conversations + New chat. Pure storage: never calls the AI. ----------
+  // Signed in: Supabase table ai_chats (owner-only RLS, migration-2026-10-25-ai-chats.sql). Until that migration is
+  // applied, or in the local (not signed-in) version, chats are kept on this device (localStorage, per account).
+  let chatId = null, chatTitle = '', chatCreated = null, saveTimer = null, saveChain = Promise.resolve();
+  const CHAT_LS = 'sandy.aiChats.v1', MAX_CHATS = 50, MAX_MSGS = 400;
+  const newId = () => (crypto.randomUUID ? crypto.randomUUID() : 'c' + Date.now() + Math.random().toString(16).slice(2));
+  const missingTable = e => e && (e.code === 'PGRST205' || e.code === '42P01' || /could not find the table|does not exist|schema cache/i.test(e.message || ''));
+  const titleOf = msgs => { const m = msgs.find(x => x.role === 'user' && !x.note && x.content.trim()); if (!m) return 'New chat'; const t = m.content.replace(/\s+/g, ' ').trim(); return t.length > 60 ? t.slice(0, 59).trimEnd() + '…' : t; };
+  const clean = msgs => (Array.isArray(msgs) ? msgs : []).filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .slice(-MAX_MSGS).map(m => ({ role: m.role, content: m.content.slice(0, 8000), ...(m.note ? { note: 1 } : {}) }));
+  const Chats = {
+    remote: true, // false once we learn the ai_chats table isn't there yet
+    sb() { const S = A.Store; return S.mode !== 'local' && S.adapter && S.adapter.client || null; },
+    async lsKey() { // one list per signed-in account, so a shared phone never mixes people's chats
+      const sb = this.sb(); if (!sb) return CHAT_LS;
+      try { const { data } = await sb.auth.getSession(); const u = data && data.session && data.session.user; return u ? CHAT_LS + '.' + u.id : CHAT_LS; } catch (e) { return CHAT_LS; }
+    },
+    async readLocal() { try { const v = JSON.parse(localStorage.getItem(await this.lsKey())); return Array.isArray(v) ? v : []; } catch (e) { return []; } },
+    async writeLocal(all) { all.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)); localStorage.setItem(await this.lsKey(), JSON.stringify(all.slice(0, MAX_CHATS))); },
+    where() { return this.sb() && this.remote ? 'account' : 'device'; },
+    async useRemote(fn) { // run fn(sb) against ai_chats; null = fall back to the device
+      const sb = this.sb(); if (!sb || !this.remote) return null;
+      const r = await fn(sb.from('ai_chats'));
+      if (r.error) { if (missingTable(r.error)) { this.remote = false; return null; } throw new Error(r.error.message || 'Could not reach your chat history'); }
+      return r;
+    },
+    async list() {
+      const r = await this.useRemote(t => t.select('id,title,created_at,updated_at').order('updated_at', { ascending: false }).limit(MAX_CHATS));
+      if (r) return r.data.map(x => ({ id: x.id, title: x.title, createdAt: x.created_at, updatedAt: x.updated_at }));
+      return (await this.readLocal()).map(({ id, title, createdAt, updatedAt, messages }) => ({ id, title, createdAt, updatedAt, count: (messages || []).length }));
+    },
+    async get(id) {
+      const r = await this.useRemote(t => t.select('id,title,messages,created_at,updated_at').eq('id', id).maybeSingle());
+      if (r) return r.data ? { id: r.data.id, title: r.data.title, messages: clean(r.data.messages), createdAt: r.data.created_at, updatedAt: r.data.updated_at } : null;
+      const c = (await this.readLocal()).find(x => x.id === id); return c ? { ...c, messages: clean(c.messages) } : null;
+    },
+    async save(c) {
+      const now = new Date().toISOString(); const row = { id: c.id, title: c.title, messages: clean(c.messages), updated_at: now };
+      const r = await this.useRemote(t => t.upsert(row).select('id'));
+      if (r) return;
+      const all = (await this.readLocal()).filter(x => x.id !== c.id);
+      all.push({ id: c.id, title: row.title, messages: row.messages, createdAt: c.createdAt || now, updatedAt: now }); await this.writeLocal(all);
+    },
+    async remove(id) {
+      const r = await this.useRemote(t => t.delete().eq('id', id));
+      if (r) return;
+      await this.writeLocal((await this.readLocal()).filter(x => x.id !== id));
+    },
+  };
+  // Save the open conversation (debounced; saves run one at a time, in order).
+  function persist(now) {
+    if (!history.some(m => m.role === 'user' && !m.note)) { // nothing worth keeping (e.g. the first message failed to send)
+      if (chatId) { const id = chatId; clearTimeout(saveTimer); saveTimer = null; chatId = null; chatCreated = null; saveChain = saveChain.then(() => Chats.remove(id)).catch(() => {}); }
+      return saveChain;
+    }
+    if (!chatId) { chatId = newId(); chatCreated = new Date().toISOString(); }
+    chatTitle = titleOf(history);
+    const snap = { id: chatId, title: chatTitle, messages: history.slice(), createdAt: chatCreated };
+    clearTimeout(saveTimer);
+    const run = () => (saveTimer = null, saveChain = saveChain.then(() => Chats.save(snap)).catch(e => { console.warn('chat history', e); A.toast && A.toast('Couldn’t save this chat: ' + (e.message || e), 3500); }));
+    if (now) return run();
+    saveTimer = setTimeout(run, 250); return saveChain;
+  }
+  function setChatBtns() { for (const id of ['aiNew', 'aiHist']) { const b = document.getElementById(id); if (b) b.disabled = busy; } document.querySelectorAll('#aiHistPanel button').forEach(b => { b.disabled = busy; }); }
+  async function newChat() {
+    if (busy) return;
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; await persist(true); }
+    stopMic(); hideHistory(); chatId = null; chatTitle = ''; chatCreated = null; history = [];
+    document.getElementById('aiLog').innerHTML = ''; greet();
+    const ta = document.getElementById('aiText'); ta.value = ''; ta.style.height = 'auto'; ta.focus({ preventScroll: true });
+  }
+  async function openChat(id) {
+    if (busy) return;
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; await persist(true); }
+    let c; try { c = await Chats.get(id); } catch (e) { A.toast && A.toast(e.message || String(e), 3500); return; }
+    if (!c) { A.toast && A.toast('That chat was deleted.', 3000); showHistory(); return; }
+    stopMic(); chatId = c.id; chatTitle = c.title; chatCreated = c.createdAt || null; history = c.messages.slice();
+    const log = document.getElementById('aiLog'); log.innerHTML = '';
+    addMsg('ai-resumed', null, `<span>${esc(c.title)}</span> · ${esc(whenLabel(c.updatedAt))}`, true);
+    for (const m of history) addMsg(m.note ? 'note' : m.role, m.note ? m.content.replace(/^\(|\)$/g, '') : m.content, null, true);
+    hideHistory(); log.scrollTop = log.scrollHeight;
+  }
+  const whenLabel = iso => {
+    const d = new Date(iso); if (isNaN(d)) return '';
+    const tz = (A.timeZone && A.timeZone()) || undefined; const day = x => x.toLocaleDateString('en-CA', { timeZone: tz });
+    const now = new Date(); const t = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz });
+    if (day(d) === day(now)) return 'Today ' + t;
+    if (day(d) === day(new Date(now.getTime() - DAY))) return 'Yesterday ' + t;
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}), timeZone: tz });
+  };
+  let histTok = 0;
+  async function showHistory() {
+    if (busy) return;
+    const panel = document.getElementById('aiHistPanel'); const tok = ++histTok;
+    panel.hidden = false; document.getElementById('aiHist').setAttribute('aria-expanded', 'true'); document.getElementById('aiHist').classList.add('on');
+    panel.innerHTML = '<p class="ai-hist-msg ai-hist-loading">Loading your chats…</p>';
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; await persist(true); } else await saveChain;
+    let list;
+    try { list = await Chats.list(); } catch (e) { if (tok === histTok) panel.innerHTML = `<p class="ai-hist-msg">Couldn’t load your chats: ${esc(e.message || e)}</p>`; return; }
+    if (tok !== histTok || panel.hidden) return;
+    const where = Chats.where() === 'account' ? 'Saved to your account, only you can see them.' : (Chats.sb() ? 'Saved on this device for now (the history update isn’t switched on yet).' : 'Saved on this device.');
+    panel.innerHTML = `<div class="ai-hist-head"><strong>Your chats</strong></div><p class="ai-hist-where">${esc(where)}</p>` +
+      (list.length ? `<ul class="ai-hist-list">${list.map(c => `<li class="ai-hist-row${c.id === chatId ? ' current' : ''}" data-id="${esc(c.id)}"><button type="button" class="ai-hist-open" data-open="${esc(c.id)}"><span class="ai-hist-title">${esc(c.title)}</span><span class="ai-hist-when">${esc(whenLabel(c.updatedAt))}${c.id === chatId ? ' · open now' : ''}</span></button><button type="button" class="ai-hist-del" data-del="${esc(c.id)}" aria-label="Delete chat: ${esc(c.title)}">Delete</button></li>`).join('')}</ul>`
+        : '<p class="ai-hist-msg">No saved chats yet. Your conversations show up here after you send a message.</p>');
+    panel.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => openChat(b.dataset.open)));
+    panel.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
+      if (!b.classList.contains('confirm')) { b.classList.add('confirm'); b.textContent = 'Delete?'; setTimeout(() => { if (b.isConnected) { b.classList.remove('confirm'); b.textContent = 'Delete'; } }, 4000); return; }
+      b.disabled = true;
+      try { await Chats.remove(b.dataset.del); } catch (e) { b.disabled = false; A.toast && A.toast('Couldn’t delete: ' + (e.message || e), 3500); return; }
+      if (b.dataset.del === chatId) { chatId = null; chatTitle = ''; chatCreated = null; history = []; document.getElementById('aiLog').innerHTML = ''; greet(); }
+      showHistory();
+    }));
+    setChatBtns();
+  }
+  function hideHistory() {
+    const panel = document.getElementById('aiHistPanel'); if (!panel) return; histTok++;
+    panel.hidden = true; const b = document.getElementById('aiHist'); b.setAttribute('aria-expanded', 'false'); b.classList.remove('on');
   }
 
   // ---------- confirm cards ----------
@@ -144,10 +270,10 @@
     const ok = card.querySelector('[data-ok]'), no = card.querySelector('[data-no]');
     if (p.type !== 'add' && !ev) { ok.disabled = true; }
     const done = msg => { card.querySelector('.ai-card-btns').innerHTML = `<span class="ai-card-status">${esc(msg)}</span>`; };
-    no.addEventListener('click', () => { done('Cancelled'); history.push({ role: 'user', content: `(I cancelled: ${p.summary || p.type})` }); });
+    no.addEventListener('click', () => { done('Cancelled'); history.push({ role: 'user', content: `(I cancelled: ${p.summary || p.type})`, note: 1 }); persist(); });
     ok.addEventListener('click', async () => {
       ok.disabled = no.disabled = true;
-      try { await applyProposal(p); done('✓ Saved'); history.push({ role: 'user', content: `(I confirmed: ${p.summary || p.type})` }); A.refresh(); }
+      try { await applyProposal(p); done('✓ Saved'); history.push({ role: 'user', content: `(I confirmed: ${p.summary || p.type})`, note: 1 }); persist(); A.refresh(); }
       catch (e) { console.error(e); ok.disabled = no.disabled = false; A.toast('Could not save: ' + (e.message || e), 4000); }
     });
   }
@@ -242,4 +368,5 @@
     });
   }
   function stopMic() { if (rec) { try { rec.stop(); } catch (e) { } rec = null; } const m = document.getElementById('aiMic'); if (m) m.classList.remove('on'); }
+  whenReady(init); // last, so every const above exists before init() runs
 })();
