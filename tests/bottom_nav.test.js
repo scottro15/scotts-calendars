@@ -33,7 +33,7 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); console.log('o
     assert(nav.map(x => x[0]).join() === 'home,today,todo,search,profile', `${N} 5 tabs in order`);
     assert(nav[0][2] === 'page', `${N} Home active at start`);
     const navBox = await p.$eval('#bottomNav', e => { const r = e.getBoundingClientRect(); return { bottom: r.bottom, pos: getComputedStyle(e).position }; });
-    assert(navBox.pos === 'fixed' && Math.abs(navBox.bottom - vp.height) < 2, `${N} nav fixed to the bottom`);
+    assert(navBox.pos === 'fixed' && vp.height - navBox.bottom >= 8 && vp.height - navBox.bottom <= 12, `${N} nav fixed to the bottom, floating ${(vp.height - navBox.bottom).toFixed(1)}px above it (nav2 capsule)`);
     assert(await p.$eval('#bottomNav .nav-badge', e => !e.hidden && e.textContent === '1'), `${N} To-Do badge shows 1 overdue`);
     if (mob) await p.screenshot({ path: `${SHOTS}/1_home_${vp.name}.png` });
     const viewBefore = await p.evaluate(() => window.__app.calendar.view.type);

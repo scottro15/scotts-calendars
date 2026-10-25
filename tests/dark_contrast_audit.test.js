@@ -3,7 +3,7 @@
 // Covers Home (Today card: Heads Up, On Today, Overdue; briefing), List/Day/Week/Month views (incl. game badges),
 // To-Do (quick-add chips, inbox editor, categories), Search (hint, results incl. Today's Notes, empty state, Notes
 // Review), Profile, event editor (new / existing with day note + checklist / game), scope dialog, month picker,
-// AI panel and toast. Inputs: value text and placeholders. Also checks the List day-box border (both modes).
+// AI panel and toast, and the floating glass bottom nav over worst-case white/black content (full + compact). Inputs: value text and placeholders. Also checks the List day-box border (both modes).
 //   node tests/dark_contrast_audit.test.js http://127.0.0.1:8787/ [screenshotDir]
 //   By default runs both themes (dark, then light) and fails if either has text below AA.
 //   env: THEME=dark|light -> audit one theme only   SNAP=file.json -> dump measured styles
@@ -168,6 +168,25 @@ const AUDITOR = `(() => {
   // ---- Home: Today card + briefing + each calendar view
   await view('listWeek'); await p.evaluate(() => window.scrollTo(0, 0));
   await audit('home-today', '.topbar, #bottomNav, #todayCard, #briefing', 'home_today_' + THEME);
+  // Floating glass nav (nav2): every tab label/icon on the translucent capsule must pass even with pure white or pure
+  // black content scrolling underneath it, in the full and the compact (scrolled) state.
+  for (const compact of [false, true]) {
+    await p.evaluate(c => window.SandyNavBar && window.SandyNavBar.set(c), compact); await settle(400);
+    const nv = await p.evaluate(() => { const cv = document.createElement('canvas'); cv.width = cv.height = 1; const cx = cv.getContext('2d', { willReadFrequently: true });
+      const rgba = (s, under) => { cx.globalCompositeOperation = 'copy'; cx.fillStyle = under; cx.fillRect(0, 0, 1, 1); cx.globalCompositeOperation = 'source-over'; cx.fillStyle = s; cx.fillRect(0, 0, 1, 1); return [...cx.getImageData(0, 0, 1, 1).data]; };
+      const lum = c => { const f = v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }; return .2126 * f(c[0]) + .7152 * f(c[1]) + .0722 * f(c[2]); };
+      const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+      const nav = document.getElementById('bottomNav'); const glass = getComputedStyle(nav).backgroundColor; const pill = getComputedStyle(nav.querySelector('.nav-pill') || nav).backgroundColor;
+      const out = [];
+      for (const b of nav.querySelectorAll('button')) { const on = b.getAttribute('aria-current') === 'page'; const fg = getComputedStyle(b).color; const span = b.querySelector('span'); const showsLabel = span && +getComputedStyle(span).opacity > .05;
+        for (const under of ['#ffffff', '#000000']) { let bg = rgba(glass, under); bg = rgba(`rgb(${bg[0]},${bg[1]},${bg[2]})`, under);
+          if (on) { const pb = (() => { cx.globalCompositeOperation = 'copy'; cx.fillStyle = `rgb(${bg[0]},${bg[1]},${bg[2]})`; cx.fillRect(0, 0, 1, 1); cx.globalCompositeOperation = 'source-over'; cx.fillStyle = pill; cx.fillRect(0, 0, 1, 1); return [...cx.getImageData(0, 0, 1, 1).data]; })(); bg = pb; }
+          out.push({ tab: b.dataset.tab, on, under, label: !!showsLabel, r: ratio(rgba(fg, `rgb(${bg[0]},${bg[1]},${bg[2]})`), bg) }); } }
+      return out; });
+    for (const x of nv) { checked++; const need = x.label ? 4.5 : 3; const ok = x.r >= need; if (!ok) failList.push(`nav ${x.tab}`);
+      assert(ok, `${THEME} floating nav ${compact ? 'compact' : 'full'}: ${x.tab}${x.on ? ' (active, on pill)' : ''} over ${x.under === '#ffffff' ? 'white' : 'black'} content ${x.r.toFixed(2)}:1 (need ${need})`); }
+  }
+  await p.evaluate(() => window.SandyNavBar && window.SandyNavBar.set(false)); await settle(300);
   await audit('view-list', page);
   for (const sc of ['week', 'month', 'season']) { await p.click(`#briefScope [data-scope=${sc}]`); await settle(600); await audit('briefing-' + sc, '#briefing'); }
   await p.click('#briefScope [data-scope=day]'); await settle(400);

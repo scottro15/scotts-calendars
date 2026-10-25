@@ -1235,3 +1235,49 @@ html.dark .ai-hist-del.confirm { background: #b91c1c; border-color: #b91c1c; col
 .tc-noanim, .tc-noanim * { transition: none !important; }
 @media (prefers-reduced-motion: reduce) { .tc-body, .tc-chev, .tc-collapse-h { transition: none !important; } }
 html.dark .tc-collapse-h .tc-tog:focus-visible { outline-color: #93c5fd; }
+
+/* ===== Bottom nav v2 (Scott 2026-10-25, nav2): Instagram-style FLOATING frosted-glass capsule + Hinge-style sliding pill =====
+   - Floating: a rounded capsule inset 14px from the sides and lifted 10px above the home indicator
+     (bottom = safe-area inset + 10px), soft drop shadow and a subtle 1px border; content scrolls underneath and around it.
+   - Translucent: semi-transparent background + backdrop blur/saturate (-webkit- for iOS Safari). No backdrop-filter
+     support -> nearly opaque background instead. Body padding / toasts clear the floating bar.
+   - Active tab: a soft rounded pill behind the icon that SLIDES between tabs (transform, 250ms ease; placed by
+     navbar.js), active icon/label in full colour + weight, inactive muted but AA-readable over white or black content.
+   - Scroll: .nav-compact (navbar.js) scales the capsule to 90% (smaller + narrower) and settles it 6px lower; labels
+     fade and icons centre. Transform/opacity only. Buttons stay >= 54px tall, so tap targets stay >= 44px.
+   - Reduced motion: no transitions (state changes are instant). */
+:root { --nav-shrink: 6px; --nav-side: 14px; --nav-lift: 10px; --nav-glass: rgba(255, 255, 255, .8); --nav-hair: rgba(15, 23, 42, .12);
+  --nav-shadow: 0 10px 30px rgba(15, 23, 42, .16), 0 2px 8px rgba(15, 23, 42, .08); --nav-ink: #374151; --nav-on: #1e40af; --nav-pill: rgba(37, 99, 235, .14); }
+html.dark { --nav-shadow: 0 12px 32px rgba(0, 0, 0, .5), 0 2px 8px rgba(0, 0, 0, .35); --nav-glass: rgba(11, 18, 32, .78); --nav-hair: rgba(255, 255, 255, .14); --nav-ink: #cbd5e1; --nav-on: #bfdbfe; --nav-pill: rgba(96, 165, 250, .2); }
+.bottom-nav, html.dark .bottom-nav { background: var(--nav-glass); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+  /* floating capsule (Instagram's newer iOS bar): inset from the sides, lifted above the home indicator */
+  left: max(var(--nav-side), calc(env(safe-area-inset-left) + 8px)); right: max(var(--nav-side), calc(env(safe-area-inset-right) + 8px));
+  bottom: calc(env(safe-area-inset-bottom) + var(--nav-lift)); max-width: 560px; margin: 0 auto; padding: 0 6px; border-radius: 32px;
+  border: 1px solid var(--nav-hair); box-shadow: var(--nav-shadow);
+  transform: translate3d(0, 0, 0); transform-origin: 50% 100%; transition: transform .25s ease; will-change: transform; }
+/* content clears the floating bar (bar + lift + 16px breathing room); toasts float just above it */
+body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--nav-lift) + 16px); }
+.layout { min-height: calc(100vh - 52px - var(--nav-h) - var(--nav-lift) - 16px); } /* keep short pages from becoming scrollable */
+.toast { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--nav-lift) + 14px); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .bottom-nav { background: rgba(255, 255, 255, .97); } html.dark .bottom-nav { background: rgba(11, 18, 32, .97); } }
+.bottom-nav button, html.dark .bottom-nav button { color: var(--nav-ink); background: none; z-index: 1; gap: 2px; padding: 6px 0 7px; justify-content: flex-start; min-height: 44px; }
+.bottom-nav button::before { display: none; }
+.bottom-nav button > svg, .bottom-nav button > .nav-av { margin-top: 5px; transition: transform .25s ease; }
+.bottom-nav button > span { font-size: 10.5px; font-weight: 600; letter-spacing: .01em; transition: opacity .2s ease, transform .25s ease; }
+.bottom-nav button[aria-current=page], html.dark .bottom-nav button[aria-current=page] { color: var(--nav-on); }
+.bottom-nav button[aria-current=page] > span { font-weight: 800; }
+.bottom-nav button[aria-current=page] svg { stroke-width: 2.4; transform: none; }
+.nav-pill { position: absolute; left: 0; top: 4px; width: 60px; height: 34px; border-radius: 17px; background: var(--nav-pill); pointer-events: none; z-index: 0;
+  transform: translateX(var(--pill-x, -200px)); transition: transform .25s ease, opacity .2s ease, top .25s ease; }
+.nav-pill.no-anim { transition: none; }
+/* compact (scrolling down): the capsule scales to 90% (smaller + narrower) and settles 6px lower; labels fade and
+   icons centre in the capsule; the pill follows them */
+.bottom-nav.nav-compact, html.dark .bottom-nav.nav-compact { transform: translate3d(0, var(--nav-shrink), 0) scale(.9); }
+.bottom-nav.nav-compact button > svg, .bottom-nav.nav-compact button > .nav-av { transform: translateY(8px); }
+.bottom-nav.nav-compact button > span { opacity: 0; transform: translateY(-4px); }
+.bottom-nav.nav-compact .nav-pill { transform: translateX(var(--pill-x, -200px)) translateY(7px) scaleY(.94); }
+.bottom-nav.nav-compact .nav-badge { transform: translateY(8px); }
+@media (min-width: 900px) { .bottom-nav button { justify-content: center; } .bottom-nav button > svg, .bottom-nav button > .nav-av { margin-top: 0; } .nav-pill { top: 12px; width: 120px; } .bottom-nav, html.dark .bottom-nav { max-width: 720px; } }
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav, html.dark .bottom-nav, .nav-pill, .bottom-nav button > svg, .bottom-nav button > .nav-av, .bottom-nav button > span { transition: none !important; } }
