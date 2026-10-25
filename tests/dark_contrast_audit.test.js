@@ -114,6 +114,9 @@ const AUDITOR = `(() => {
     const hdr = { 'access-control-allow-origin': '*' };
     if (to.includes('island')) return r.fulfill({ status: 400, headers: hdr, contentType: 'application/json', body: '{"error_code":442,"error":"No path"}' }).catch(() => {});
     r.fulfill({ status: 200, headers: hdr, contentType: 'application/json', body: JSON.stringify({ trip: { summary: { time: 1920, length: 25 } } }) }).catch(() => {}); });
+  // Travel plan weather (SI D): mock Open-Meteo (free, no key)
+  await ctx.route('https://api.open-meteo.com/**', r => { const d = new URL(r.request().url()).searchParams.get('start_date'); const time = Array.from({ length: 24 }, (_, h) => `${d}T${String(h).padStart(2, '0')}:00`);
+    r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ hourly: { time, temperature_2m: time.map(() => 41), precipitation_probability: time.map(() => 60), weather_code: time.map(() => 63), wind_speed_10m: time.map(() => 20) } }) }); });
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.clock.install({ time: new Date('2026-11-17T16:00:00Z') }); // Tue Nov 17 2026, 10:00 AM CT
   await p.goto(BASE); await p.waitForFunction(() => window.__app && window.__app.Store);
@@ -181,6 +184,14 @@ const AUDITOR = `(() => {
   await ctx.grantPermissions(['geolocation']); await ctx.setGeolocation({ latitude: 38.95, longitude: -90.2 });
   await p.click('#tcLeave .lb-loc-yes'); await p.waitForSelector('#tcLeave [data-origin=current]', { timeout: 8000 }); await settle(300);
   await audit('today-heads-current', '#todayCard .tc-heads');
+  // Away-game travel plan (SI D): the seeded NEUTRAL game today (Kates Gym) + an away game Thursday; weather mocked
+  const tvId = await p.evaluate(async () => { const S = window.__app.Store; const e = { id: crypto.randomUUID(), kind: 'event', allDay: false, recurrence: { freq: 'none' }, calendar: 'mam', category: 'Game – Maryville University', title: 'Maryville University @ Test College - AWAY', start: '2026-11-19T18:00', end: '2026-11-19T20:00', location: 'Test Gym A, Testville', notes: 'Drive from Maryville University: 314 mi, about 5 hr 59 min' };
+    await S.save(e); window.__app.refresh(); return e.id; });
+  await p.evaluate(() => window.SandyNav.renderToday());
+  await p.waitForFunction(() => { const s = [...document.querySelectorAll('.tc-travel')]; return s.length && s.every(x => !x.querySelector('[data-state=pending]')); }, null, { timeout: 8000 }); await settle(300);
+  await p.evaluate(() => document.querySelector('.tc-travel').scrollIntoView({ block: 'start' })); await settle(200);
+  await audit('today-travel', '.tc-travel', 'today_travel_' + THEME);
+  await p.evaluate(async id => { await window.__app.Store.remove(id); window.__app.refresh(); }, tvId); await settle(300);
   // Practice prep (SI C): last Maryville practice's notes + Notion link + this practice's note
   const ppId = await p.evaluate(async () => { const S = window.__app.Store; const e = { id: crypto.randomUUID(), kind: 'event', allDay: false, recurrence: { freq: 'weekly', interval: 1, byWeekday: [2, 4] }, location: '', notes: '', calendar: 'mam', category: 'Team practice – Maryville University', title: 'Maryville University practice', start: '2026-11-03T15:00', end: '2026-11-03T17:00' };
     await S.save(e); await S.notes.set(e.id, '2026-11-12', Array.from({ length: 10 }, (_, i) => 'Practice point ' + (i + 1)).join('\n')); await S.notes.set(e.id, '2026-11-17', 'Plan: zone offense');

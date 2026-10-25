@@ -163,6 +163,9 @@
     h += `<section class="tc-sec tc-card tc-heads"${d.gaps.length ? '' : ' hidden'}><h3>Heads Up</h3><ul class="tc-warn tc-leave" id="tcLeave" aria-live="polite" hidden></ul>${d.gaps.length ? `<ul class="tc-warn">${d.gaps.map(g => g.kind === 'overlap'
       ? `<li>⚠️ <b>${esc(g.p.ev.title)}</b> overlaps <b>${esc(g.n.ev.title)}</b> (${esc(t12(g.n.o.start))})</li>`
       : `<li>⏱️ Tight: <b>${esc(g.p.ev.title)}</b> ends ${esc(t12(g.p.o.end))}, <b>${esc(g.n.ev.title)}</b> starts ${g.min ? `${g.min} min later` : 'right after'}</li>`).join('')}</ul>` : ''}</section>`;
+    // Sandy Intelligence: away-game travel plan (travel.js): departure, return, weather for Maryville away / neutral games
+    let tv = null;
+    if (window.SandyTravel) { try { tv = await SandyTravel.render(null, a, d.now); if (tv) h += tv.html; } catch (e) { console.warn('travel plan:', e); tv = null; } }
     // Sandy Intelligence: practice prep (practice.js): last practice's notes before a Maryville / Jennings practice
     if (window.SandyPractice) { try { h += SandyPractice.html(await SandyPractice.data(a, d.now), d.now, d.today); } catch (e) { console.warn('practice prep:', e); } }
     // Sandy Intelligence: evening preview of tomorrow (tomorrow.js)
@@ -172,6 +175,7 @@
     if (d.overdue.length) h += `<section class="tc-sec tc-card tc-overdue"><h3>Overdue To-Dos</h3><ul class="tc-list">${d.overdue.map(x => row(x, `<span class="overdue-badge">Overdue ${esc(a.overdueText(d.now - (x.ev.allDay ? a.startOfDay(x.o.start) : (x.o.end || x.o.start))))}</span>`)).join('')}</ul></section>`;
     $('todayBody').innerHTML = h;
     if (window.SandyLeave) SandyLeave.render($('tcLeave'), d.items, d.now).catch(e => console.warn('leave-by:', e));
+    if (tv) tv.run();
     if (tm) SandyTomorrow.fillLeave($('tmLeave'), tm).catch(e => console.warn('tomorrow leave-by:', e));
   }
 

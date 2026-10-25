@@ -302,7 +302,7 @@
   /** Opened from a "Check your drive" push (?locate=1): check location even before the 1-hour window. */
   function locateSoon() { forceLocate = true; }
   function invalidate() { home = undefined; prefs = undefined; }
-  window.SandyLeave = { render, firstLeave, getHome, setHome, invalidate, candidates, leaveAt, mapsUrl, BUFFER_MIN, B2B_MIN, NEAR_M, CHECK_AHEAD_MIN,
+  window.SandyLeave = { render, firstLeave, geocode, drive, getHome, setHome, invalidate, candidates, leaveAt, mapsUrl, BUFFER_MIN, B2B_MIN, NEAR_M, CHECK_AHEAD_MIN,
     answerAsk, locateSoon, useLoc, setUseLoc, locState, clearPos, getAlertPrefs, setAlertPrefs, savePlans,
     _test: { geocode, route, drive, norm, meters, wallToUtc, sentSig } };
 })();

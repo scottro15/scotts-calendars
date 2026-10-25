@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <title>SANDY — the scheduling app</title>
-  <link rel="stylesheet" href="styles.css?v=20261025-siC">
+  <link rel="stylesheet" href="styles.css?v=20261025-siD">
   <!-- FullCalendar v6 is vendored locally (vendor/) so the app works offline and on GitHub Pages. -->
   <script src="vendor/fullcalendar.min.js"></script>
   <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
@@ -60,7 +60,7 @@
         <div id="todayBody"></div>
         <div id="todayNudges" class="tc-nudges" aria-label="Sandy Intelligence prep nudges">
           <div class="tc-nudge-head">✨ Sandy Intelligence <span class="tc-soon">more coming</span></div>
-          <p class="muted small">Leave-by times show in Heads Up for events with a location, from home or from where you are. Get a push when it’s time to leave: Profile → Leave-by alerts. After 6 PM, a Tomorrow card shows your first event, when to leave and what to prep. Before a Maryville or Jennings practice, Practice prep shows your notes from the last one.</p>
+          <p class="muted small">Leave-by times show in Heads Up for events with a location, from home or from where you are. Get a push when it’s time to leave: Profile → Leave-by alerts. After 6 PM, a Tomorrow card shows your first event, when to leave and what to prep. Before a Maryville or Jennings practice, Practice prep shows your notes from the last one. Away and neutral Maryville games get a travel plan: when to leave, when you’ll be back, and the weather.</p>
         </div>
       </section>
       <!-- Briefing: preview of the selected period (respects the calendar toggles) -->
@@ -383,19 +383,20 @@
     <button type="button" data-tab="profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.2-4 4-5.8 7.5-5.8s6.3 1.8 7.5 5.8"/></svg><span>Profile</span></button>
   </nav>
   <script src="config.js"></script>
-  <script src="storage.js?v=20261025-siC"></script>
+  <script src="storage.js?v=20261025-siD"></script>
   <script src="places.js"></script>
-  <script src="motion.js?v=20261025-siC"></script>
-  <script src="account.js?v=20261025-siC"></script>
-  <script src="launch.js?v=20261025-siC"></script>
-  <script src="push.js?v=20261025-siC"></script>
-  <script src="smartparse.js?v=20261025-siC"></script>
-  <script src="leaveby.js?v=20261025-siC"></script>
-  <script src="tomorrow.js?v=20261025-siC"></script>
-  <script src="practice.js?v=20261025-siC"></script>
-  <script src="nav.js?v=20261025-siC"></script>
-  <script src="games.js?v=20261025-siC"></script>
-  <script src="app.js?v=20261025-siC"></script>
-  <script src="ai.js?v=20261025-siC"></script>
+  <script src="motion.js?v=20261025-siD"></script>
+  <script src="account.js?v=20261025-siD"></script>
+  <script src="launch.js?v=20261025-siD"></script>
+  <script src="push.js?v=20261025-siD"></script>
+  <script src="smartparse.js?v=20261025-siD"></script>
+  <script src="leaveby.js?v=20261025-siD"></script>
+  <script src="tomorrow.js?v=20261025-siD"></script>
+  <script src="practice.js?v=20261025-siD"></script>
+  <script src="travel.js?v=20261025-siD"></script>
+  <script src="nav.js?v=20261025-siD"></script>
+  <script src="games.js?v=20261025-siD"></script>
+  <script src="app.js?v=20261025-siD"></script>
+  <script src="ai.js?v=20261025-siD"></script>
 </body>
 </html>
