@@ -873,3 +873,19 @@ html.dark .scope-dialog .scope-opt, html.dark .scope-dialog .scope-opt strong, h
 html.dark .acct-del h2, html.dark .acct-del p, html.dark .acct-del label { color: #f1f5f9; }
 html.dark .scope-dialog .scope-opt:disabled, html.dark .scope-dialog .scope-opt:disabled * { color: #94a3b8; }
 html.dark .scope-dialog #scopeCancel { background: var(--panel); border-color: #475569; }
+
+/* ===== Dark mode: "Apply changes to…" scope dialog (save / delete / drag on repeating items) ===== */
+html.dark .scope-dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); }
+html.dark .scope-dialog h2, html.dark .scope-dialog .scope-opt strong { color: #f1f5f9; }
+html.dark .scope-dialog p, html.dark .scope-dialog .muted, html.dark .scope-dialog .small,
+html.dark .scope-dialog .scope-opt span { color: #cbd5e1; }
+html.dark .scope-dialog .scope-opt { background: #1c2638; border-color: #334155; color: #f1f5f9; }
+html.dark .scope-dialog .scope-opt:hover:not(:disabled), html.dark .scope-dialog .scope-opt:focus-visible { background: #1e3a5f; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(96,165,250,.3); }
+html.dark .scope-dialog .scope-opt:disabled, html.dark .scope-dialog .scope-opt:disabled * { color: #94a3b8; }
+html.dark .scope-dialog.danger-mode #scopeAll strong { color: #fca5a5; }
+html.dark .scope-dialog #scopeCancel { background: #0f172a; color: #e5e7eb; border: 1px solid #475569; }
+html.dark .scope-dialog::backdrop { background: rgba(0,0,0,.6); }
+html.dark .scope-dialog .scope-opt:focus, html.dark .scope-dialog .scope-opt:active:not(:disabled) { background: #1e3a5f; border-color: #60a5fa; color: #f1f5f9; outline: none; }
+html.dark .scope-dialog .scope-opt:focus:not(:focus-visible):not(:active):not(:hover) { background: #1c2638; border-color: #60a5fa; }
+html.dark .scope-dialog .scope-opt, html.dark .scope-dialog #scopeCancel { -webkit-tap-highlight-color: rgba(96,165,250,.25); }
+html.dark .scope-dialog #scopeCancel:hover, html.dark .scope-dialog #scopeCancel:focus, html.dark .scope-dialog #scopeCancel:active { background: #1e293b; color: #f1f5f9; }
