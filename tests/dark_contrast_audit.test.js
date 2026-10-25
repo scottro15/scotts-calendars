@@ -99,6 +99,16 @@ const AUDITOR = `(() => {
 (async () => {
   const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, timezoneId: 'America/Chicago', locale: 'en-US', isMobile: true, hasTouch: true, deviceScaleFactor: 2, reducedMotion: 'reduce' });
+  // Leave-by (SI 1): mock free geocoding + routing so Heads Up shows every kind of line without real network calls.
+  const geo = new Map(); let holdRoutes = null;
+  await ctx.route('https://photon.komoot.io/**', r => { const q = (new URL(r.request().url()).searchParams.get('q') || '').toLowerCase();
+    let f = []; if (!q.includes('unroutable')) { const h = [...q].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7); const lat = 38 + (h % 1000) / 2000, lon = -91 + ((h >> 10) % 1000) / 2000; geo.set(lat.toFixed(5) + ',' + lon.toFixed(5), q); f = [{ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: {} }]; }
+    r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ features: f }) }); });
+  await ctx.route('https://valhalla1.openstreetmap.de/**', async r => { if (holdRoutes) await holdRoutes;
+    const j = JSON.parse(new URL(r.request().url()).searchParams.get('json')); const to = geo.get(j.locations[1].lat.toFixed(5) + ',' + j.locations[1].lon.toFixed(5)) || '';
+    const hdr = { 'access-control-allow-origin': '*' };
+    if (to.includes('island')) return r.fulfill({ status: 400, headers: hdr, contentType: 'application/json', body: '{"error_code":442,"error":"No path"}' }).catch(() => {});
+    r.fulfill({ status: 200, headers: hdr, contentType: 'application/json', body: JSON.stringify({ trip: { summary: { time: 1920, length: 25 } } }) }).catch(() => {}); });
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.clock.install({ time: new Date('2026-11-17T16:00:00Z') }); // Tue Nov 17 2026, 10:00 AM CT
   await p.goto(BASE); await p.waitForFunction(() => window.__app && window.__app.Store);
@@ -115,7 +125,11 @@ const AUDITOR = `(() => {
     const cl = ev({ title: 'Film breakdown', calendar: 'msc', category: 'Film study', start: '2026-11-17T11:00', end: '2026-11-17T12:00', notes: 'Watch the press break\n- [ ] Clip transition defense\n- [ ] Note press break spacing' });
     const clash = ev({ title: 'Recruiting call', calendar: 'lifetime', category: 'Meeting', start: '2026-11-17T11:30', end: '2026-11-17T12:15' });
     const overdue = ev({ kind: 'task', scope: 'day', title: 'Send press break film to staff', calendar: 'mam', category: 'Task / to-do', allDay: true, start: '2026-11-13', end: '2026-11-13', done: false, completedDates: [] });
-    for (const e of [away, home, neutral, cl, clash, overdue]) await S.save(e);
+    const gymrun = ev({ title: 'Client session', calendar: 'msc', category: 'Meeting', start: '2026-11-17T10:20', end: '2026-11-17T10:50', location: 'Test Gym A, Testville' });
+    const island = ev({ title: 'Island scrimmage', category: 'Practice', start: '2026-11-17T14:00', end: '2026-11-17T15:00', location: 'Island Gym' });
+    const b2b = ev({ title: 'Team dinner', category: 'Meeting', start: '2026-11-17T20:30', end: '2026-11-17T21:30', location: 'Test Restaurant B' });
+    const lost = ev({ title: 'Mystery meetup', category: 'Meeting', start: '2026-11-17T16:00', end: '2026-11-17T16:30', location: 'Nowhere Unroutable Place' });
+    for (const e of [away, home, neutral, cl, clash, overdue, gymrun, island, b2b, lost]) await S.save(e);
     await S.notes.set(cl.id, '2026-11-17', 'Press break looked sharp. Need more ball reversal and quicker outlet passes.');
     await S.notes.set(home.id, '2026-11-18', 'Press break: trap the corner, rotate early.');
     try { await N.Inbox.save({ id: crypto.randomUUID(), kind: 'todo', body: 'Order press break cones', done: false }); await N.Inbox.save({ id: crypto.randomUUID(), kind: 'note', body: 'Idea: press break drill for Jennings', done: false }); } catch (e) { console.warn(e); }
@@ -146,7 +160,16 @@ const AUDITOR = `(() => {
   for (const sc of ['week', 'month', 'season']) { await p.click(`#briefScope [data-scope=${sc}]`); await settle(600); await audit('briefing-' + sc, '#briefing'); }
   await p.click('#briefScope [data-scope=day]'); await settle(400);
   // Today tab (bottom nav)
-  await p.click('#bottomNav [data-tab=today]'); await settle(900); await audit('today-tab', 'body > *:not(dialog):not(script)', 'today_tab_' + THEME);
+  await p.click('#bottomNav [data-tab=today]'); await settle(900); await audit('today-heads-nohome', '#todayCard .tc-heads');
+  assert(await p.$('#tcLeave [data-state=nohome]'), `${THEME} leave-by: no-home hint shown`);
+  await p.evaluate(() => window.SandyLeave.setHome('1 Test Home Rd, Testville, MO 63000')); await p.evaluate(() => window.SandyNav.renderToday()); await settle(900);
+  const lbStates = await p.$$eval('#tcLeave li', ls => ls.map(l => l.dataset.state));
+  assert(['ok', 'now', 'noroute'].every(x => lbStates.includes(x)), `${THEME} leave-by: ok / now / noroute lines all present (${lbStates})`);
+  await audit('today-tab', 'body > *:not(dialog):not(script)', 'today_tab_' + THEME);
+  let release; holdRoutes = new Promise(res => release = res);
+  await p.evaluate(() => { localStorage.removeItem('sandy.route.v1'); window.SandyNav.renderToday(); }); await settle(400);
+  assert(await p.$('#tcLeave [data-state=pending]'), `${THEME} leave-by: pending lines while routing`);
+  await audit('today-heads-pending', '#todayCard .tc-heads'); release(); holdRoutes = null; await settle(600);
   await view('listWeek');
   // List view screenshot scrolled to the event list (day groups)
   await p.evaluate(() => { const el = document.querySelector('#calendar .fc-list-day'); if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 140); }); await settle(400);

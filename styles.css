@@ -1026,3 +1026,29 @@ html:not(.dark) .review-chips button[aria-pressed="true"] { background: #b45309;
 html:not(.dark) .ri-meta { color: #4b5563; }
 html:not(.dark) .sr-item mark { color: #1f2937; }
 html:not(.dark) .ai-sheet.ai-anim .ai-title { background-image: linear-gradient(100deg, #111827 40%, #7c3aed 50%, #111827 60%); }
+
+/* ---- Sandy Intelligence: leave-by lines in Today → Heads Up + Profile → Home (2026-10-25, si1) ---- */
+.tc-heads .tc-leave li.lb-row { display: grid; grid-template-columns: 1.5em 1fr; column-gap: 2px; row-gap: 2px; align-items: baseline; padding: 7px 0; }
+.lb-row .lb-main { font-size: 15px; color: var(--text); }
+.lb-row .lb-main b { font-weight: 700; }
+.lb-row .lb-sub { grid-column: 2; font-size: 13px; color: #4b5563; line-height: 1.4; }
+.lb-row .lb-sub .tc-link { font-weight: 600; }
+.lb-row.lb-now .lb-main b { color: #b91c1c; }
+.lb-row .lb-late { color: #b91c1c; font-weight: 600; }
+.lb-row.lb-pending .lb-main { color: #4b5563; font-style: italic; }
+.lb-maps { color: #1d4ed8; font-weight: 600; white-space: nowrap; text-decoration: none; }
+.lb-maps:hover, .lb-maps:focus-visible { text-decoration: underline; }
+.tc-heads .tc-leave:not([hidden]) + .tc-warn li:first-child { border-top: 1px solid #f1f5f9; }
+.pf-h-sub { text-transform: none; letter-spacing: 0; font-weight: 600; }
+.home-form .ac-wrap { margin-bottom: 8px; }
+.home-form input#homeAddr { width: 100%; box-sizing: border-box; font-size: 16px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; color: var(--text); }
+.home-msg { margin: 4px 0 0; min-height: 1em; color: #4b5563; }
+.home-msg.ok { color: #047857; }
+.home-msg.bad { color: #b91c1c; }
+html.dark .lb-row .lb-sub, html.dark .lb-row.lb-pending .lb-main, html.dark .home-msg { color: #cbd5e1; }
+html.dark .lb-row.lb-now .lb-main b, html.dark .lb-row .lb-late, html.dark .home-msg.bad { color: #fca5a5; }
+html.dark .lb-maps { color: #93c5fd; }
+html.dark .lb-row button.tc-link { background: none; } /* keep the inline links flat (html.dark button paints a panel) */
+html.dark .tc-heads .tc-leave:not([hidden]) + .tc-warn li:first-child { border-top-color: #243047; }
+html.dark .home-form input#homeAddr { background: #0f1729; border-color: #334155; color: var(--text); }
+html.dark .home-msg.ok { color: #6ee7b7; }

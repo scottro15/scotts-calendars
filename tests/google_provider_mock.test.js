@@ -34,7 +34,7 @@ const MOCK = `(() => {
   const loc = p.locator('#fLocation');
   await loc.click(); await loc.pressSequentially('Maryville University gym', { delay: 30 });
   await p.waitForSelector('#fLocationList li');
-  assert(/Google Maps/.test(await p.textContent('.ac-attrib')), 'Google attribution shown');
+  assert(/Google Maps/.test(await p.textContent('.loc-field .ac-attrib')), 'Google attribution shown');
   const log1 = await p.evaluate(() => ({ req: __gmLog.requests[0], tokens: [...__gmLog.tokens] }));
   assert(log1.req.locationBias.center.lat === 38.6 && log1.req.locationBias.center.lng === -90.4 && log1.req.locationBias.radius === 50000, 'location bias 50 km around 38.6,-90.4');
   await loc.pressSequentially(' 2', { delay: 400 }); await p.waitForTimeout(500);
@@ -47,7 +47,7 @@ const MOCK = `(() => {
   assert((await p.evaluate(() => __gmLog.tokens.size)) === 2, 'new session token after a pick');
   await p.evaluate(() => { window.__gmReject = true; });
   await loc.fill(''); await loc.pressSequentially('Augusta', { delay: 30 }); await p.waitForSelector('#fLocationList li:has-text("OSM Place")');
-  assert(photon >= 1 && /OpenStreetMap/.test(await p.textContent('.ac-attrib')), 'falls back to OpenStreetMap if Google errors');
+  assert(photon >= 1 && /OpenStreetMap/.test(await p.textContent('.loc-field .ac-attrib')), 'falls back to OpenStreetMap if Google errors');
   assert(errs.length === 0, 'no page errors ' + errs.join(' | '));
   await b.close(); console.log('ALL GOOGLE-MOCK TESTS PASSED');
 })().catch(e => { console.error(e); process.exit(1); });

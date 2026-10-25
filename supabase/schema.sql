@@ -518,6 +518,10 @@ create table if not exists public.profiles (
   plan         text not null default 'free' check (plan in ('free', 'paid', 'paid_ai')),
   created_at   timestamptz not null default now()
 );
+-- (2026-10-25) per-user Home for leave-by times (migration-2026-10-25-home.sql)
+alter table public.profiles add column if not exists home_address text check (home_address is null or length(home_address) <= 300);
+alter table public.profiles add column if not exists home_lat double precision check (home_lat is null or home_lat between -90 and 90);
+alter table public.profiles add column if not exists home_lon double precision check (home_lon is null or home_lon between -180 and 180);
 create or replace function public.sandy_profile_guard()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin

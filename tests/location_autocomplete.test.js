@@ -29,7 +29,7 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); console.log('o
     assert(photonCalls >= 1 && photonCalls <= 3, `${tag} debounced: ${photonCalls} Photon request(s) for 20 keystrokes`);
     const opts = await p.locator('#fLocationList li').allTextContents();
     assert(opts.some(t => /Maryville University/.test(t)), `${tag} suggestions shown: ${opts.slice(0, 3).join(' | ')}`);
-    assert(/OpenStreetMap/.test(await p.textContent('.ac-attrib')), `${tag} OpenStreetMap attribution shown`);
+    assert(/OpenStreetMap/.test(await p.textContent('.loc-field .ac-attrib')), `${tag} OpenStreetMap attribution shown`);
     assert(await loc.getAttribute('aria-expanded') === 'true', `${tag} aria-expanded=true while open`);
     if (SHOTS) await p.screenshot({ path: `${SHOTS}/09-location-autocomplete-${vp.name}.png` });
     const first = p.locator('#fLocationList li').first();

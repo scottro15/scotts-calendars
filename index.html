@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <title>SANDY — the scheduling app</title>
-  <link rel="stylesheet" href="styles.css?v=20261025-light1">
+  <link rel="stylesheet" href="styles.css?v=20261025-si1">
   <!-- FullCalendar v6 is vendored locally (vendor/) so the app works offline and on GitHub Pages. -->
   <script src="vendor/fullcalendar.min.js"></script>
   <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
@@ -59,8 +59,8 @@
         <div class="tc-head"><h2 id="todayH"><span id="todayDate" class="tc-date">Today</span></h2><span id="todaySub" class="tc-sub">Today</span></div>
         <div id="todayBody"></div>
         <div id="todayNudges" class="tc-nudges" aria-label="Sandy Intelligence prep nudges">
-          <div class="tc-nudge-head">✨ Sandy Intelligence <span class="tc-soon">coming soon</span></div>
-          <p class="muted small">Prep nudges for your day will appear here: when to leave for a practice, pack lunches before a shift or school, make the grocery list before shopping.</p>
+          <div class="tc-nudge-head">✨ Sandy Intelligence <span class="tc-soon">more coming</span></div>
+          <p class="muted small">Leave-by times now show in Heads Up for events with a location. Next: pack-lunch and grocery-list nudges.</p>
         </div>
       </section>
       <!-- Briefing: preview of the selected period (respects the calendar toggles) -->
@@ -169,6 +169,26 @@
         <label class="pf-row"><span>Dark mode</span><span class="switch"><input type="checkbox" id="darkToggle" role="switch"><span></span></span></label>
         <label class="pf-row"><span>Default view (Home)</span>
           <select id="defaultView"><option value="last">Last used</option><option value="timeGridDay">Day</option><option value="timeGridWeek">Week</option><option value="dayGridMonth">Month</option><option value="season">Season (Month + Season briefing)</option><option value="listWeek">List</option></select></label>
+      </section>
+      <section id="homeSection" class="pf-card">
+        <h2>Home <span class="pf-h-sub">for leave-by times</span></h2>
+        <p class="muted small">Sandy Intelligence uses this to tell you when to leave for events that have a location. Drive times come from free OpenStreetMap routing. Only you can see it.</p>
+        <form id="homeForm" class="home-form" novalidate>
+          <label for="homeAddr" class="sr-only">Home address</label>
+          <div class="ac-wrap">
+            <input id="homeAddr" name="homeAddr" type="text" placeholder="Street, city, ZIP" autocomplete="off" spellcheck="false" enterkeyhint="done">
+            <div class="ac-pop" hidden>
+              <ul id="homeAddrList" class="ac-list" role="listbox" aria-label="Address suggestions"></ul>
+              <p class="ac-attrib"></p>
+            </div>
+            <span class="ac-status sr-only" role="status" aria-live="polite"></span>
+          </div>
+          <div class="data-btns">
+            <button type="submit" id="homeSave" class="primary">Save home</button>
+            <button type="button" id="homeClear">Clear</button>
+          </div>
+          <p id="homeMsg" class="small home-msg" role="status" aria-live="polite"></p>
+        </form>
       </section>
           <section id="calSection" class="pf-card">
             <h2>Calendars</h2>
@@ -356,16 +376,17 @@
     <button type="button" data-tab="profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.2-4 4-5.8 7.5-5.8s6.3 1.8 7.5 5.8"/></svg><span>Profile</span></button>
   </nav>
   <script src="config.js"></script>
-  <script src="storage.js?v=20261025-light1"></script>
+  <script src="storage.js?v=20261025-si1"></script>
   <script src="places.js"></script>
-  <script src="motion.js?v=20261025-light1"></script>
-  <script src="account.js?v=20261025-light1"></script>
-  <script src="launch.js?v=20261025-light1"></script>
-  <script src="push.js?v=20261025-light1"></script>
-  <script src="smartparse.js?v=20261025-light1"></script>
-  <script src="nav.js?v=20261025-light1"></script>
-  <script src="games.js?v=20261025-light1"></script>
-  <script src="app.js?v=20261025-light1"></script>
-  <script src="ai.js?v=20261025-light1"></script>
+  <script src="motion.js?v=20261025-si1"></script>
+  <script src="account.js?v=20261025-si1"></script>
+  <script src="launch.js?v=20261025-si1"></script>
+  <script src="push.js?v=20261025-si1"></script>
+  <script src="smartparse.js?v=20261025-si1"></script>
+  <script src="leaveby.js?v=20261025-si1"></script>
+  <script src="nav.js?v=20261025-si1"></script>
+  <script src="games.js?v=20261025-si1"></script>
+  <script src="app.js?v=20261025-si1"></script>
+  <script src="ai.js?v=20261025-si1"></script>
 </body>
 </html>

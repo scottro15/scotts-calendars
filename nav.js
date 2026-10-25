@@ -159,12 +159,14 @@
       h += '</div>';
     }
     h += '</div>';
-    if (d.gaps.length) h += `<section class="tc-sec tc-card tc-heads"><h3>Heads Up</h3><ul class="tc-warn">${d.gaps.map(g => g.kind === 'overlap'
+    // Heads Up: Sandy Intelligence leave-by lines (leaveby.js, filled in async) + tight gaps / overlaps
+    h += `<section class="tc-sec tc-card tc-heads"${d.gaps.length ? '' : ' hidden'}><h3>Heads Up</h3><ul class="tc-warn tc-leave" id="tcLeave" aria-live="polite" hidden></ul>${d.gaps.length ? `<ul class="tc-warn">${d.gaps.map(g => g.kind === 'overlap'
       ? `<li>⚠️ <b>${esc(g.p.ev.title)}</b> overlaps <b>${esc(g.n.ev.title)}</b> (${esc(t12(g.n.o.start))})</li>`
-      : `<li>⏱️ Tight: <b>${esc(g.p.ev.title)}</b> ends ${esc(t12(g.p.o.end))}, <b>${esc(g.n.ev.title)}</b> starts ${g.min ? `${g.min} min later` : 'right after'}</li>`).join('')}</ul></section>`;
+      : `<li>⏱️ Tight: <b>${esc(g.p.ev.title)}</b> ends ${esc(t12(g.p.o.end))}, <b>${esc(g.n.ev.title)}</b> starts ${g.min ? `${g.min} min later` : 'right after'}</li>`).join('')}</ul>` : ''}</section>`;
     h += `<section class="tc-sec tc-card tc-on"><h3>On Today</h3>${d.items.length ? `<ul class="tc-list">${d.items.map(x => row(x)).join('')}</ul>` : '<p class="muted small">Nothing on the calendar today.</p>'}</section>`;
     if (d.overdue.length) h += `<section class="tc-sec tc-card tc-overdue"><h3>Overdue To-Dos</h3><ul class="tc-list">${d.overdue.map(x => row(x, `<span class="overdue-badge">Overdue ${esc(a.overdueText(d.now - (x.ev.allDay ? a.startOfDay(x.o.start) : (x.o.end || x.o.start))))}</span>`)).join('')}</ul></section>`;
     $('todayBody').innerHTML = h;
+    if (window.SandyLeave) SandyLeave.render($('tcLeave'), d.items, d.now).catch(e => console.warn('leave-by:', e));
   }
 
   // ------------------------------------------------------------------ To-Do
@@ -421,6 +423,7 @@
     ['Change email', 'email address account login', 'page-profile', 'pfEmailBtn'],
     ['Calendars: show / hide / add', 'calendars toggle visible add new color rename manage', 'calSection', 'toggleAll'],
     ['Notifications', 'push notifications reminders alerts enable iphone', 'pushBox', 'pushEnable'],
+    ['Home address (leave-by times)', 'home address leave by drive travel commute directions location', 'homeSection', 'homeAddr'],
     ['Time zone', 'time zone timezone tz clock', 'accountSection', null],
     ['Export my data', 'export download backup json data', 'accountSection', 'acctExport'],
     ['Import JSON', 'import restore upload json data', 'dataSection', 'importBtn'],
@@ -589,6 +592,7 @@
     $('darkToggle').checked = document.documentElement.classList.contains('dark');
     let dv = 'last'; try { dv = localStorage.getItem('sandy.defaultView') || 'last'; } catch (_) {} $('defaultView').value = dv;
     if (!profileOnce) { profileOnce = true; showAvatar(await avatarUrl()); }
+    if (window.SandyLeave) SandyLeave.getHome().then(h => { const i = $('homeAddr'); if (i && document.activeElement !== i) i.value = h ? h.address : ''; }).catch(() => {});
   }
 
   // ------------------------------------------------------------------ wiring
@@ -612,12 +616,29 @@
     $('todoCatsBtn').addEventListener('click', manageCats);
     $('todoNewDated').addEventListener('click', () => { const a = A(); const t = a.ymd(a.nowWall()); a.openEditor(null, null, { kind: 'task', allDay: true, start: t, end: t, calendar: todoUI.filter !== 'all' && todoUI.filter !== 'inbox' && a.cal(todoUI.filter) ? todoUI.filter : a.firstVisibleCal() }); });
     // Today card taps
-    $('todayCard').addEventListener('click', e => { const b = e.target.closest('.tc-item'); if (b) A().openEditor(b.dataset.id, b.dataset.key); });
+    $('todayCard').addEventListener('click', e => {
+      if (e.target.closest('.lb-sethome')) { go('profile'); const s = $('homeSection'); if (s) { s.scrollIntoView({ block: 'center' }); setTimeout(() => $('homeAddr').focus(), 300); } return; }
+      const b = e.target.closest('.tc-item'); if (b) A().openEditor(b.dataset.id, b.dataset.key); });
     // Search
     let st = 0; $('searchBox').addEventListener('input', () => { clearTimeout(st); st = setTimeout(renderSearch, 120); });
     $('searchResults').addEventListener('click', searchClick);
     // Profile
     $('darkToggle').addEventListener('change', e => setDark(e.target.checked));
+    // Home address (leave-by times, leaveby.js)
+    const homeAC = window.Places && $('homeAddr') ? Places.attach($('homeAddr')) : null;
+    const saveHome = async addr => {
+      const msg = $('homeMsg'), btns = [$('homeSave'), $('homeClear')];
+      btns.forEach(b => { b.disabled = true; }); msg.className = 'small home-msg'; msg.textContent = addr ? 'Finding it on the map…' : 'Clearing…';
+      try {
+        const r = await SandyLeave.setHome(addr);
+        $('homeAddr').value = r.home ? r.home.address : '';
+        msg.textContent = r.home ? `✓ Saved${r.where === 'device' && sbc() ? ' on this device' : ''}. Leave-by times will use it.` : 'Home cleared.';
+        msg.classList.add('ok'); toast(r.home ? 'Home saved' : 'Home cleared');
+      } catch (e) { msg.textContent = e.message || String(e); msg.classList.add('bad'); }
+      finally { btns.forEach(b => { b.disabled = false; }); if (homeAC) homeAC.close(); }
+    };
+    $('homeForm').addEventListener('submit', e => { e.preventDefault(); saveHome($('homeAddr').value); });
+    $('homeClear').addEventListener('click', () => saveHome(''));
     $('defaultView').addEventListener('change', e => { try { localStorage.setItem('sandy.defaultView', e.target.value); } catch (_) {} toast(e.target.value === 'last' ? 'Home opens the view you used last' : 'Home view saved'); });
     $('avatarBtn').addEventListener('click', () => $('avatarFile').click());
     $('avatarFile').addEventListener('change', e => { uploadAvatar(e.target.files[0]); e.target.value = ''; });
