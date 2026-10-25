@@ -174,6 +174,7 @@
     h += `<section class="tc-sec tc-card tc-on"><h3>On Today</h3>${d.items.length ? `<ul class="tc-list">${d.items.map(x => row(x)).join('')}</ul>` : '<p class="muted small">Nothing on the calendar today.</p>'}</section>`;
     if (d.overdue.length) h += `<section class="tc-sec tc-card tc-overdue"><h3>Overdue To-Dos</h3><ul class="tc-list">${d.overdue.map(x => row(x, `<span class="overdue-badge">Overdue ${esc(a.overdueText(d.now - (x.ev.allDay ? a.startOfDay(x.o.start) : (x.o.end || x.o.start))))}</span>`)).join('')}</ul></section>`;
     $('todayBody').innerHTML = h;
+    if (window.SandyCollapse) { try { SandyCollapse.apply($('todayBody')); } catch (e) { console.warn('collapse:', e); } }
     if (window.SandyLeave) SandyLeave.render($('tcLeave'), d.items, d.now).catch(e => console.warn('leave-by:', e));
     if (tv) tv.run();
     if (tm) SandyTomorrow.fillLeave($('tmLeave'), tm).catch(e => console.warn('tomorrow leave-by:', e));

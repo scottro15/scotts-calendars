@@ -184,6 +184,12 @@ const AUDITOR = `(() => {
   await ctx.grantPermissions(['geolocation']); await ctx.setGeolocation({ latitude: 38.95, longitude: -90.2 });
   await p.click('#tcLeave .lb-loc-yes'); await p.waitForSelector('#tcLeave [data-origin=current]', { timeout: 8000 }); await settle(300);
   await audit('today-heads-current', '#todayCard .tc-heads');
+  // Collapsible Today cards (collapse.js): every card collapsed (headers + summary counts + chevrons), then restored
+  await p.evaluate(() => { window.SandyNav.renderToday(); }); await settle(600);
+  await p.evaluate(() => { document.querySelectorAll('#todayCard [data-collapsible]:not(.is-collapsed) .tc-tog').forEach(b => b.click()); }); await settle(400);
+  await p.evaluate(() => document.getElementById('todayCard').scrollIntoView({ block: 'start' })); await settle(200);
+  await audit('today-collapsed', '#todayCard', 'today_collapsed_' + THEME);
+  await p.evaluate(() => { document.querySelectorAll('#todayCard [data-collapsible].is-collapsed .tc-tog').forEach(b => b.click()); localStorage.removeItem('sandy.todayCollapsed.v1'); }); await settle(300);
   // Away-game travel plan (SI D): the seeded NEUTRAL game today (Kates Gym) + an away game Thursday; weather mocked
   const tvId = await p.evaluate(async () => { const S = window.__app.Store; const e = { id: crypto.randomUUID(), kind: 'event', allDay: false, recurrence: { freq: 'none' }, calendar: 'mam', category: 'Game – Maryville University', title: 'Maryville University @ Test College - AWAY', start: '2026-11-19T18:00', end: '2026-11-19T20:00', location: 'Test Gym A, Testville', notes: 'Drive from Maryville University: 314 mi, about 5 hr 59 min' };
     await S.save(e); window.__app.refresh(); return e.id; });

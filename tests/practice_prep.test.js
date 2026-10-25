@@ -50,7 +50,7 @@ const NOTION = 'https://www.notion.so/test-workspace/Maryville-practice-Nov-12-0
   const today = async p => { await p.evaluate(() => window.SandyNav.go('today')); await p.evaluate(() => window.SandyNav.renderToday()); await p.waitForTimeout(500); };
   const cards = p => p.$$eval('.tc-practice', cs => cs.map(c => { const tx = e => e ? e.textContent.replace(/\s+/g, ' ').trim() : '';
     return { team: c.dataset.team, head: tx(c.querySelector('h3')), next: tx(c.querySelector('.pp-next')), h4: [...c.querySelectorAll('.pp-h4')].map(tx),
-      notes: [...((c.querySelector(':scope > .pp-notes') || { querySelectorAll: () => [] }).querySelectorAll('li'))].map(tx), allNotes: [...c.querySelectorAll('.pp-notes li')].map(tx), more: tx(c.querySelector('.pp-more summary')),
+      notes: [...((c.querySelector(':scope > .pp-notes, :scope > .tc-body > .tc-body-in > .pp-notes') || { querySelectorAll: () => [] }).querySelectorAll('li'))].map(tx), allNotes: [...c.querySelectorAll('.pp-notes li')].map(tx), more: tx(c.querySelector('.pp-more summary')),
       link: (c.querySelector('.pp-notion') || {}).href || '', target: (c.querySelector('.pp-notion') || { getAttribute: () => '' }).getAttribute('target'),
       gap: tx(c.querySelector('.pp-gap')), none: tx(c.querySelector('.pp-none')), html: c.innerHTML }; }));
   const shot = async (p, name) => { await p.evaluate(() => { const el = document.querySelector('.tc-practice'); if (el) { el.scrollIntoView({ block: 'start' }); document.scrollingElement.scrollTop -= 80; } }); await p.waitForTimeout(250); await p.screenshot({ path: `${SHOTS}/${name}.png` }); };

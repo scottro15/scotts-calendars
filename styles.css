@@ -1198,3 +1198,23 @@ html.dark .ai-hist-row.current { background: #1e1b3a; }
 html.dark .ai-hist-open { color: #f1f5f9; }
 html.dark .ai-hist-del { background: #0f172a; border-color: #475569; color: #fca5a5; }
 html.dark .ai-hist-del.confirm { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+
+/* ---------- Collapsible Today cards (collapse.js) ---------- */
+.tc-collapse-h .tc-tog { all: unset; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+  min-height: 32px; margin: -6px 0; padding: 6px 0; cursor: pointer; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; -webkit-tap-highlight-color: transparent; }
+.tc-collapse-h .tc-tog:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; border-radius: 6px; }
+.tc-tog-t { min-width: 0; }
+.tc-count { font-weight: 700; }
+.tc-chev { flex: none; width: 8px; height: 8px; margin-right: 4px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg); transition: transform .22s ease; }
+[data-collapsible].is-collapsed .tc-chev { transform: translateY(1px) rotate(-45deg); }
+.tc-collapse-h { transition: margin .22s ease; }
+[data-collapsible].is-collapsed > .tc-collapse-h { margin-bottom: 0 !important; }
+.tc-card.is-collapsed { padding-bottom: 12px; }
+.tc-nudges > .tc-collapse-h { margin: 0; }
+.tc-body { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .24s ease, opacity .2s ease, visibility 0s linear 0s; }
+.tc-body-in { min-height: 0; overflow: hidden; }
+[data-collapsible].is-collapsed > .tc-body { grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows .24s ease, opacity .16s ease, visibility 0s linear .24s; }
+.tc-noanim, .tc-noanim * { transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .tc-body, .tc-chev, .tc-collapse-h { transition: none !important; } }
+html.dark .tc-collapse-h .tc-tog:focus-visible { outline-color: #93c5fd; }
