@@ -1080,3 +1080,20 @@ html.dark .cal-dlg .cal-item:hover, html.dark .cal-dlg .cal-item:focus-visible {
 html.dark .cal-dlg .cal-edit-lbl { color: #93c5fd; }
 html.dark .cal-dlg li.open .cal-edit-lbl { color: #cbd5e1; }
 html.dark .cal-dlg .cal-edit label, html.dark .cal-dlg .cal-new label { color: #cbd5e1; }
+
+/* ---------- Address suggestions (event Location, Profile Home): dark panel in dark mode (2026-10-25, locdark1) ---------- */
+.ac-list .ac-sec, .ac-attrib { color: #4b5563; }
+.ac-list li[aria-selected="true"] { background: #e8eefc; box-shadow: inset 3px 0 0 #2563eb; }
+html.dark .ac-pop { background: var(--panel); border-color: #334155; box-shadow: 0 12px 28px rgba(0, 0, 0, .55); color-scheme: dark; }
+html.dark .ac-list li { color: var(--text); }
+html.dark .ac-list li:hover { background: #1c2638; }
+html.dark .ac-list li[aria-selected="true"] { background: #1e3a5f; box-shadow: inset 3px 0 0 #60a5fa; }
+html.dark .ac-list .ac-main { color: #f1f5f9; }
+html.dark .ac-list .ac-sec { color: #cbd5e1; }
+html.dark .ac-attrib { color: #cbd5e1; border-top-color: #243047; }
+html.dark .ac-attrib a { color: #93c5fd; }
+/* typing in the field: stays dark, readable text + caret; iOS/Chrome autofill would otherwise paint it light */
+html.dark .ac-wrap input, html.dark .ac-wrap input:focus { background: #0f1729; color: var(--text); caret-color: #93c5fd; }
+html.dark .ac-wrap input::placeholder { color: #94a3b8; }
+html.dark input:-webkit-autofill, html.dark input:-webkit-autofill:hover, html.dark input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #e5e7eb; -webkit-box-shadow: 0 0 0 1000px #0f1729 inset; box-shadow: 0 0 0 1000px #0f1729 inset; caret-color: #93c5fd; transition: background-color 9999s; }

@@ -102,6 +102,11 @@ const AUDITOR = `(() => {
   // Leave-by (SI 1): mock free geocoding + routing so Heads Up shows every kind of line without real network calls.
   const geo = new Map(); let holdRoutes = null;
   await ctx.route('https://photon.komoot.io/**', r => { const q = (new URL(r.request().url()).searchParams.get('q') || '').toLowerCase();
+    const sp = new URL(r.request().url()).searchParams;
+    if (sp.get('limit') && sp.get('limit') !== '1') { // address suggestions (places.js search-as-you-type)
+      const mk = (name, street, hn, city, pc) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [-90.5, 38.6] }, properties: { name, street, housenumber: hn, city, state: 'Missouri', postcode: pc, country: 'United States', countrycode: 'US' } });
+      return r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ features: [mk('Maryville University', 'Maryville University Drive', '650', 'Town and Country', '63141'), mk('Simon Athletic Center', 'Maryville University Drive', '650', 'Town and Country', '63141'), mk(undefined, 'Maryville Avenue', '12', 'St. Louis', '63110')] }) });
+    }
     let f = []; if (!q.includes('unroutable')) { const h = [...q].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7); const lat = 38 + (h % 1000) / 2000, lon = -91 + ((h >> 10) % 1000) / 2000; geo.set(lat.toFixed(5) + ',' + lon.toFixed(5), q); f = [{ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: {} }]; }
     r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ features: f }) }); });
   await ctx.route('https://valhalla1.openstreetmap.de/**', async r => { if (holdRoutes) await holdRoutes;
@@ -230,6 +235,11 @@ const AUDITOR = `(() => {
   // ---- Profile
   await p.click('#bottomNav [data-tab=profile]'); await settle();
   await audit('profile', '.topbar, #bottomNav, #page-profile', 'profile_' + THEME);
+  // Profile → Home address suggestions open
+  await p.evaluate(() => document.getElementById('homeSection').scrollIntoView({ block: 'start' })); await p.fill('#homeAddr', ''); await p.type('#homeAddr', 'Maryville', { delay: 30 });
+  await p.waitForSelector('#homeAddrList li', { timeout: 8000 }); await p.press('#homeAddr', 'ArrowDown'); await p.mouse.move(2, 2); await settle(400);
+  await audit('profile-home-suggest', '#homeSection', 'home_suggest_' + THEME);
+  await p.press('#homeAddr', 'Escape'); await p.fill('#homeAddr', ''); await settle(200);
   // Calendars screen (2026-10-25): plain list, one calendar's editor open, add form open
   await p.click('#manageCalsBtn'); await p.waitForSelector('dialog.cal-dlg[open]'); await settle(400);
   await audit('dlg-calendars-list', 'dialog[open]', 'calendars_list_' + THEME);
@@ -267,6 +277,16 @@ const AUDITOR = `(() => {
 
   // ---- Event editor: new, existing with day note + checklist, away game
   await home(); await p.click('#addBtn'); await settle(); await audit('editor-new', '#eventDialog'); await closeDialogs();
+  // Location suggestions open (2026-10-25): typing, then a highlighted (keyboard-active) suggestion
+  await p.click('#addBtn'); await settle(); await p.click('#fLocation'); await p.type('#fLocation', 'Maryville', { delay: 30 });
+  await p.waitForSelector('#fLocationList li', { timeout: 8000 }); await settle(400);
+  await p.evaluate(() => document.getElementById('fLocation').scrollIntoView({ block: 'center' })); await p.mouse.move(2, 2); await settle(200);
+  const popBg = await p.evaluate(() => getComputedStyle(document.querySelector('.loc-field .ac-pop')).backgroundColor);
+  assert(DARK ? popBg === 'rgb(17, 26, 43)' : popBg === 'rgb(255, 255, 255)', `${THEME} Location suggestions use the ${DARK ? 'dark panel' : 'white'} background (${popBg})`);
+  await audit('editor-location-suggest', '#eventDialog', 'loc_suggest_' + THEME);
+  await p.press('#fLocation', 'ArrowDown'); await p.press('#fLocation', 'ArrowDown'); await settle(200);
+  assert(await p.$('#fLocationList li[aria-selected=true]'), `${THEME} a suggestion is highlighted`);
+  await audit('editor-location-suggest-active', '#eventDialog', 'loc_suggest_active_' + THEME); await closeDialogs();
   await p.evaluate(id => window.__app.openEditor(id, '2026-11-17'), ids.cl); await settle(900);
   await audit('editor-daynote-checklist', '#eventDialog');
   await p.evaluate(() => document.getElementById('checklistBox').scrollIntoView({ block: 'start' })); await settle(400);
