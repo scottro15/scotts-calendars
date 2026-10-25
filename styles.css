@@ -1268,16 +1268,17 @@ body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--n
 .bottom-nav button[aria-current=page], html.dark .bottom-nav button[aria-current=page] { color: var(--nav-on); }
 .bottom-nav button[aria-current=page] > span { font-weight: 800; }
 .bottom-nav button[aria-current=page] svg { stroke-width: 2.4; transform: none; }
-.nav-pill { position: absolute; left: 0; top: 4px; width: 60px; height: 34px; border-radius: 17px; background: var(--nav-pill); pointer-events: none; z-index: 0;
-  transform: translateX(var(--pill-x, -200px)); transition: transform .25s ease, opacity .2s ease, top .25s ease; }
+.nav-pill { position: absolute; left: 0; top: 6px; width: 64px; height: 51px; border-radius: 18px; background: var(--nav-pill); pointer-events: none; z-index: 0;
+  /* nav3: one rounded pill behind the whole icon + label stack of the active tab */
+  transform: translateX(var(--pill-x, -200px)); transform-origin: 50% 50%; transition: transform .25s ease, opacity .2s ease; }
 .nav-pill.no-anim { transition: none; }
 /* compact (scrolling down): the capsule scales to 90% (smaller + narrower) and settles 6px lower; labels fade and
    icons centre in the capsule; the pill follows them */
 .bottom-nav.nav-compact, html.dark .bottom-nav.nav-compact { transform: translate3d(0, var(--nav-shrink), 0) scale(.9); }
 .bottom-nav.nav-compact button > svg, .bottom-nav.nav-compact button > .nav-av { transform: translateY(8px); }
 .bottom-nav.nav-compact button > span { opacity: 0; transform: translateY(-4px); }
-.bottom-nav.nav-compact .nav-pill { transform: translateX(var(--pill-x, -200px)) translateY(7px) scaleY(.94); }
+.bottom-nav.nav-compact .nav-pill { transform: translateX(var(--pill-x, -200px)) translateY(-.5px) scale(.86, .69); } /* hugs the icon once the label fades */
 .bottom-nav.nav-compact .nav-badge { transform: translateY(8px); }
-@media (min-width: 900px) { .bottom-nav button { justify-content: center; } .bottom-nav button > svg, .bottom-nav button > .nav-av { margin-top: 0; } .nav-pill { top: 12px; width: 120px; } .bottom-nav, html.dark .bottom-nav { max-width: 720px; } }
+@media (min-width: 900px) { .bottom-nav button { justify-content: center; } .bottom-nav button > svg, .bottom-nav button > .nav-av { margin-top: 0; } .nav-pill { top: 12px; width: 120px; height: 36px; } .bottom-nav, html.dark .bottom-nav { max-width: 720px; } }
 @media (prefers-reduced-motion: reduce) {
   .bottom-nav, html.dark .bottom-nav, .nav-pill, .bottom-nav button > svg, .bottom-nav button > .nav-av, .bottom-nav button > span { transition: none !important; } }

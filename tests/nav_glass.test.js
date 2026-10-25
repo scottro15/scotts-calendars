@@ -8,7 +8,7 @@
 //   node tests/nav_glass.test.js http://127.0.0.1:8787/ [shotsDir] [videoDir]
 const { chromium } = require(process.env.PW || '/workspace/shot-tools/node_modules/playwright-core');
 const fs = require('fs');
-const BASE = process.argv[2] || 'http://127.0.0.1:8787/'; const SHOTS = process.argv[3] || '/workspace/shots-nav2'; const VIDEO = process.argv[4] || '';
+const BASE = process.argv[2] || 'http://127.0.0.1:8787/'; const SHOTS = process.argv[3] || '/workspace/shots-nav3'; const VIDEO = process.argv[4] || '';
 fs.mkdirSync(SHOTS, { recursive: true });
 let n = 0; const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); n++; console.log('ok -', m); };
 const CONTRAST = `(() => {
@@ -53,7 +53,9 @@ const SEED = async () => {
     const lab = document.querySelector('#bottomNav button[aria-current=page] > span'); const btns = [...document.querySelectorAll('#bottomNav button')].map(x => x.getBoundingClientRect());
     return { compact: nav.classList.contains('nav-compact'), ty: m.m42, sx: m.m11, w: nav.getBoundingClientRect().width, labelOp: +getComputedStyle(lab).opacity, top: nav.getBoundingClientRect().top, minVisible: Math.min(...btns.map(r => Math.min(r.bottom, innerHeight) - r.top)), minW: Math.min(...btns.map(r => r.width)) }; });
   const pillInfo = p => p.evaluate(() => { const pl = document.querySelector('#bottomNav .nav-pill').getBoundingClientRect(); const a = document.querySelector('#bottomNav button[aria-current=page]').getBoundingClientRect();
-    return { pc: pl.left + pl.width / 2, bc: a.left + a.width / 2, w: pl.width, h: pl.height }; });
+    const btn = document.querySelector('#bottomNav button[aria-current=page]'); const ic = (btn.querySelector('svg:not([style*="display: none"]), .nav-av') || btn).getBoundingClientRect(); const lb = btn.querySelector('span').getBoundingClientRect();
+    const inside = r => r.left >= pl.left - .5 && r.right <= pl.right + .5 && r.top >= pl.top - .5 && r.bottom <= pl.bottom + .5;
+    return { pc: pl.left + pl.width / 2, bc: a.left + a.width / 2, w: pl.width, h: pl.height, icon: inside(ic), label: inside(lb), labelOp: +getComputedStyle(btn.querySelector('span')).opacity }; });
   const go = async (p, t) => { await p.click(`#bottomNav [data-tab=${t}]`); await p.waitForTimeout(450); };
   const settle = p => p.waitForTimeout(400);
   // scroll a scroller in small steps (like a finger), so per-frame sampling sees each step
@@ -106,6 +108,11 @@ const SEED = async () => {
     for (const t of tabs) {
       await go(p, t); const pi = await pillInfo(p);
       assert(Math.abs(pi.pc - pi.bc) <= 2 && pi.w >= 50 && pi.h >= 28, `${tag}: pill centred under the active "${t}" tab (pill ${pi.pc.toFixed(1)} vs tab ${pi.bc.toFixed(1)})`);
+      assert(pi.icon && pi.label && pi.h >= 44, `${tag}: "${t}" pill covers BOTH the icon and the label (${pi.w.toFixed(0)}x${pi.h.toFixed(0)})`);
+      await p.evaluate(() => window.SandyNavBar.set(true)); await p.waitForTimeout(400); const pc = await pillInfo(p);
+      assert(pc.icon && pc.h < pi.h && pc.w < pi.w && Math.abs(pc.pc - pc.bc) <= 2 && pc.labelOp < .05, `${tag}: "${t}" shrunk: pill shrinks around the icon (${pc.w.toFixed(0)}x${pc.h.toFixed(0)}), label faded`);
+      if (t === 'home' || t === 'todo' || t === 'profile') await p.screenshot({ path: `${SHOTS}/pill_${t}_shrunk_${tag}.png`, clip: { x: 0, y: 844 - 120, width: 390, height: 120 } });
+      await p.evaluate(() => window.SandyNavBar.set(false)); await p.waitForTimeout(400);
       const col = await p.evaluate(() => { const on = document.querySelector('#bottomNav button[aria-current=page]'); const off = document.querySelector('#bottomNav button:not([aria-current])');
         const nav = getComputedStyle(document.getElementById('bottomNav')).backgroundColor, pg = getComputedStyle(document.body).backgroundColor, pill = getComputedStyle(document.querySelector('.nav-pill')).backgroundColor;
         const sOn = getComputedStyle(on.querySelector('span')), sOff = getComputedStyle(off.querySelector('span'));
@@ -156,6 +163,49 @@ const SEED = async () => {
     await scrollBy(p, 200); assert((await navState(p)).compact, `${tag}: compact after scrolling Home`);
     await go(p, 'todo'); assert(!(await navState(p)).compact, `${tag}: switching tab returns the bar to full size`);
     // app-initiated scroll (no wheel/touch/key input) never shrinks it -- e.g. List auto-scrolling to "now"
+    // ---------------- nav3 regression: rapid down / up / down must shrink EVERY time (Scott's iPhone bug)
+    // In-page simulator, one step per animation frame like a real scroll. kind: 'touch' = a finger drag (touchmove each
+    // frame), 'momentum' = scroll events only (iOS inertia after touchend, or a flick that catches a still-moving
+    // momentum scroll, for which iOS may send no new touch events), 'none' = app-initiated scroll.
+    await p.evaluate(() => { window.__sim = async (sel, kind, total, frames) => { const el = sel ? document.querySelector(sel) : document.scrollingElement;
+      const f = () => new Promise(r => requestAnimationFrame(r)); const nav = document.getElementById('bottomNav'); const seen = [];
+      if (kind === 'touch') document.dispatchEvent(new Event('touchstart'));
+      for (let i = 0; i < frames; i++) { if (kind === 'touch') document.dispatchEvent(new Event('touchmove')); el.scrollTop += total / frames; await f(); seen.push(nav.classList.contains('nav-compact')); }
+      if (kind === 'touch') document.dispatchEvent(new Event('touchend'));
+      await f(); await f(); return nav.classList.contains('nav-compact'); }; });
+    for (const [label, sel] of [['window', null], ['inner scroller', '#rapidInner']]) {
+      await go(p, 'home'); await toTop(p);
+      if (sel) await p.evaluate(() => { const d = document.createElement('div'); d.id = 'rapidInner'; d.style.cssText = 'height:320px;overflow-y:auto'; d.innerHTML = '<div style="height:4000px">inner</div>'; document.querySelector('#calendar').before(d); });
+      else await p.evaluate(() => { document.scrollingElement.scrollTop = 200; }); // start mid-page, away from the top
+      await p.waitForTimeout(1300); // any earlier intent has expired
+      let okCycles = 0, detail = [];
+      for (let c = 0; c < 5; c++) { // quick down / up / down, no pauses between gestures
+        const d1 = await p.evaluate(s => window.__sim(s, 'touch', 90, 6), sel);
+        const u1 = await p.evaluate(s => window.__sim(s, 'touch', -45, 4), sel);
+        const d2 = await p.evaluate(s => window.__sim(s, 'touch', 60, 4), sel);
+        detail.push(`${d1 ? 'S' : '-'}${u1 ? 'S' : 'F'}${d2 ? 'S' : '-'}`); if (d1 && !u1 && d2) okCycles++;
+      }
+      assert(okCycles === 5, `${tag} ${label}: rapid down/up/down x5 shrinks, restores and shrinks again every cycle (${detail.join(' ')})`);
+      // iOS momentum: a flick UP (touch) whose inertia keeps scrolling up for 1.6s with no touch events, then a quick
+      // flick DOWN that catches the momentum (again no touch events delivered) - must shrink.
+      await p.evaluate(s => window.__sim(s, 'touch', 80, 5), sel);
+      await p.evaluate(s => window.__sim(s, 'touch', -30, 3), sel);
+      const upMomentum = await p.evaluate(s => window.__sim(s, 'momentum', -300, 96), sel);
+      const caught = await p.evaluate(s => window.__sim(s, 'momentum', 120, 10), sel);
+      assert(!upMomentum && caught, `${tag} ${label}: down after long iOS-style momentum (no new touch events) still shrinks (up ${upMomentum}, down ${caught})`);
+      // momentum DOWN after touchend: a short drag (below the threshold) then inertia only -> shrinks
+      await p.evaluate(s => window.__sim(s, 'touch', -60, 4), sel); await p.waitForTimeout(100);
+      await p.evaluate(s => window.__sim(s, 'touch', 12, 2), sel);
+      const mom = await p.evaluate(s => window.__sim(s, 'momentum', 400, 90), sel);
+      assert(mom, `${tag} ${label}: inertial scroll after touchend shrinks it`);
+      // a tap (click) that triggers an app scroll ends the user session: no shrink
+      await p.evaluate(s => window.__sim(s, 'touch', -60, 4), sel); await p.waitForTimeout(100);
+      await p.evaluate(() => document.body.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+      const prog = await p.evaluate(s => window.__sim(s, 'none', 200, 20), sel);
+      assert(!prog, `${tag} ${label}: app-initiated scroll right after a tap doesn't shrink it`);
+      if (sel) await p.evaluate(() => document.getElementById('rapidInner').remove());
+      await p.evaluate(() => window.SandyNavBar.set(false));
+    }
     await go(p, 'home'); await toTop(p); await p.waitForTimeout(1400);
     for (let i = 0; i < 10; i++) { await p.evaluate(() => { document.scrollingElement.scrollTop += 30; }); await p.waitForTimeout(20); } await settle(p);
     assert(!(await navState(p)).compact, `${tag}: programmatic scroll (no user input) keeps the bar full size`);
@@ -200,6 +250,12 @@ const SEED = async () => {
     await p.evaluate(() => window.__app.calendar.changeView('listWeek')); await p.waitForTimeout(800);
     for (let i = 0; i < 30; i++) { await p.mouse.wheel(0, 18); await p.waitForTimeout(30); } await p.waitForTimeout(700);
     for (let i = 0; i < 12; i++) { await p.mouse.wheel(0, -12); await p.waitForTimeout(30); } await p.waitForTimeout(700);
+    // nav3: real touch drags (CDP), quick DOWN / UP / DOWN three times - the bar shrinks again every time
+    const cdp = await ctx.newCDPSession(p); const T = (type, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: 200, y }] });
+    const cap = txt => p.evaluate(txt => { let c = document.getElementById('demoCap'); if (!c) { c = document.createElement('div'); c.id = 'demoCap'; c.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:999;background:rgba(0,0,0,.75);color:#fff;font:700 15px system-ui;padding:6px 14px;border-radius:14px'; document.body.appendChild(c); } c.textContent = txt; }, txt);
+    const drag = async (dy) => { const y0 = dy > 0 ? 620 : 320; await T('touchStart', y0); for (let i = 1; i <= 8; i++) { await T('touchMove', y0 - dy * i / 8); await p.waitForTimeout(16); } await T('touchEnd'); };
+    for (let c = 1; c <= 3; c++) { await cap(`rapid ${c}/3: down`); await drag(160); await p.waitForTimeout(350); await cap(`rapid ${c}/3: up`); await drag(-110); await p.waitForTimeout(350); await cap(`rapid ${c}/3: down again`); await drag(140); await p.waitForTimeout(500); }
+    await p.evaluate(() => document.getElementById('demoCap').remove()); await p.waitForTimeout(300);
     for (const t of ['today', 'todo', 'search', 'profile', 'home']) { await p.click(`#bottomNav [data-tab=${t}]`); await p.waitForTimeout(800); }
     for (let i = 0; i < 25; i++) { await p.mouse.wheel(0, 20); await p.waitForTimeout(30); } await p.waitForTimeout(900);
     await ctx.close(); }
