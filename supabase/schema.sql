@@ -1125,3 +1125,7 @@ create policy ai_chats_own on public.ai_chats for all to authenticated
   with check (owner_id = (select auth.uid()));
 notify pgrst, 'reload schema';
 commit;
+
+-- ---------------------------------------------------------------- 2026-10-25 fab: to-do priority (migration-2026-10-25-priority.sql)
+alter table public.events      add column if not exists priority smallint check (priority is null or priority between 1 and 3);
+alter table public.inbox_items add column if not exists priority smallint check (priority is null or priority between 1 and 3);

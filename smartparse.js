@@ -4,8 +4,8 @@
  *  - now: a "wall clock" Date (Chicago time stored in the UTC fields, like app.js nowWall()).
  *  - categories: [{ id, name }] — only existing category names become chips (case-insensitive, whole word).
  *  - disabled: Set of token keys ("kind:lowercased text") the user tapped off; those stay plain text.
- * tokens: [{ kind: 'date'|'time'|'category', start, end, text, key }] (start/end are indexes into text).
- * date: 'YYYY-MM-DD' | null, time: 'HH:MM' | null, category: { id, name } | null.
+ * tokens: [{ kind: 'date'|'time'|'category'|'priority', start, end, text, key }] (start/end are indexes into text).
+ * date: 'YYYY-MM-DD' | null, time: 'HH:MM' | null, category: { id, name } | null, priority: 1-4 | null (Todoist-style "p1"…"p4", 2026-10-25 fab).
  */
 (function (root) {
   'use strict';
@@ -95,6 +95,8 @@
       const hit = scan(src, 'time', fn);
       if (hit) { take(hit.s, hit.e); minutes = hit.v; tokens.push({ kind: 'time', start: hit.s, end: hit.e, text: hit.raw, key: hit.key }); break; }
     }
+    let priority = null;
+    { const hit = scan('p([1-4])', 'priority', m => +m[1]); if (hit) { take(hit.s, hit.e); priority = hit.v; tokens.push({ kind: 'priority', start: hit.s, end: hit.e, text: hit.raw, key: hit.key }); } }
     // "tonight" with no time → no time; a time with no date → today, or tomorrow if that time already passed
     let dateStr = date ? ymd(date) : null;
     if (!dateStr && minutes != null) {
@@ -111,7 +113,7 @@
       .replace(/\s+([,.;!?])/g, '$1').replace(/^[,.;\-–\s]+|[,;\-–\s]+$/g, '').trim();
     if (!title && category) title = category.name.charAt(0).toUpperCase() + category.name.slice(1);
     if (!title) title = text.trim();
-    return { tokens, date: dateStr, time: minutes == null ? null : `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`, category, title };
+    return { tokens, date: dateStr, time: minutes == null ? null : `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`, category, priority, title };
   }
   const api = { parse, ymd };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SandyParse = api;

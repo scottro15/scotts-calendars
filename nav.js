@@ -39,7 +39,7 @@
   const missing = e => e && (e.code === 'PGRST205' || e.code === '42P01' || /could not find the table|does not exist|schema cache/i.test(e.message || ''));
   function table(name, key, map) {
     const api = {
-      available: true, cache: null,
+      available: true, cache: null, missingCols: new Set(),
       async list() {
         const sb = sbc();
         if (!sb) return (api.cache = readLS(key, []));
@@ -50,7 +50,11 @@
       async save(item) {
         const sb = sbc();
         if (!sb) { const all = readLS(key, []).filter(x => x.id !== item.id); all.push(item); localStorage.setItem(key, JSON.stringify(all)); return item; }
-        const { data, error } = await sb.from(name).upsert(map.to(item)).select();
+        // optional columns from later migrations (e.g. priority): until they run, save without them
+        let row = map.to(item); for (const c of api.missingCols) delete row[c];
+        let { data, error } = await sb.from(name).upsert(row).select();
+        const opt = (map.opt || []).find(c => error && c in row && (error.message || '').includes(c));
+        if (opt) { api.missingCols.add(opt); delete row[opt]; ({ data, error } = await sb.from(name).upsert(row).select()); }
         if (error) throw new Error(missing(error) ? 'This needs a quick database update first.' : error.message);
         return map.from(data[0]);
       },
@@ -63,8 +67,9 @@
     return api;
   }
   const Inbox = table('inbox_items', LS.inbox, {
-    from: r => ({ id: r.id, body: r.body, kind: r.kind, calendar: r.calendar || null, categoryId: r.category_id || null, done: !!r.done, createdAt: r.created_at }),
-    to: i => ({ id: i.id, body: i.body, kind: i.kind || 'todo', calendar: i.calendar || null, category_id: i.categoryId || null, done: !!i.done }),
+    from: r => ({ id: r.id, body: r.body, kind: r.kind, calendar: r.calendar || null, categoryId: r.category_id || null, done: !!r.done, createdAt: r.created_at, priority: r.priority || null }),
+    to: i => { const o = { id: i.id, body: i.body, kind: i.kind || 'todo', calendar: i.calendar || null, category_id: i.categoryId || null, done: !!i.done }; if (i.priority >= 1 && i.priority <= 3) o.priority = i.priority; return o; },
+    opt: ['priority'],
   });
   const Cats = table('todo_categories', LS.cats, {
     from: r => ({ id: r.id, name: r.name, color: r.color, sort: r.sort, createdAt: r.created_at }),
@@ -262,6 +267,7 @@
         meta.push(`<span class="td-date${it.overdue ? ' bad' : ''}">${it.overdue ? 'Due ' : ''}${esc(dateLabel(a, it, today))}</span>`);
         if (c && todoUI.group !== 'calendar') meta.push(`<span class="td-cal"><span class="dot" style="background:${esc(c.color)}"></span>${esc(c.short || c.name)}</span>`);
         if (cat && todoUI.group !== 'category') meta.push(`<span class="td-cat" style="--c:${esc(cat.color)}">${esc(cat.name)}</span>`);
+        { const pr = it.type === 'task' ? it.ev.priority : it.item && it.item.priority; if (pr >= 1 && pr <= 3) meta.push(`<span class="td-pri td-p${pr}" title="Priority ${pr}"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M5 21V4h11l-1.5 4L16 12H5" fill="currentColor"/></svg>P${pr}</span>`); }
         const id = it.type === 'task' ? `data-ev="${esc(it.ev.id)}" data-key="${esc(it.key)}"` : `data-inbox="${esc(it.item.id)}"`;
         return `<li class="todo-row${it.done ? ' done' : ''}${it.overdue ? ' overdue' : ''}${it.note ? ' note' : ''}" ${id} style="--c:${esc(c ? c.color : '#9ca3af')}">
           ${it.note ? '<span class="td-note" aria-hidden="true">📝</span>' : `<button type="button" class="td-check" role="checkbox" aria-checked="${it.done}" aria-label="${it.done ? 'Mark not done' : 'Mark done'}: ${esc(it.title)}"><span></span></button>`}
@@ -336,13 +342,15 @@
   // ---- Smart quick add (Todoist-style): recognized dates, times and categories show as blue chips while typing.
   const qa = { disabled: new Set(), parsed: null, prev: new Set() };
   const fmtTime = hm => { const [h, m] = hm.split(':').map(Number); return `${(h % 12) || 12}${m ? ':' + String(m).padStart(2, '0') : ''} ${h < 12 ? 'AM' : 'PM'}`; };
-  function qaParse() {
-    const a = A(); const text = $('qaText').value;
-    if (!window.SandyParse || !a) return { tokens: [], date: null, time: null, category: null, title: text.trim() };
-    const p = window.SandyParse.parse(text, { now: a.nowWall(), categories: Cats.available ? (Cats.cache || []) : [], disabled: qa.disabled });
-    if ($('qaKind').value === 'note') { p.tokens = p.tokens.filter(t => t.kind === 'category'); p.date = p.time = null; p.title = text.trim(); }
+  // shared by the inline quick add and the To-Do "+" sheet (quicksheet.js)
+  function parseQuick(text, kind = 'todo', disabled = new Set()) {
+    const a = A();
+    if (!window.SandyParse || !a) return { tokens: [], date: null, time: null, category: null, priority: null, title: text.trim() };
+    const p = window.SandyParse.parse(text, { now: a.nowWall(), categories: Cats.available ? (Cats.cache || []) : [], disabled });
+    if (kind === 'note') { p.tokens = p.tokens.filter(t => t.kind === 'category'); p.date = p.time = null; p.priority = null; p.title = text.trim(); }
     return p;
   }
+  const qaParse = () => parseQuick($('qaText').value, $('qaKind').value, qa.disabled);
   function qaPaint() {
     const inp = $('qaText'), hl = $('qaHl'), text = inp.value;
     // forget tapped-off chips once their words are gone
@@ -370,27 +378,37 @@
     const pos = inp.selectionStart; const t = p.tokens.find(x => pos > x.start && pos < x.end);
     if (t) qaUnrecognize([t.key]);
   }
+  // One save path for quick adds. Dated → a scheduled to-do (event kind 'task'); undated → an Inbox jot (to-do or note).
+  // opts: { raw, parsed, kind, categoryId, calendar, priority (1-4), reminders [min], description, date, time }
+  async function saveQuick(o) {
+    const a = A(); const p = o.parsed || parseQuick(o.raw, o.kind);
+    const date = o.date !== undefined ? o.date : p.date, time = o.time !== undefined ? o.time : p.time;
+    const categoryId = (p.category && p.category.id) || o.categoryId || null;
+    const priority = o.priority || p.priority || 4;
+    const desc = (o.description || '').trim();
+    if (date && o.kind !== 'note') {
+      const start = time ? `${date}T${time}` : date;
+      const ev = { id: uid(), kind: 'task', title: (p.title || o.raw.trim()).slice(0, 200), calendar: o.calendar && a.cal(o.calendar) ? o.calendar : a.firstVisibleCal(), allDay: !time, start, end: start, recurrence: { freq: 'none', interval: 1 }, location: '', notes: desc, todoCategoryId: categoryId, reminders: o.reminders || [] };
+      if (priority !== 4) ev.priority = priority;
+      await a.Store.save(ev); if (a.refresh) a.refresh();
+      return { sel: `[data-ev="${CSS.escape(ev.id)}"]`, msg: `Added “${ev.title}” · ${a.fmtDay(a.parseLocal(date))}${time ? ' ' + fmtTime(time) : ''}`, ev };
+    }
+    const body = (o.kind === 'note' ? o.raw.trim() : (p.title || o.raw.trim())) + (desc ? '\n' + desc : '');
+    const item = { id: uid(), body, kind: o.kind || 'todo', calendar: o.calendar || null, categoryId, done: false, createdAt: new Date().toISOString() };
+    if (priority !== 4) item.priority = priority;
+    const saved = await Inbox.save(item);
+    return { sel: `[data-inbox="${CSS.escape(item.id)}"]`, msg: `Added “${body.split('\n')[0].slice(0, 60)}” to ${o.calendar && a.cal(o.calendar) ? a.cal(o.calendar).name : 'Inbox'}`, item: saved || item };
+  }
   async function quickAdd(e) {
     e.preventDefault();
-    const a = A(); const raw = $('qaText').value.trim(); if (!raw) { $('qaText').focus(); return; }
-    const p = qaParse();
+    const raw = $('qaText').value.trim(); if (!raw) { $('qaText').focus(); return; }
     const calFilter = todoUI.filter !== 'all' && todoUI.filter !== 'inbox' ? todoUI.filter : null;
-    const categoryId = (p.category && p.category.id) || $('qaCat').value || null;
     $('qaAdd').disabled = true;
     try {
-      let sel;
-      if (p.date) {
-        const start = p.time ? `${p.date}T${p.time}` : p.date;
-        const ev = { id: uid(), kind: 'task', title: p.title.slice(0, 200), calendar: calFilter && a.cal(calFilter) ? calFilter : a.firstVisibleCal(), allDay: !p.time, start, end: start, recurrence: { freq: 'none', interval: 1 }, location: '', notes: '', todoCategoryId: categoryId };
-        await a.Store.save(ev); if (a.refresh) a.refresh();
-        sel = `[data-ev="${CSS.escape(ev.id)}"]`;
-        toast(`Added “${ev.title}” · ${a.fmtDay(a.parseLocal(p.date))}${p.time ? ' ' + fmtTime(p.time) : ''}`);
-      } else {
-        const item = { id: uid(), body: $('qaKind').value === 'note' ? raw : p.title, kind: $('qaKind').value, calendar: calFilter, categoryId, done: false, createdAt: new Date().toISOString() };
-        await Inbox.save(item); sel = `[data-inbox="${CSS.escape(item.id)}"]`;
-      }
+      const r = await saveQuick({ raw, parsed: qaParse(), kind: $('qaKind').value, categoryId: $('qaCat').value || null, calendar: calFilter });
+      if (r.ev) toast(r.msg);
       $('qaText').value = ''; qa.disabled.clear(); qaPaint();
-      await renderTodo(); const row = document.querySelector(sel); if (row) row.classList.add('just-added');
+      await renderTodo(); const row = document.querySelector(r.sel); if (row) row.classList.add('just-added');
     } catch (err) { toast('Could not save: ' + err.message); }
     $('qaAdd').disabled = false; $('qaText').focus();
   }
@@ -746,5 +764,5 @@
     wire(); setDark(document.documentElement.classList.contains('dark'));
     const poll = setInterval(() => { const a = A(); if (a && a.calendar && a.Store) { clearInterval(poll); start(); } }, 50);
   });
-  window.SandyNav = { go, get tab() { return tab; }, renderTodo, renderToday, renderSearch, setDark, Inbox, Cats };
+  window.SandyNav = { go, get tab() { return tab; }, renderTodo, parseQuick, saveQuick, fmtTime, todoUI, renderToday, renderSearch, setDark, Inbox, Cats };
 })();

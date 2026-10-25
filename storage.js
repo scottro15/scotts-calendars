@@ -89,6 +89,7 @@
       example: !!ev.example, source: 'app',
       reminders: cleanReminders(ev.reminders),
       todo_category_id: isTask ? (ev.todoCategoryId || null) : null,
+      priority: isTask && ev.priority >= 1 && ev.priority <= 3 ? ev.priority : null, // 2026-10-25 fab (migration-2026-10-25-priority.sql)
     };
   }
   // minutes before start; max 6, 0..267840 (186 days), no duplicates (matches the DB check)
@@ -101,7 +102,7 @@
         freq: row.recur_freq, interval: row.recur_interval || 1, until: row.recur_until || null,
         byWeekday: row.recur_freq === 'weekly' ? (row.recur_by_weekday || undefined) : undefined,
       },
-      exdates: row.exdates || [], location: row.location || '', notes: row.notes || '', reminders: row.reminders || [], todoCategoryId: row.todo_category_id || null,
+      exdates: row.exdates || [], location: row.location || '', notes: row.notes || '', reminders: row.reminders || [], todoCategoryId: row.todo_category_id || null, priority: row.priority || null,
       example: !!row.example, source: row.source, createdAt: row.created_at, updatedAt: row.updated_at,
     };
     if (row.series_id) { ev.seriesId = row.series_id; ev.originalDate = row.original_date; }
@@ -142,7 +143,7 @@
         const saved = [];
         for (let i = 0; i < sorted.length; i += 500) {
           // columns added by later migrations: until they run, save everything else
-          const OPT = ['reminders', 'todo_category_id'];
+          const OPT = ['reminders', 'todo_category_id', 'priority'];
           this.missingCols = this.missingCols || new Set();
           const strip = rs => rs.map(r => { const o = { ...r }; for (const c of this.missingCols) delete o[c]; return o; });
           const raw = sorted.slice(i, i + 500).map(toRow);
