@@ -181,6 +181,14 @@ const AUDITOR = `(() => {
   await ctx.grantPermissions(['geolocation']); await ctx.setGeolocation({ latitude: 38.95, longitude: -90.2 });
   await p.click('#tcLeave .lb-loc-yes'); await p.waitForSelector('#tcLeave [data-origin=current]', { timeout: 8000 }); await settle(300);
   await audit('today-heads-current', '#todayCard .tc-heads');
+  // Practice prep (SI C): last Maryville practice's notes + Notion link + this practice's note
+  const ppId = await p.evaluate(async () => { const S = window.__app.Store; const e = { id: crypto.randomUUID(), kind: 'event', allDay: false, recurrence: { freq: 'weekly', interval: 1, byWeekday: [2, 4] }, location: '', notes: '', calendar: 'mam', category: 'Team practice – Maryville University', title: 'Maryville University practice', start: '2026-11-03T15:00', end: '2026-11-03T17:00' };
+    await S.save(e); await S.notes.set(e.id, '2026-11-12', Array.from({ length: 10 }, (_, i) => 'Practice point ' + (i + 1)).join('\n')); await S.notes.set(e.id, '2026-11-17', 'Plan: zone offense');
+    localStorage.setItem('scott-calendar-links-v1', JSON.stringify([{ eventId: e.id, date: '2026-11-12', url: 'https://www.notion.so/test/Practice-0123456789abcdef0123456789abcdef' }])); S.links.invalidate(); window.__app.refresh(); return e.id; });
+  await p.evaluate(() => window.SandyNav.renderToday()); await p.waitForSelector('.tc-practice .pp-notion', { timeout: 8000 });
+  await p.evaluate(() => { document.querySelector('.tc-practice .pp-more').open = true; document.querySelector('.tc-practice').scrollIntoView({ block: 'center' }); }); await settle(300);
+  await audit('today-practice', '.tc-practice', 'today_practice_' + THEME);
+  await p.evaluate(async id => { localStorage.setItem('scott-calendar-links-v1', '[]'); window.__app.Store.links.invalidate(); await window.__app.Store.remove(id); window.__app.refresh(); }, ppId); await settle(300);
   // Tomorrow preview (SI B): 7 PM, tomorrow has an early drive, a checklist line, a Bring line and a to-do
   const tmIds = await p.evaluate(async () => { const S = window.__app.Store; const mk = o => ({ id: crypto.randomUUID(), kind: 'event', allDay: false, recurrence: { freq: 'none' }, location: '', calendar: 'mam', category: 'Practice', ...o });
     const a = mk({ title: 'Morning shootaround', start: '2026-11-18T07:00', end: '2026-11-18T08:00', location: 'Test Gym A, Testville', notes: '- [ ] Ball bag\nBring: water' });

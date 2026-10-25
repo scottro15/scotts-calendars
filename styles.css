@@ -1126,3 +1126,24 @@ html.dark .tc-tomorrow .tm-h4, html.dark .tm-prep .tm-k { color: #e2e8f0; }
 html.dark .tm-prep .tm-for, html.dark .tc-tomorrow .muted { color: #cbd5e1; }
 html.dark .tm-prep li + li { border-top-color: #243047; }
 html.dark .tc-tomorrow button.tc-link { background: none; box-shadow: none; } /* flat inline links (html.dark button paints a panel) */
+
+/* ---------- Sandy Intelligence: Practice prep (practice.js) ---------- */
+.tc-practice { border-left: 4px solid #f97316; }
+.tc-practice .pp-team { text-transform: none; letter-spacing: 0; font-weight: 600; }
+.tc-practice .pp-next { margin: 0 0 4px; display: flex; gap: 10px; align-items: baseline; line-height: 1.35; }
+.tc-practice .pp-when { color: #4b5563; }
+.tc-practice .pp-h4 { margin: 10px 0 4px; font-size: 12px; font-weight: 700; color: #374151; }
+.tc-practice .pp-h4 .tc-link { font-weight: 700; }
+.pp-notes { margin: 0; padding: 0 0 0 18px; font-size: 14px; line-height: 1.4; }
+.pp-notes li { margin: 2px 0; overflow-wrap: anywhere; }
+.pp-more summary { cursor: pointer; font-size: 13px; font-weight: 600; color: #3730a3; margin: 4px 0; }
+.pp-link { margin: 6px 0 0; font-size: 14px; }
+.pp-notion { font-weight: 600; color: #1d4ed8; }
+.tc-practice .pp-none, .tc-practice .pp-gap { margin: 4px 0 0; }
+html:not(.dark) .tc-practice .muted { color: #4b5563; }
+html.dark .tc-practice { border-left-color: #fb923c; }
+html.dark .tc-practice .pp-h4 { color: #e2e8f0; }
+html.dark .tc-practice .pp-when, html.dark .tc-practice .muted { color: #cbd5e1; }
+html.dark .pp-more summary { color: #c7d2fe; }
+html.dark .pp-notion { color: #93c5fd; }
+html.dark .tc-practice button.tc-link { background: none; box-shadow: none; }
