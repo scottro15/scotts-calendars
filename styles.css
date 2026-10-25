@@ -1301,11 +1301,11 @@ html.dark { --qs-bg: #1f2430; --qs-line: #374151; --qs-chip-ink: #d1d5db; --qs-p
 html.dark .todo-fab { background: var(--fab); color: #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, .55), 0 2px 6px rgba(0, 0, 0, .4); }
 body.tab-todo .todo-fab { display: flex; }
 .todo-fab:hover { background: var(--fab-press); }
-.todo-fab:active, .todo-fab.pressed { transform: scale(.9); background: var(--fab-press); box-shadow: 0 3px 8px rgba(220, 76, 62, .3); }
+button.todo-fab:active:not(:disabled), button.todo-fab.pressed { transform: scale(.9); background: var(--fab-press); box-shadow: 0 3px 8px rgba(220, 76, 62, .3); }
 .todo-fab:focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; }
 .bottom-nav.nav-compact ~ .todo-fab { transform: translateY(8px); }
-.bottom-nav.nav-compact ~ .todo-fab:active, .bottom-nav.nav-compact ~ .todo-fab.pressed { transform: translateY(8px) scale(.9); }
-body.qs-open .todo-fab { opacity: 0; pointer-events: none; transform: scale(.6); }
+.bottom-nav.nav-compact ~ button.todo-fab:active:not(:disabled), .bottom-nav.nav-compact ~ button.todo-fab.pressed { transform: translateY(8px) scale(.9); }
+body.qs-open button.todo-fab.todo-fab { opacity: 0; pointer-events: none; transform: scale(.6); }
 /* the last to-do row can scroll clear of the FAB */
 body.tab-todo #page-todo { padding-bottom: 72px; }
 body.tab-todo .toast { bottom: calc(env(safe-area-inset-bottom) + var(--nav-lift, 10px) + var(--nav-h) + 84px); }

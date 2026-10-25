@@ -7,7 +7,7 @@ const cats = [{ id: 'm', name: 'Meeting' }, { id: 'e', name: 'Errands' }, { id: 
 let n = 0, fail = 0;
 function t(text, exp, opts = {}) {
   const r = P.parse(text, { now: opts.now || now, categories: cats, disabled: opts.disabled });
-  const got = { date: r.date, time: r.time, cat: r.category && r.category.name, title: r.title, chips: r.tokens.map(x => x.text) };
+  const got = { date: r.date, time: r.time, cat: r.category && r.category.name, title: r.title, chips: r.tokens.map(x => x.text), pri: r.priority };
   for (const k of Object.keys(exp)) {
     n++;
     if (JSON.stringify(got[k]) !== JSON.stringify(exp[k])) { fail++; console.log(`FAIL "${text}" ${k}: got ${JSON.stringify(got[k])} want ${JSON.stringify(exp[k])}`); }
@@ -52,5 +52,11 @@ t('meeting next Friday at 3pm', { cat: null, chips: ['next Friday', 'at 3pm'], t
 t('read today', { date: null, chips: [] }, { disabled: new Set(['date:today']) });
 t('Thursday', { date: '2026-10-22' }, { now: new Date(Date.UTC(2026, 9, 21, 9)) }); // Wed → Thu next day
 t('next Friday', { date: '2026-10-23' }, { now: new Date(Date.UTC(2026, 9, 21, 9)) });
+// Todoist-style priority (2026-10-25 fab)
+t('call vet p1', { pri: 1, title: 'call vet', chips: ['p1'] });
+t('Pay rent tomorrow P3', { pri: 3, date: '2026-10-25', title: 'Pay rent' });
+t('p2 errands tonight', { pri: 2, cat: 'Errands', date: '2026-10-24' });
+t('fix bug p5 and mp3 player', { pri: null, chips: [], title: 'fix bug p5 and mp3 player' }); // only p1-p4, whole word
+t('call vet p1', { pri: null, chips: [] }, { disabled: new Set(['priority:p1']) });
 console.log(`${n - fail}/${n} checks passed`);
 process.exit(fail ? 1 : 0);

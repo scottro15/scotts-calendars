@@ -26,7 +26,7 @@
   };
   const PRI = { 1: '#d1453b', 2: '#eb8909', 3: '#246fe0', 4: '' };
   const REM = [['', 'No reminder'], ['0', 'At time of task'], ['10', '10 minutes before'], ['30', '30 minutes before'], ['60', '1 hour before'], ['1440', '1 day before']];
-  const st = { open: false, disabled: new Set(), prev: new Set(), date: undefined, priority: 4, cat: '', rem: '', kind: 'todo', cal: '', busy: false };
+  const st = { open: false, disabled: new Set(), prev: new Set(), date: undefined, priority: 4, cat: '', rem: '', kind: 'todo', cal: '' };
 
   function build() {
     const fab = document.createElement('button');
@@ -102,7 +102,7 @@
     const c = st.cal && a.cal(st.cal); $('qsCalLbl').textContent = c ? c.name : 'Inbox'; $('qsCalChip').style.setProperty('--c', c ? c.color : 'transparent'); $('qsCalChip').classList.toggle('set', !!c);
     $('qsKindLbl').hidden = st.kind !== 'note';
     inp.placeholder = st.kind === 'note' ? 'Note' : 'Task name';
-    $('qsSend').disabled = !text.trim() || st.busy;
+    $('qsSend').disabled = !text.trim();
     $('qsSend').setAttribute('aria-label', st.kind === 'note' ? 'Add note' : 'Add task');
   }
   function fillSelects() {
@@ -154,19 +154,24 @@
   // ---------- submit (Enter or the send arrow); the sheet stays open for the next one
   async function submit(e) {
     if (e) e.preventDefault();
-    const raw = $('qsText').value.trim(); if (!raw || st.busy) return;
+    const raw = $('qsText').value.trim(); if (!raw) return;
     const p = parsed(); const ef = effective(p);
-    st.busy = true; $('qsSend').disabled = true;
+    const opts = { raw, parsed: p, kind: st.kind, categoryId: ef.catId, calendar: st.cal || null, priority: ef.priority,
+      reminders: ef.date && st.rem !== '' ? [+st.rem] : [], description: $('qsDesc').value, date: ef.date, time: ef.time };
+    const undo = { text: $('qsText').value, desc: $('qsDesc').value, date: st.date, priority: st.priority, cat: st.cat, rem: st.rem };
+    // clear at once (before the network) so the next task can be typed straight away - rapid entry never loses text
+    reset(); paint(); $('qsText').focus({ preventScroll: true });
     try {
-      const r = await N().saveQuick({ raw, parsed: p, kind: st.kind, categoryId: ef.catId, calendar: st.cal || null, priority: ef.priority,
-        reminders: ef.date && st.rem !== '' ? [+st.rem] : [], description: $('qsDesc').value, date: ef.date, time: ef.time });
-      reset(); st.busy = false; paint(); $('qsText').focus({ preventScroll: true });
+      const r = await N().saveQuick(opts);
       A().toast(r.msg);
       await N().renderTodo();
       const row = document.querySelector(r.sel);
       if (row) { row.classList.add('just-added'); const rb = row.getBoundingClientRect(), sb = $('qsSheet').getBoundingClientRect(); if (rb.bottom > sb.top || rb.top < 60) row.scrollIntoView({ block: 'center', behavior: reduce() ? 'auto' : 'smooth' }); }
       document.dispatchEvent(new CustomEvent('sandy:quickadded', { detail: r }));
-    } catch (err) { st.busy = false; paint(); A().toast('Could not save: ' + err.message); }
+    } catch (err) {
+      if (!$('qsText').value) { $('qsText').value = undo.text; $('qsDesc').value = undo.desc; Object.assign(st, { date: undo.date, priority: undo.priority, cat: undo.cat, rem: undo.rem }); paint(); }
+      A().toast('Could not save: ' + err.message);
+    }
   }
 
   // ---------- swipe the sheet down to dismiss
@@ -232,7 +237,7 @@
     });
     swipe();
     if (window.visualViewport) { visualViewport.addEventListener('resize', kb); visualViewport.addEventListener('scroll', kb); }
-    window.SandyQuickSheet = { open, close, get isOpen() { return st.open; }, state: st };
+    window.SandyQuickSheet = { open, close, layout: kb, get isOpen() { return st.open; }, state: st };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
