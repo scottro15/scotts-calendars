@@ -6,6 +6,7 @@
 //   (checked by rpc sandy_check_cron_secret with the service role); deployed with --no-verify-jwt.
 // - Secrets (function secrets only): VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT.
 //   SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are injected by Supabase.
+// Also sends Sandy Intelligence leave-by alerts (leave_plans; see "leave-by alerts" below).
 // Dependency-free (WebCrypto + fetch) so tests import it under Node.
 
 export const WINDOW_MIN = 15;          // catch-up window: a reminder up to 15 min late is still sent
@@ -142,6 +143,107 @@ export function dueReminders(rows, tzOf, now = Date.now()) {
   return out;
 }
 
+
+// ------------------------------------------------------------------ leave-by alerts (Sandy Intelligence feature A)
+// The app works out "leave by" (drive from home / a back-to-back event / the user's current location, via free
+// OpenStreetMap routing) and saves one leave_plans row per event occurrence -- a time and a label, never GPS
+// coordinates. Each minute we push, per plan:
+//   -60  "Check your drive to X"  1 hour before the from-home leave time (opens Today, which re-checks from
+//        where the phone is; iPhone web apps can't read location in the background)
+//   -10  "Leave in 10 min"        (if the user keeps the early heads-up on)
+//    -1  "Time to leave"          at the leave time
+// Codes are stored in reminder_sends.minutes (negative = leave alerts) so each is sent once.
+// Before sending we check the event still exists, still starts at the planned time and still has that location.
+// If the app hasn't been opened, we plan events starting in the next 3 hours ourselves (from home, same free
+// services, at most LEAVE_MAX_LOOKUPS lookups per run).
+export const LEAVE = { CHECK: -60, EARLY: -10, NOW: -1 };
+export const LEAVE_WINDOW_MIN = 10;     // a leave alert up to 10 min late is still useful; later is not
+export const LEAVE_BUFFER_MIN = 10;     // parking / walking in (same as the app)
+export const LEAVE_PLAN_AHEAD_MIN = 180;
+export const LEAVE_MAX_LOOKUPS = 4;
+const fmtDrive = (m) => m < 60 ? `${m} min` : `${Math.floor(m / 60)} hr${m % 60 ? ` ${m % 60} min` : ''}`;
+const wallKey = (v) => String(v || '').replace(' ', 'T').slice(0, 16);
+export const leaveAtUtc = (startUtc, mins) => Math.floor((startUtc - (mins + LEAVE_BUFFER_MIN) * 60000) / 300000) * 300000;
+/** Does this event row still have an occurrence starting at the plan's wall time, at the plan's location? */
+export function planStillValid(plan, row) {
+  if (!row || row.all_day || row.is_task || row.owner_id !== plan.owner_id) return false;
+  if (String(row.location || '').trim() !== String(plan.location || '').trim()) return false;
+  const s = parseLocal(wallKey(plan.event_start));
+  if (ymd(s) !== String(plan.occurrence_date).slice(0, 10)) return false;
+  return occurrenceStarts(row, startOfDay(s), addDays(startOfDay(s), 1)).some(o => o.getTime() === s.getTime());
+}
+/** plans: leave_plans rows; rows: Map event id -> event row; prefOf(owner) -> {early, tz}. Returns due alerts. */
+export function dueLeaveAlerts(plans, rows, prefOf, now = Date.now()) {
+  const out = [];
+  for (const p of plans) {
+    if (p.status !== 'ok') continue;
+    const pref = prefOf(p.owner_id); if (!pref) continue;      // alerts off (or no profile)
+    const row = rows.get(p.event_id);
+    if (!planStillValid(p, row)) continue;
+    const tz = pref.tz || 'America/Chicago';
+    const s = parseLocal(wallKey(p.event_start)); const startUtc = wallToUtc(s, tz);
+    if (now >= startUtc) continue;
+    const leave = Date.parse(p.leave_at), homeLeave = Date.parse(p.home_leave_at || p.leave_at);
+    const kinds = [];
+    // [code, when, how late it may still go out (min)] -- a "10 min" heads-up more than 4 min late would mislead
+    if (p.origin !== 'current') kinds.push([LEAVE.CHECK, homeLeave - 60 * 60000, LEAVE_WINDOW_MIN]);
+    if (pref.early) kinds.push([LEAVE.EARLY, leave - 10 * 60000, 4]);
+    kinds.push([LEAVE.NOW, leave, LEAVE_WINDOW_MIN]);
+    const due = kinds.filter(([, at, late]) => at > now - late * 60000 && at <= now);
+    if (!due.length) continue;
+    const [code, fireAt] = due.reduce((a, b) => (b[1] >= a[1] ? b : a));   // several due at once: only the latest is sent
+    const title = String(row.title || 'your event');
+    const from = p.origin === 'current' ? 'from your current location' : p.origin === 'event' ? `from ${p.origin_label}` : 'from home';
+    const where = `starts ${t12(s)}${row.location ? ` · ${row.location}` : ''}`;
+    const leaveWall = t12(utcToWall(leave, tz)), homeWall = t12(utcToWall(homeLeave, tz));
+    const payload = code === LEAVE.CHECK
+      ? { title: `🚗 Check your drive to ${title}`, body: `Leave by ${homeWall} from home (${fmtDrive(+p.drive_min)} drive) · ${where}. Open SANDY to check from where you are.` }
+      : code === LEAVE.EARLY
+        ? { title: `🚗 Leave in 10 min for ${title}`, body: `Leave by ${leaveWall} · ${fmtDrive(+p.drive_min)} drive ${from} · ${where}` }
+        : { title: `🚗 Time to leave for ${title}`, body: `${fmtDrive(+p.drive_min)} drive ${from} · ${where}` };
+    out.push({ plan: p, row, occ: String(p.occurrence_date).slice(0, 10), codes: due.map(d => d[0]), code, fireAt, payload: {
+      title: payload.title.slice(0, 120), body: payload.body.slice(0, 200), tag: `${row.id}:${ymd(s)}:leave`,
+      url: './?tab=today&locate=1', ts: fireAt } });
+  }
+  return out;
+}
+/** Events (rows) of opted-in owners starting in (now, now + ahead] with no usable plan: what the server should plan. */
+export function needsServerPlan(rows, plans, prefOf, now = Date.now(), ahead = LEAVE_PLAN_AHEAD_MIN) {
+  const have = new Map(plans.map(p => [`${p.event_id}|${String(p.occurrence_date).slice(0, 10)}`, p]));
+  const out = [];
+  for (const row of rows) {
+    const pref = prefOf(row.owner_id);
+    if (!pref || !pref.home || row.all_day || row.is_task || !String(row.location || '').trim()) continue;
+    const tz = pref.tz || 'America/Chicago';
+    const lo = utcToWall(now, tz), hi = utcToWall(now + ahead * 60000, tz);
+    for (const s of occurrenceStarts(row, startOfDay(lo), addDays(startOfDay(hi), 1))) {
+      if (s <= lo || s > hi) continue;
+      const p = have.get(`${row.id}|${ymd(s)}`);
+      if (p && wallKey(p.event_start) === wallKey(ymd(s) + 'T' + `${pad(s.getUTCHours())}:${pad(s.getUTCMinutes())}`)
+        && String(p.location || '').trim() === String(row.location).trim()
+        && (p.status === 'ok' || now - Date.parse(p.updated_at || 0) < 3600000)) continue;  // planned (or failed < 1 hr ago)
+      out.push({ row, s, startUtc: wallToUtc(s, tz), home: pref.home });
+    }
+  }
+  return out.sort((a, b) => a.startUtc - b.startUtc);
+}
+/** Free OpenStreetMap lookups (Photon geocoding + Valhalla routing). Returns {ok, mins} or {ok:false}. */
+export async function serverDrive(home, address, f = fetch, env = {}) {
+  try {
+    const g = await f((env.GEOCODE_URL || 'https://photon.komoot.io/api/') + '?' + new URLSearchParams({ q: address, limit: '1', lang: 'en', lat: String(home.lat), lon: String(home.lon) }),
+      { headers: { 'user-agent': 'SANDY-calendar (send-reminders)' } });
+    if (!g.ok) return { ok: false };
+    const c = (((await g.json()).features || [])[0] || {}).geometry?.coordinates;
+    if (!c) return { ok: false };
+    const body = { locations: [{ lat: +home.lat, lon: +home.lon }, { lat: +c[1], lon: +c[0] }], costing: 'auto', units: 'miles', directions_type: 'none' };
+    const r = await f((env.ROUTE_URL || 'https://valhalla1.openstreetmap.de/route') + '?json=' + encodeURIComponent(JSON.stringify(body)),
+      { headers: { 'user-agent': 'SANDY-calendar (send-reminders)' } });
+    const j = r.ok ? await r.json() : {};
+    const t = j.trip && j.trip.summary && j.trip.summary.time;
+    return Number.isFinite(t) ? { ok: true, mins: Math.max(1, Math.round(t / 60)) } : { ok: false };
+  } catch (_) { return { ok: false }; }
+}
+
 // ------------------------------------------------------------------ HTTP handler
 const json = (b, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { 'content-type': 'application/json' } });
 export async function handle(req, env, f = fetch, now = Date.now()) {
@@ -155,31 +257,78 @@ export async function handle(req, env, f = fetch, now = Date.now()) {
   const ok = secret && await rest('rpc/sandy_check_cron_secret', { method: 'POST', body: JSON.stringify({ s: secret }) });
   if (!ok || !ok.ok || (await ok.json()) !== true) return json({ error: 'Forbidden' }, 403);
 
-  const er = await rest('events?select=id,owner_id,title,location,all_day,start_at,recur_freq,recur_interval,recur_until,recur_by_weekday,exdates,is_task,done,completed_dates,reminders&reminders=neq.{}&limit=20000');
+  const COLS = 'id,owner_id,title,location,all_day,start_at,recur_freq,recur_interval,recur_until,recur_by_weekday,exdates,is_task,done,completed_dates';
+  const er = await rest(`events?select=${COLS},reminders&reminders=neq.{}&limit=20000`);
   if (!er.ok) return json({ error: 'Could not read events' }, 500);
   const rows = await er.json();
-  const owners = [...new Set(rows.map(r => r.owner_id))];
+  // leave-by alerts: who has them on (columns/table may not exist yet -> skipped)
+  const lr = await rest('profiles?select=user_id,time_zone,leave_alerts_early,home_lat,home_lon&leave_alerts=is.true');
+  const leaveProfiles = lr.ok ? await lr.json() : [];
+  const owners = [...new Set([...rows.map(r => r.owner_id), ...leaveProfiles.map(p => p.user_id)])];
   if (!owners.length) return json({ due: 0, sent: 0 });
   const inList = `(${owners.join(',')})`;
   const [pr, sr] = await Promise.all([rest(`profiles?select=user_id,time_zone&user_id=in.${inList}`), rest(`push_subscriptions?select=id,owner_id,endpoint,p256dh,auth&owner_id=in.${inList}`)]);
   const tz = new Map((pr.ok ? await pr.json() : []).map(p => [p.user_id, p.time_zone]));
   const subs = sr.ok ? await sr.json() : [];
-  const due = dueReminders(rows, o => tz.get(o), now);
   let sent = 0, failed = 0, gone = 0;
-  for (const d of due) {
-    // claim it first (primary key = event + date + minutes): a second run can't send it again
+  const claim = async (event_id, occ, minutes, owner_id) => {
     const c = await rest('reminder_sends', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
-      body: JSON.stringify({ event_id: d.row.id, occurrence_date: d.occ, minutes: d.minutes, owner_id: d.row.owner_id }) });
-    if (!c.ok || !(await c.json()).length) continue;
-    for (const s of subs.filter(x => x.owner_id === d.row.owner_id)) {
+      body: JSON.stringify({ event_id, occurrence_date: occ, minutes, owner_id }) });
+    return c.ok && (await c.json()).length > 0;
+  };
+  const deliver = async (owner, payload) => {
+    for (const s of subs.filter(x => x.owner_id === owner)) {
+      if (s.dead) continue;
       try {
-        const r = await sendPush(s, d.payload, vapid, f);
-        if (r.status === 404 || r.status === 410) { gone++; await rest(`push_subscriptions?id=eq.${s.id}`, { method: 'DELETE' }); }
+        const r = await sendPush(s, payload, vapid, f);
+        if (r.status === 404 || r.status === 410) { gone++; s.dead = true; await rest(`push_subscriptions?id=eq.${s.id}`, { method: 'DELETE' }); }
         else if (r.ok) sent++; else failed++;
       } catch (_) { failed++; }
     }
+  };
+  const due = dueReminders(rows, o => tz.get(o), now);
+  for (const d of due) {
+    // claim it first (primary key = event + date + minutes): a second run can't send it again
+    if (await claim(d.row.id, d.occ, d.minutes, d.row.owner_id)) await deliver(d.row.owner_id, d.payload);
   }
-  return json({ due: due.length, sent, failed, gone });
+
+  let leaveDue = 0, planned = 0;
+  if (leaveProfiles.length) {
+    const prefs = new Map(leaveProfiles.map(p => [p.user_id, { early: p.leave_alerts_early !== false, tz: p.time_zone || tz.get(p.user_id),
+      home: Number.isFinite(p.home_lat) && Number.isFinite(p.home_lon) ? { lat: p.home_lat, lon: p.home_lon } : null }]));
+    const prefOf = (o) => prefs.get(o);
+    const lIn = `(${leaveProfiles.map(p => p.user_id).join(',')})`;
+    const today = ymd(utcToWall(now, 'UTC'));
+    const yday = ymd(addDays(parseLocal(today), -1)), tmrw = ymd(addDays(parseLocal(today), 1));
+    const [plr, evr] = await Promise.all([
+      rest(`leave_plans?select=*&owner_id=in.${lIn}&occurrence_date=gte.${yday}&occurrence_date=lte.${tmrw}`),
+      rest(`events?select=${COLS}&owner_id=in.${lIn}&location=neq.&all_day=is.false&is_task=is.false&limit=20000`)]);
+    if (plr.ok && evr.ok) {
+      const plans = await plr.json(); const evs = await evr.json();
+      // 1. plan events in the next 3 hours the app hasn't planned (the app wasn't opened today)
+      for (const n of needsServerPlan(evs, plans, prefOf, now).slice(0, LEAVE_MAX_LOOKUPS)) {
+        const d = await serverDrive(n.home, String(n.row.location).trim(), f, env);
+        const at = d.ok ? new Date(leaveAtUtc(n.startUtc, d.mins)).toISOString() : new Date(n.startUtc).toISOString();
+        const plan = { event_id: n.row.id, occurrence_date: ymd(n.s), owner_id: n.row.owner_id,
+          event_start: `${ymd(n.s)}T${pad(n.s.getUTCHours())}:${pad(n.s.getUTCMinutes())}:00`, location: String(n.row.location).trim(),
+          leave_at: at, home_leave_at: at, drive_min: d.ok ? d.mins : 0, origin: 'home', origin_label: 'home',
+          status: d.ok ? 'ok' : 'failed', source: 'server', updated_at: new Date(now).toISOString() };
+        const w = await rest('leave_plans?on_conflict=event_id,occurrence_date', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(plan) });
+        if (w.ok) { planned++; const i = plans.findIndex(p => p.event_id === plan.event_id && String(p.occurrence_date).slice(0, 10) === plan.occurrence_date); if (i >= 0) plans[i] = plan; else plans.push(plan); }
+      }
+      // 2. send what's due
+      const byId = new Map(evs.map(r => [r.id, r]));
+      const ld = dueLeaveAlerts(plans, byId, prefOf, now); leaveDue = ld.length;
+      for (const a of ld) {
+        let mine = false;
+        for (const code of a.codes) { const won = await claim(a.row.id, a.occ, code, a.row.owner_id); if (code === a.code) mine = won; }
+        if (mine) await deliver(a.row.owner_id, a.payload);
+      }
+      // 3. once an hour: forget plans from 2+ days ago
+      if (new Date(now).getUTCMinutes() === 7) await rest(`leave_plans?occurrence_date=lt.${yday}`, { method: 'DELETE' });
+    }
+  }
+  return json({ due: due.length, sent, failed, gone, leave_due: leaveDue, planned });
 }
 
 const D = globalThis.Deno;

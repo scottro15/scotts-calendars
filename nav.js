@@ -624,7 +624,34 @@
     let dv = 'last'; try { dv = localStorage.getItem('sandy.defaultView') || 'last'; } catch (_) {} $('defaultView').value = dv;
     if (!profileOnce) { profileOnce = true; showAvatar(await avatarUrl()); }
     if (window.SandyLeave) SandyLeave.getHome().then(h => { const i = $('homeAddr'); if (i && document.activeElement !== i) i.value = h ? h.address : ''; }).catch(() => {});
+    paintLeaveAlerts();
   }
+  // Leave-by alerts switches (Profile → Home). Alerts are per account; "use my location" is per device.
+  async function paintLeaveAlerts() {
+    if (!window.SandyLeave || !$('leaveAlerts')) return;
+    const signedIn = !!sbc(); const p = await SandyLeave.getAlertPrefs();
+    const al = $('leaveAlerts'), ea = $('leaveEarly'), ul = $('leaveUseLoc'), msg = $('leaveMsg');
+    al.checked = signedIn && p.alerts; al.disabled = !signedIn;
+    ea.checked = p.early; ea.disabled = !al.checked;
+    ul.checked = SandyLeave.useLoc();
+    if (!msg.dataset.keep) { msg.className = 'small home-msg'; msg.textContent = !signedIn ? 'Sign in to get leave-by alerts on your phone.' : ''; }
+    if (signedIn && al.checked && window.SandyPush) { const st = await SandyPush.state(); if (st !== 'on' && !msg.dataset.keep) msg.textContent = st === 'ios-install' ? 'Add SANDY to your Home Screen to get these alerts on iPhone.' : 'Turn on notifications for this device to get these alerts.'; }
+  }
+  async function leaveSwitch(e) {
+    const t = e.target, msg = $('leaveMsg'); msg.className = 'small home-msg'; delete msg.dataset.keep;
+    try {
+      if (t.id === 'leaveUseLoc') { SandyLeave.setUseLoc(t.checked); toast(t.checked ? 'Will use your location near leave time' : 'Leave-by times use home only'); }
+      else if (t.id === 'leaveAlerts') {
+        t.disabled = true;
+        if (t.checked && window.SandyPush && (await SandyPush.state()) !== 'on') await SandyPush.enable();
+        await SandyLeave.setAlertPrefs({ alerts: t.checked });
+        toast(t.checked ? 'Leave-by alerts on' : 'Leave-by alerts off');
+        if (t.checked && tab !== 'today') { msg.textContent = '✓ On. Open Today once a day so drive times stay fresh — SANDY also plans from home if you don’t.'; msg.classList.add('ok'); msg.dataset.keep = '1'; }
+      } else if (t.id === 'leaveEarly') { await SandyLeave.setAlertPrefs({ early: t.checked }); toast(t.checked ? '10-minute heads-up on' : '10-minute heads-up off'); }
+    } catch (ex) { t.checked = !t.checked; msg.textContent = ex.message || String(ex); msg.classList.add('bad'); msg.dataset.keep = '1'; }
+    finally { t.disabled = false; await paintLeaveAlerts(); }
+  }
+
 
   // ------------------------------------------------------------------ wiring
   function wire() {
@@ -648,6 +675,7 @@
     $('todoNewDated').addEventListener('click', () => { const a = A(); const t = a.ymd(a.nowWall()); a.openEditor(null, null, { kind: 'task', allDay: true, start: t, end: t, calendar: todoUI.filter !== 'all' && todoUI.filter !== 'inbox' && a.cal(todoUI.filter) ? todoUI.filter : a.firstVisibleCal() }); });
     // Today card taps
     $('todayCard').addEventListener('click', e => {
+      if (e.target.closest('.lb-loc-yes, .lb-loc-no')) { SandyLeave.answerAsk(!!e.target.closest('.lb-loc-yes')).catch(() => {}); return; }
       if (e.target.closest('.lb-sethome')) { go('profile'); const s = $('homeSection'); if (s) { s.scrollIntoView({ block: 'center' }); setTimeout(() => $('homeAddr').focus(), 300); } return; }
       const b = e.target.closest('.tc-item'); if (b) A().openEditor(b.dataset.id, b.dataset.key); });
     // Search
@@ -670,6 +698,7 @@
     };
     $('homeForm').addEventListener('submit', e => { e.preventDefault(); saveHome($('homeAddr').value); });
     $('homeClear').addEventListener('click', () => saveHome(''));
+    ['leaveAlerts', 'leaveEarly', 'leaveUseLoc'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', leaveSwitch); });
     $('defaultView').addEventListener('change', e => { try { localStorage.setItem('sandy.defaultView', e.target.value); } catch (_) {} toast(e.target.value === 'last' ? 'Home opens the view you used last' : 'Home view saved'); });
     $('avatarBtn').addEventListener('click', () => $('avatarFile').click());
     $('avatarFile').addEventListener('change', e => { uploadAvatar(e.target.files[0]); e.target.value = ''; });
@@ -697,6 +726,7 @@
     if (sb && u && S.deleteAccount && !S.__avWrapped) { const orig = S.deleteAccount.bind(S); S.deleteAccount = async em => { try { await sb.storage.from('avatars').remove([AV_PATH(u)]); } catch (_) {} return orig(em); }; S.__avWrapped = true; }
     let t0 = null; try { t0 = sessionStorage.getItem('sandy.tab'); } catch (_) {}
     const qt = new URLSearchParams(location.search).get('tab');
+    if (new URLSearchParams(location.search).get('locate') === '1' && window.SandyLeave) SandyLeave.locateSoon(); // opened from "Check your drive"
     const first = TABS.includes(qt) ? qt : (t0 && t0 !== 'home' && TABS.includes(t0) ? t0 : null);
     if (first && !new URLSearchParams(location.search).get('review')) go(first);
     refreshBadge(); avatarUrl().then(showAvatar).catch(() => {});

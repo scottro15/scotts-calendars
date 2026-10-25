@@ -175,6 +175,12 @@ const AUDITOR = `(() => {
   await p.evaluate(() => { localStorage.removeItem('sandy.route.v1'); window.SandyNav.renderToday(); }); await settle(400);
   assert(await p.$('#tcLeave [data-state=pending]'), `${THEME} leave-by: pending lines while routing`);
   await audit('today-heads-pending', '#todayCard .tc-heads'); release(); holdRoutes = null; await settle(600);
+  // leave-by from current location (SI A): in-app ask row, then a "from your current location" line
+  assert(await p.$('#tcLeave [data-state=askloc]'), `${THEME} leave-by: "Not leaving from home?" ask row shown in the 1-hour window`);
+  await audit('today-heads-askloc', '#todayCard .tc-heads');
+  await ctx.grantPermissions(['geolocation']); await ctx.setGeolocation({ latitude: 38.95, longitude: -90.2 });
+  await p.click('#tcLeave .lb-loc-yes'); await p.waitForSelector('#tcLeave [data-origin=current]', { timeout: 8000 }); await settle(300);
+  await audit('today-heads-current', '#todayCard .tc-heads');
   await view('listWeek');
   // List view screenshot scrolled to the event list (day groups)
   await p.evaluate(() => { const el = document.querySelector('#calendar .fc-list-day'); if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 140); }); await settle(400);
@@ -239,6 +245,8 @@ const AUDITOR = `(() => {
   await p.evaluate(() => document.getElementById('homeSection').scrollIntoView({ block: 'start' })); await p.fill('#homeAddr', ''); await p.type('#homeAddr', 'Maryville', { delay: 30 });
   await p.waitForSelector('#homeAddrList li', { timeout: 8000 }); await p.press('#homeAddr', 'ArrowDown'); await p.mouse.move(2, 2); await settle(400);
   await audit('profile-home-suggest', '#homeSection', 'home_suggest_' + THEME);
+  await p.evaluate(() => document.getElementById('leaveAlertsBox').scrollIntoView({ block: 'center' })); await settle(200);
+  await audit('profile-leave-alerts', '#leaveAlertsBox');
   await p.press('#homeAddr', 'Escape'); await p.fill('#homeAddr', ''); await settle(200);
   // Calendars screen (2026-10-25): plain list, one calendar's editor open, add form open
   await p.click('#manageCalsBtn'); await p.waitForSelector('dialog.cal-dlg[open]'); await settle(400);
