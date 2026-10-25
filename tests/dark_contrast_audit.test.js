@@ -130,6 +130,10 @@ const AUDITOR = `(() => {
     const away = ev({ title: 'Maryville University @ Union University (Tenn.) - AWAY', category: 'Game – Maryville University', start: '2026-11-21T16:00', end: '2026-11-21T18:00', location: 'Fred DeLay Gymnasium (Union University), 1050 Union University Dr, Jackson, TN 38305', notes: "Maryville University men's basketball 2026-27\nDrive from Maryville University: 268 mi, about 4 hr 14 min" });
     const home = ev({ title: 'Maryville University vs University of Wisconsin-Parkside - HOME', category: 'Game – Maryville University', start: '2026-11-18T19:00', end: '2026-11-18T21:00', location: 'Simon Athletic Center' });
     const neutral = ev({ title: 'Maryville University vs Malone University - NEUTRAL', category: 'Game – Maryville University', start: '2026-11-17T18:00', end: '2026-11-17T20:00', location: 'Kates Gym', notes: 'Drive from Maryville University: 509 mi' });
+    // Harris-Stowe (yellow) games: home + away, with "Drive from home" + a directions link (fake home address)
+    const hsDir = d => 'Directions from home: https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=1%20Test%20Home%20Rd%2C%20Testville%2C%20MO%2063000&destination=' + encodeURIComponent(d);
+    const hsHome = ev({ title: 'HSSU vs Principia College - HOME', category: 'Game – Harris-Stowe State University', start: '2026-11-19T19:00', end: '2026-11-19T21:00', location: 'Emerson Performance Center (Harris-Stowe State University), 3026 Laclede Ave, St. Louis, MO 63103', notes: "Harris-Stowe State University men's basketball 2026-27\nDrive from home: 41 mi, about 46 min\n" + hsDir('Emerson Performance Center') });
+    const hsAway = ev({ title: 'HSSU @ Lincoln University of Missouri - AWAY', category: 'Game – Harris-Stowe State University', start: '2026-11-20T19:00', end: '2026-11-20T21:00', location: 'Jason Gym (Lincoln University), 820 Chestnut St, Jefferson City, MO 65101', notes: "Harris-Stowe State University men's basketball 2026-27 · Exhibition\nDrive from home: 99 mi, about 1 hr 44 min\n" + hsDir('Jason Gym') });
     const cl = ev({ title: 'Film breakdown', calendar: 'msc', category: 'Film study', start: '2026-11-17T11:00', end: '2026-11-17T12:00', notes: 'Watch the press break\n- [ ] Clip transition defense\n- [ ] Note press break spacing' });
     const clash = ev({ title: 'Recruiting call', calendar: 'lifetime', category: 'Meeting', start: '2026-11-17T11:30', end: '2026-11-17T12:15' });
     const overdue = ev({ kind: 'task', scope: 'day', title: 'Send press break film to staff', calendar: 'mam', category: 'Task / to-do', allDay: true, start: '2026-11-13', end: '2026-11-13', done: false, completedDates: [] });
@@ -137,11 +141,11 @@ const AUDITOR = `(() => {
     const island = ev({ title: 'Island scrimmage', category: 'Practice', start: '2026-11-17T14:00', end: '2026-11-17T15:00', location: 'Island Gym' });
     const b2b = ev({ title: 'Team dinner', category: 'Meeting', start: '2026-11-17T20:30', end: '2026-11-17T21:30', location: 'Test Restaurant B' });
     const lost = ev({ title: 'Mystery meetup', category: 'Meeting', start: '2026-11-17T16:00', end: '2026-11-17T16:30', location: 'Nowhere Unroutable Place' });
-    for (const e of [away, home, neutral, cl, clash, overdue, gymrun, island, b2b, lost]) await S.save(e);
+    for (const e of [away, home, neutral, hsHome, hsAway, cl, clash, overdue, gymrun, island, b2b, lost]) await S.save(e);
     await S.notes.set(cl.id, '2026-11-17', 'Press break looked sharp. Need more ball reversal and quicker outlet passes.');
     await S.notes.set(home.id, '2026-11-18', 'Press break: trap the corner, rotate early.');
     try { await N.Inbox.save({ id: crypto.randomUUID(), kind: 'todo', body: 'Order press break cones', done: false }); await N.Inbox.save({ id: crypto.randomUUID(), kind: 'note', body: 'Idea: press break drill for Jennings', done: false }); } catch (e) { console.warn(e); }
-    A.refresh(); return { away: away.id, cl: cl.id, home: home.id };
+    A.refresh(); return { away: away.id, cl: cl.id, home: home.id, hsHome: hsHome.id, hsAway: hsAway.id };
   });
   await p.waitForTimeout(500);
   await p.evaluate(AUDITOR);
@@ -235,6 +239,15 @@ const AUDITOR = `(() => {
   await view('timeGridDay'); await audit('view-day', page, 'day_' + THEME);
   await view('timeGridWeek'); await audit('view-week', page, 'week_' + THEME);
   await view('dayGridMonth'); await audit('view-month', page, 'month_' + THEME);
+  // Harris-Stowe (yellow) games: List rows, Day (home game with drive from home), Week
+  await view('listWeek', '2026-11-19');
+  await p.evaluate(() => document.querySelector('#calendar .sandy-game.game-team-hssu').scrollIntoView({ block: 'center' })); await settle(300);
+  assert((await p.$$('#calendar .fc-list-event.sandy-game.game-team-hssu .game-ha-hssu')).length === 2, `${THEME} HSSU: 2 yellow-badged List rows`);
+  await audit('view-hssu-list', '#calendar', 'hssu_list_' + THEME);
+  await view('timeGridDay', '2026-11-19'); await p.evaluate(() => document.querySelector('#calendar .sandy-game.game-team-hssu').scrollIntoView({ block: 'center' })); await settle(300);
+  await audit('view-hssu-day', '#calendar', 'hssu_day_' + THEME);
+  await view('timeGridWeek', '2026-11-19'); await p.evaluate(() => document.querySelector('#calendar .sandy-game.game-team-hssu').scrollIntoView({ block: 'center' })); await settle(300);
+  await audit('view-hssu-week', '#calendar', 'hssu_week_' + THEME);
   // month picker
   await p.click('#calendar .fc-toolbar-title'); await settle(); await audit('month-picker', '#monthPicker'); await closeDialogs();
   await view('listWeek');
@@ -338,6 +351,8 @@ const AUDITOR = `(() => {
   await p.screenshot({ path: `${SHOTS}/${PFX}editor_${THEME}.png` }); await closeDialogs();
   await p.evaluate(id => window.__app.openEditor(id, '2026-11-21'), ids.away); await settle(900);
   await audit('editor-game', '#eventDialog'); await closeDialogs();
+  await p.evaluate(id => window.__app.openEditor(id, '2026-11-20'), ids.hsAway); await settle(900);
+  await audit('editor-game-hssu', '#eventDialog'); await closeDialogs();
 
   // ---- Scope dialog (repeating event) — save + delete wording
   for (const mode of ['save', 'delete']) {

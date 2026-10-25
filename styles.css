@@ -939,6 +939,16 @@ html.dark .game-dist { color: #e2e8f0; }
   .fc-list tr.sandy-game::after, .fc-timegrid-event.sandy-game { animation: none; box-shadow: 0 0 8px 2px var(--game-glow); }
 }
 
+/* ===== Harris-Stowe (HSSU) game events (Scott 2026-10-25): YELLOW glow + yellow H / A / N badge =====
+   Yellow text on white fails contrast, so the badge is a solid yellow tile with near-black letters
+   (and a darker amber outline in light mode so the tile edge shows on white). */
+.sandy-game.game-team-hssu, .game-ha-hssu { --game: #eab308; --game-glow: rgba(234, 179, 8, .85); }
+html.dark .sandy-game.game-team-hssu, html.dark .game-ha-hssu { --game: #facc15; --game-glow: rgba(250, 204, 21, .75); }
+.game-ha.game-ha-hssu { background: #facc15; color: #1c1917; border-color: #a16207; }
+html.dark .game-ha.game-ha-hssu { background: #facc15; color: #1c1917; border-color: #fde68a; }
+.fc-list tr.sandy-game.game-team-hssu::after { border-color: #ca8a04; }
+html.dark .fc-list tr.sandy-game.game-team-hssu::after { border-color: #facc15; }
+
 /* ===== Dark-mode readability pass + List day boxes, 2026-10-24 (Scott, dark2) ===== */
 /* List view: each day's weekday/date box gets a thin border (soft white in dark, gray in light) and a little air above it */
 #calendar .fc-list-day .fc-list-day-cushion { border: 1px solid #94a3b8; border-radius: 8px; margin: 8px 4px 4px; }
