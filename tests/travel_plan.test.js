@@ -55,7 +55,7 @@ const near = (a, b) => Math.abs(a - b) < 2e-3;
       ev({ title: 'Maryville University vs Home College - HOME', start: '2026-11-18T19:00', end: '2026-11-18T21:00', location: 'Simon Athletic Center' }),
       ev({ title: 'Maryville University @ Early College - AWAY', start: '2026-11-17T08:00', end: '2026-11-17T10:00', location: 'Gym A, Testville, MO' }),
       ev({ title: 'Maryville University @ Far College - AWAY', start: '2026-11-27T18:00', end: '2026-11-27T20:00', location: 'Gym A, Testville, MO' }),
-      ev({ title: 'Jennings HS @ Rival High - AWAY', category: 'Game – Jennings High School', start: '2026-11-18T18:00', end: '2026-11-18T20:00', location: 'Gym A, Testville, MO' }),
+      ev({ title: 'Riverside HS @ Rival High - AWAY', category: 'Game – Riverside High School', start: '2026-11-18T18:00', end: '2026-11-18T20:00', location: 'Gym A, Testville, MO' }),
     ];
     for (const e of L) await S.save(e);
     if (home) await window.SandyLeave.setHome('1 Test Home Rd, Testville, MO 63000'); else await window.SandyLeave.setHome('');
@@ -73,7 +73,7 @@ const near = (a, b) => Math.abs(a - b) < 2e-3;
   // ---------- 1. Tue Nov 17, 10 AM, home set
   let s = await open({ at: '2026-11-17T16:00:00Z' }); await seed(s.p); await today(s.p);
   let c = await cards(s.p);
-  assert(c.length === 2 && /Neutral site/.test(c[0].head) && /Malone/.test(c[0].game) && /Away/.test(c[1].head) && /Test College/.test(c[1].game), 'two cards, soonest first: today\'s neutral game, Thursday\'s away game (no home game, Jennings game, finished or far-off games)');
+  assert(c.length === 2 && /Neutral site/.test(c[0].head) && /Malone/.test(c[0].game) && /Away/.test(c[1].head) && /Test College/.test(c[1].game), 'two cards, soonest first: today\'s neutral game, Thursday\'s away game (no home game, unnamed-team game, finished or far-off games)');
   assert(/Today 6:00 PM/.test(c[0].game) && /Thu, Nov 19 6:00 PM/.test(c[1].game), 'game times: ' + c[0].game + ' / ' + c[1].game);
   assert(c[0].leaveAt === '4:25 PM' && /Leave Today 4:25 PM from home 32 min drive, 28.8 mi/.test(c[0].leave) && /there 60 min before tip-off/.test(c[0].leave), 'neutral: leave 4:25 PM (6:00 - 32 - 60, rounded down): ' + c[0].leave);
   assert(c[0].backAt === '9:05 PM' && /Back about 9:05 PM game ends 8:00 PM \+ 30 min \+ drive/.test(c[0].back), 'neutral: back about 9:05 PM (8:00 + 30 + 32, rounded up): ' + c[0].back);

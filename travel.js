@@ -23,12 +23,13 @@
   const floor5 = d => new Date(Math.floor(d.getTime() / (5 * MIN)) * 5 * MIN);
   const ceil5 = d => new Date(Math.ceil(d.getTime() / (5 * MIN)) * 5 * MIN);
 
-  const TEAMS = new Set(['maryville', 'hssu']);
-  /** Maryville or HSSU away / neutral game? (games.js info: team from the category or title) */
+  const TEAMS = new Set(['maryville', 'hssu', 'jennings']);
+  const TEAM_TAG = { hssu: 'HSSU', jennings: 'Jennings' }; // small coloured tag in the card header (Maryville: none)
+  /** Maryville, HSSU or Jennings away / neutral game? (games.js info: team from the category or title) */
   function isTrip(ev) {
     if (!ev || ev.kind === 'task' || !window.SandyGames) return null;
     const g = SandyGames.info(ev); if (!g || (g.ha !== 'A' && g.ha !== 'N')) return null;
-    // the team must be named on the event (games.js falls back to Maryville's look for unnamed teams, e.g. Jennings HS)
+    // the team must be named on the event (games.js falls back to Maryville's look for unnamed teams)
     const names = String(ev.category || '') + ' ' + String(ev.title || '');
     if (!TEAMS.has(g.team) || !(window.SandyGames.TEAMS || []).some(t => t.id === g.team && t.re.test(names))) return null;
     return g;
@@ -111,10 +112,10 @@
   // ---------- rendering
   function shell(list, today) {
     return list.map((x, i) => `<section class="tc-sec tc-card tc-travel tv-team-${esc(x.g.team)}" id="tcTravel${i}" data-id="${esc(x.ev.id)}" data-key="${esc(x.o.key)}" aria-label="Travel plan">
-      <h3>🚌 Travel plan <span class="tv-kind">· ${x.g.team === 'hssu' ? '<span class="tv-team">HSSU</span> · ' : ''}${x.g.ha === 'A' ? 'Away' : 'Neutral site'}</span></h3>
+      <h3>🚌 Travel plan <span class="tv-kind">· ${TEAM_TAG[x.g.team] ? `<span class="tv-team">${TEAM_TAG[x.g.team]}</span> · ` : ''}${x.g.ha === 'A' ? 'Away' : 'Neutral site'}</span></h3>
       <p class="tc-next tv-game"><span class="tc-next-k">Game</span><span class="tc-next-v"><button type="button" class="tc-link tc-item" data-id="${esc(x.ev.id)}" data-key="${esc(x.o.key)}">${esc(x.ev.title)}</button> <span class="tv-when">${esc(dayLbl(x.o.start, today))} ${esc(t12(x.o.start))}</span></span></p>
       ${x.g.location ? `<p class="tv-venue">📍 <a href="${esc(SandyGames.mapsUrl(x.g.location))}" target="_blank" rel="noopener noreferrer">${esc(x.g.location)}</a></p>` : ''}
-      ${x.g.team === 'hssu' && x.g.url && x.g.dirFrom ? `<p class="tv-venue tv-dir"><a href="${esc(x.g.url)}" target="_blank" rel="noopener noreferrer">🧭 Directions from ${esc(x.g.dirFrom)}</a></p>` : ''}
+      ${(x.g.team === 'hssu' || x.g.team === 'jennings') && x.g.url && x.g.dirFrom ? `<p class="tv-venue tv-dir"><a href="${esc(x.g.url)}" target="_blank" rel="noopener noreferrer">🧭 Directions from ${esc(x.g.dirFrom)}</a></p>` : ''}
       <ul class="tv-rows" aria-live="polite"><li class="tv-pending" data-state="pending">Working out the trip…</li></ul></section>`).join('');
   }
   async function fill(sec, x, now) {

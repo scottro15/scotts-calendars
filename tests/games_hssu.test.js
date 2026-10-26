@@ -55,7 +55,7 @@ const notes = (miles, drive, loc, extra = '') => `Harris-Stowe State University 
   assert(u.mv.team === 'maryville' && /origin=Maryville%20University/.test(u.mv.url) && u.mv.from === 'Maryville University', 'info: Maryville unchanged (directions from Maryville University)');
   assert(u.mvHome.team === 'maryville' && !u.mvHome.travel && u.mvHome.url === '', 'info: Maryville home game unchanged (no venue line)');
   assert(u.legacy.team === 'maryville', 'info: a game with no team name keeps the original (red) look');
-  assert(u.code === 'Maryville University, 650 Maryville University Dr, St. Louis, MO 63141||Maryville University, 650 Maryville University Dr, St. Louis, MO 63141', 'app code carries no personal home address (HSSU has no baked-in origin)');
+  assert(u.code === 'Maryville University, 650 Maryville University Dr, St. Louis, MO 63141|||Maryville University, 650 Maryville University Dr, St. Louis, MO 63141', 'app code carries no personal home address (HSSU and Jennings have no baked-in origin)');
   // ---- seed the week of Nov 15-21: HSSU home (Thu), HSSU away (Fri), HSSU neutral (Sat), a Maryville away game (Sat), a practice
   await p.evaluate(async ({ HOME_LOC, AWAY_LOC, NEU_LOC, nH, nA, nN }) => {
     const S = window.__app.Store; await S.removeWhere(() => true);
@@ -185,7 +185,7 @@ const notes = (miles, drive, loc, extra = '') => `Harris-Stowe State University 
     await S.save(ev({ title: 'HSSU vs Principia College - HOME', start: '2026-11-19T19:00', end: '2026-11-19T21:00', location: HOME_LOC, notes: nH }));
     await S.save(ev({ title: 'HSSU @ Lincoln University of Missouri - AWAY', start: '2026-11-20T19:00', end: '2026-11-20T21:00', location: AWAY_LOC, notes: nA }));
     await S.save(ev({ title: 'HSSU vs University of the Ozarks - NEUTRAL', start: '2026-11-21T13:00', end: '2026-11-21T15:00', location: NEU_LOC, notes: nN }));
-    await S.save(ev({ title: 'Jennings HS @ Rival High - AWAY', category: 'Game – Jennings High School', start: '2026-11-20T17:00', end: '2026-11-20T19:00', location: AWAY_LOC }));
+    await S.save(ev({ title: 'Riverside HS @ Rival High - AWAY', category: 'Game – Riverside High School', start: '2026-11-20T17:00', end: '2026-11-20T19:00', location: AWAY_LOC }));
     await window.SandyLeave.setHome(home ? '1 Test Home Rd, Testville, MO 63000' : '');
     window.__app.refresh();
   }, [AWAY_LOC, NEU_LOC, HOME_LOC, notes(99, '1 hr 44 min', AWAY_LOC), notes(64, '1 hr 15 min', NEU_LOC), notes(41, '46 min', HOME_LOC), home]);

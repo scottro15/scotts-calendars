@@ -1,6 +1,6 @@
 // Browser test (Scott 2026-10-24 dark2, light mode added 2026-10-25 light1): walk every screen in DARK and LIGHT mode at iPhone size (390x844) and check that
 // all visible text meets WCAG AA against its effective background (4.5:1 normal text, 3:1 large text / icon glyphs).
-// Covers Home (Today card: Heads Up, On Today, Overdue; briefing), List/Day/Week/Month views (incl. game badges),
+// Covers Home (Today card: Heads Up, On Today, Overdue; briefing), List/Day/Week/Month views (incl. game badges: Maryville red, HSSU yellow, Jennings orange),
 // To-Do (quick-add chips, inbox editor, categories), Search (hint, results incl. Today's Notes, empty state, Notes
 // Review), Profile, event editor (new / existing with day note + checklist / game), scope dialog, month picker,
 // AI panel and toast, and the floating glass bottom nav over worst-case white/black content (full + compact). Inputs: value text and placeholders. Also checks the List day-box border (both modes).
@@ -134,6 +134,10 @@ const AUDITOR = `(() => {
     const hsDir = d => 'Directions from home: https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=1%20Test%20Home%20Rd%2C%20Testville%2C%20MO%2063000&destination=' + encodeURIComponent(d);
     const hsHome = ev({ title: 'HSSU vs Principia College - HOME', category: 'Game – Harris-Stowe State University', start: '2026-11-19T19:00', end: '2026-11-19T21:00', location: 'Emerson Performance Center (Harris-Stowe State University), 3026 Laclede Ave, St. Louis, MO 63103', notes: "Harris-Stowe State University men's basketball 2026-27\nDrive from home: 41 mi, about 46 min\n" + hsDir('Emerson Performance Center') });
     const hsAway = ev({ title: 'HSSU @ Lincoln University of Missouri - AWAY', category: 'Game – Harris-Stowe State University', start: '2026-11-20T19:00', end: '2026-11-20T21:00', location: 'Jason Gym (Lincoln University), 820 Chestnut St, Jefferson City, MO 65101', notes: "Harris-Stowe State University men's basketball 2026-27 · Exhibition\nDrive from home: 99 mi, about 1 hr 44 min\n" + hsDir('Jason Gym') });
+    // Jennings High School (orange) games: home + away + neutral in the week of Dec 6-12 (fake home in the directions link)
+    const jnHome = ev({ title: 'Jennings vs Kirkwood - HOME', category: 'Game – Jennings High School', start: '2026-12-09T18:00', end: '2026-12-09T19:30', location: 'Jennings Senior High School, 8850 Cozens Ave, Jennings, MO 63136', notes: "Jennings High School boys varsity basketball 2026-27 · Conference game\nJV 4:30 PM, varsity 6:00 PM\nDrive from home: 40 mi, about 51 min\n" + hsDir('Jennings Senior High School') });
+    const jnAway = ev({ title: 'Jennings @ St. Mary\'s - AWAY', category: 'Game – Jennings High School', start: '2026-12-08T18:30', end: '2026-12-08T20:00', location: "St. Mary's High School, 4701 S Grand Blvd, St. Louis, MO 63111", notes: "Jennings High School boys varsity basketball 2026-27\nJV 5:00 PM, varsity 6:30 PM\nDrive from home: 49 mi, about 56 min\n" + hsDir("St. Mary's High School") });
+    const jnNeu = ev({ title: 'Jennings vs Jefferson City - NEUTRAL', category: 'Game – Jennings High School', start: '2026-12-10T10:00', end: '2026-12-10T11:30', location: 'Columbia, MO – venue TBA', notes: "Jennings High School boys varsity basketball 2026-27\nDrive from home: 100 mi, about 1 hr 46 min\n" + hsDir('Columbia, MO 65201') });
     const cl = ev({ title: 'Film breakdown', calendar: 'msc', category: 'Film study', start: '2026-11-17T11:00', end: '2026-11-17T12:00', notes: 'Watch the press break\n- [ ] Clip transition defense\n- [ ] Note press break spacing' });
     const clash = ev({ title: 'Recruiting call', calendar: 'lifetime', category: 'Meeting', start: '2026-11-17T11:30', end: '2026-11-17T12:15' });
     const overdue = ev({ kind: 'task', scope: 'day', title: 'Send press break film to staff', calendar: 'mam', category: 'Task / to-do', allDay: true, start: '2026-11-13', end: '2026-11-13', done: false, completedDates: [] });
@@ -141,11 +145,11 @@ const AUDITOR = `(() => {
     const island = ev({ title: 'Island scrimmage', category: 'Practice', start: '2026-11-17T14:00', end: '2026-11-17T15:00', location: 'Island Gym' });
     const b2b = ev({ title: 'Team dinner', category: 'Meeting', start: '2026-11-17T20:30', end: '2026-11-17T21:30', location: 'Test Restaurant B' });
     const lost = ev({ title: 'Mystery meetup', category: 'Meeting', start: '2026-11-17T16:00', end: '2026-11-17T16:30', location: 'Nowhere Unroutable Place' });
-    for (const e of [away, home, neutral, hsHome, hsAway, cl, clash, overdue, gymrun, island, b2b, lost]) await S.save(e);
+    for (const e of [away, home, neutral, hsHome, hsAway, jnHome, jnAway, jnNeu, cl, clash, overdue, gymrun, island, b2b, lost]) await S.save(e);
     await S.notes.set(cl.id, '2026-11-17', 'Press break looked sharp. Need more ball reversal and quicker outlet passes.');
     await S.notes.set(home.id, '2026-11-18', 'Press break: trap the corner, rotate early.');
     try { await N.Inbox.save({ id: crypto.randomUUID(), kind: 'todo', body: 'Order press break cones', done: false }); await N.Inbox.save({ id: crypto.randomUUID(), kind: 'note', body: 'Idea: press break drill for Jennings', done: false }); } catch (e) { console.warn(e); }
-    A.refresh(); return { away: away.id, cl: cl.id, home: home.id, hsHome: hsHome.id, hsAway: hsAway.id };
+    A.refresh(); return { away: away.id, cl: cl.id, home: home.id, hsHome: hsHome.id, hsAway: hsAway.id, jnAway: jnAway.id };
   });
   await p.waitForTimeout(500);
   await p.evaluate(AUDITOR);
@@ -267,6 +271,15 @@ const AUDITOR = `(() => {
   await audit('view-hssu-day', '#calendar', 'hssu_day_' + THEME);
   await view('timeGridWeek', '2026-11-19'); await p.evaluate(() => document.querySelector('#calendar .sandy-game.game-team-hssu').scrollIntoView({ block: 'center' })); await settle(300);
   await audit('view-hssu-week', '#calendar', 'hssu_week_' + THEME);
+  // Jennings High School (orange) games: List rows (H / A / N), Day (home game with drive from home), Week
+  await view('listWeek', '2026-12-09');
+  await p.evaluate(() => document.querySelector('#calendar .sandy-game.game-team-jennings').scrollIntoView({ block: 'center' })); await settle(300);
+  assert((await p.$$('#calendar .fc-list-event.sandy-game.game-team-jennings .game-ha-jennings')).length === 3, `${THEME} Jennings: 3 orange-badged List rows`);
+  await audit('view-jennings-list', '#calendar', 'jennings_list_' + THEME);
+  await view('timeGridDay', '2026-12-09'); await p.evaluate(() => document.querySelector('#calendar .sandy-game.game-team-jennings').scrollIntoView({ block: 'center' })); await settle(300);
+  await audit('view-jennings-day', '#calendar', 'jennings_day_' + THEME);
+  await view('timeGridWeek', '2026-12-09'); await p.evaluate(() => document.querySelector('#calendar .sandy-game.game-team-jennings').scrollIntoView({ block: 'center' })); await settle(300);
+  await audit('view-jennings-week', '#calendar', 'jennings_week_' + THEME);
   // month picker
   await p.click('#calendar .fc-toolbar-title'); await settle(); await audit('month-picker', '#monthPicker'); await closeDialogs();
   await view('listWeek');
@@ -372,6 +385,8 @@ const AUDITOR = `(() => {
   await audit('editor-game', '#eventDialog'); await closeDialogs();
   await p.evaluate(id => window.__app.openEditor(id, '2026-11-20'), ids.hsAway); await settle(900);
   await audit('editor-game-hssu', '#eventDialog'); await closeDialogs();
+  await p.evaluate(id => window.__app.openEditor(id, '2026-12-08'), ids.jnAway); await settle(900);
+  await audit('editor-game-jennings', '#eventDialog'); await closeDialogs();
 
   // ---- Scope dialog (repeating event) — save + delete wording
   for (const mode of ['save', 'delete']) {

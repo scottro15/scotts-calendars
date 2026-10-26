@@ -1,25 +1,27 @@
-/* games.js: college game events (Scott 2026-10-24; Harris-Stowe added 2026-10-25).
+/* games.js: game events (Scott 2026-10-24; Harris-Stowe added 2026-10-25; Jennings High School added 2026-10-26).
  * A game is an event whose category starts with "Game" (e.g. "Game – Maryville University") or whose
  * title ends in " - HOME" / " - AWAY" / " - NEUTRAL". Nothing extra is stored in the database:
  *   - Home / Away / Neutral comes from the title suffix (fallback: " @ " in the title = away).
- *   - Team (and so the colour) comes from the category / title: Maryville = red, Harris-Stowe (HSSU) = yellow.
+ *   - Team (and so the colour) comes from the category / title: Maryville = red, Harris-Stowe (HSSU) = yellow,
+ *     Jennings High School (boys varsity) = orange.
  *   - Venue = the event's Location.
  *   - Distance = a "Drive from <place>: 314 mi, about 5 hr 59 min" line in Notes
- *     (Maryville: "from Maryville University"; Harris-Stowe: "from home").
+ *     (Maryville: "from Maryville University"; Harris-Stowe and Jennings: "from home").
  *   - Directions: a "Directions from <place>: https://www.google.com/maps/dir/..." line in Notes wins
  *     (personal addresses live only in the event data, never in this file); otherwise Google Maps
  *     directions from the team's origin (Maryville University) or from the phone's current location.
  * Game blocks get a glowing border in the team colour (List, Day, Week) and a big H / A / N badge.
- * Away and neutral games (and Harris-Stowe home games, which carry a drive from home) show the venue
+ * Away and neutral games (and Harris-Stowe / Jennings home games, which carry a drive from home) show the venue
  * (tap = Google Maps directions) and the drive.
  */
 (function () {
   const ORIGIN = 'Maryville University, 650 Maryville University Dr, St. Louis, MO 63141';
   const TEAMS = [
     { id: 'hssu', name: 'Harris-Stowe State University', re: /harris[\s-]*stowe|\bHSSU\b/i, origin: '', homeMeta: true },
+    { id: 'jennings', name: 'Jennings High School', re: /\bjennings\b/i, origin: '', homeMeta: true },
     { id: 'maryville', name: 'Maryville University', re: /maryville/i, origin: ORIGIN, homeMeta: false },
   ];
-  const DEFAULT_TEAM = TEAMS[1]; // older / unnamed games keep the original red Maryville look
+  const DEFAULT_TEAM = TEAMS.find(t => t.id === 'maryville'); // older / unnamed games keep the original red Maryville look
   const SUFFIX = /\s[-–—]\s*(HOME|AWAY|NEUTRAL)\s*$/i;
   const DRIVE = /Drive from ([^:\n]{1,60}):\s*([\d,.]+)\s*mi(?:\s*[,·]\s*(?:about\s+)?([^\n]+?))?\s*(?:\n|$)/i;
   const DIRS = /Directions from ([^:\n]{1,60}):\s*(https:\/\/(?:www\.)?google\.com\/maps\/dir\/\S+)/i;

@@ -956,6 +956,26 @@ html.dark .tc-travel.tv-team-hssu { border-left-color: #facc15; }
 html.dark .tc-travel .tv-team { background: #0b1220; }
 .tc-travel .tv-dir { margin-top: -2px; }
 
+/* ===== Jennings High School (boys varsity) game events (Scott 2026-10-26): ORANGE glow + orange H / A / N badge =====
+   Distinct from Maryville red (white tile, red letter) and HSSU yellow (near-black tile, yellow letter): Jennings gets a
+   warm peach tile in light mode with a burnt-orange letter (#c2410c on #fff7ed ≈ 4.9:1) inside an orange (#ea580c)
+   border, and a dark tile with a bright orange letter + border in dark mode (#fb923c on #0b1220 ≈ 8:1).
+   MAM blocks are orange-filled in Day / Week, so the timegrid frame adds a thin light ring inside the orange border
+   to keep the orange edge readable on an orange block. */
+.sandy-game.game-team-jennings, .game-ha-jennings { --game: #f97316; --game-glow: rgba(249, 115, 22, .9); }
+html.dark .sandy-game.game-team-jennings, html.dark .game-ha-jennings { --game: #fb923c; --game-glow: rgba(251, 146, 60, .8); }
+.game-ha.game-ha-jennings { background: #fff7ed; color: #c2410c; border-color: #ea580c; box-shadow: 0 0 0 1px #c2410c; }
+html.dark .game-ha.game-ha-jennings { background: #0b1220; color: #fb923c; border-color: #fb923c; box-shadow: 0 0 6px rgba(251, 146, 60, .6); }
+.fc-list tr.sandy-game.game-team-jennings::after { border-color: #f97316; }
+html.dark .fc-list tr.sandy-game.game-team-jennings::after { border-color: #fb923c; }
+.fc-timegrid-event.sandy-game.game-team-jennings { outline: 1px solid rgba(255, 255, 255, .9); outline-offset: -3px; }
+html.dark .fc-timegrid-event.sandy-game.game-team-jennings { outline-color: rgba(11, 18, 32, .85); }
+/* Travel plan card for Jennings trips: orange accent + orange tag */
+.tc-travel.tv-team-jennings { border-left-color: #ea580c; }
+html.dark .tc-travel.tv-team-jennings { border-left-color: #fb923c; }
+.tc-travel.tv-team-jennings .tv-team { border-color: #ea580c; background: #fff7ed; color: #c2410c; }
+html.dark .tc-travel.tv-team-jennings .tv-team { border-color: #fb923c; background: #0b1220; color: #fb923c; }
+
 /* ===== Dark-mode readability pass + List day boxes, 2026-10-24 (Scott, dark2) ===== */
 /* List view: each day's weekday/date box gets a thin border (soft white in dark, gray in light) and a little air above it */
 #calendar .fc-list-day .fc-list-day-cushion { border: 1px solid #94a3b8; border-radius: 8px; margin: 8px 4px 4px; }
