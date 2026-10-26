@@ -64,7 +64,7 @@
   function openInvites({ sb, toast }) {
     const d = openDialog('inv-dlg', `<form class="inv-form" novalidate>
       <h2>Invites</h2>
-      <p class="muted small">SANDY is invite-only. Adding an email lets that person sign in with a one-time link at the site; nobody else can create an account. No email is sent unless you tick the box. Send your own invite message with the site link.</p>
+      <p class="muted small">SANDY is invite-only. Adding an email lets that person sign in at the site with an 8-digit code we email them; nobody else can create an account. No email is sent unless you tick the box. Send your own invite message with the site link.</p>
       <div class="inv-add"><input id="invEmail" type="email" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="friend@example.com" aria-label="Email to invite">
         <button id="invGo" class="primary" type="submit">Invite</button></div>
       <label class="small inv-send"><input type="checkbox" id="invSend"> Also send Supabase's invite email (uses the email limit)</label>

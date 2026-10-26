@@ -44,6 +44,7 @@ const SVC = sign({ role: 'service_role', exp: Math.floor(Date.now() / 1000) + 86
   const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
   async function open(u, tz, vp = { width: 390, height: 844 }) {
     const ctx = await b.newContext({ viewport: vp, timezoneId: tz, locale: 'en-US' });
+    await ctx.addInitScript(() => { try { localStorage.setItem('sandy.welcome.off', '1'); } catch (e) {} }); // beta welcome sheet: covered by tests/welcome.test.js
     const cfg = `window.CALENDAR_CONFIG = { APP_NAME: 'SANDY', SUPABASE_URL: '${BASE.replace(/\/$/, '')}', SUPABASE_ANON_KEY: 'local-anon', OWNER_EMAIL: '${SCOTT.email}' };`;
     await ctx.route('**/config.js', r => r.fulfill({ contentType: 'application/javascript', body: cfg }));
     await ctx.route('**/auth/v1/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));

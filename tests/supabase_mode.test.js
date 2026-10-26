@@ -14,6 +14,7 @@ const storageKey = 'sb-' + new URL(BASE).hostname.split('.')[0] + '-auth-token';
 
 async function open(b, { jwt, email, localEvents } = {}) {
   const ctx = await b.newContext({ viewport: { width: 1300, height: 900 }, timezoneId: 'Europe/Lisbon', locale: 'en-US' });
+  await ctx.addInitScript(() => { try { localStorage.setItem('sandy.welcome.off', '1'); } catch (e) {} }); // beta welcome sheet: covered by tests/welcome.test.js
   await ctx.route('**/config.js', r => r.fulfill({ contentType: 'application/javascript', body: cfg }));
   await ctx.route('**/auth/v1/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
   await ctx.addInitScript(([k, s, le]) => {

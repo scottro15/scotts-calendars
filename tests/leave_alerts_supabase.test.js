@@ -29,6 +29,7 @@ const near = (a, b) => Math.abs(a - b) < 2e-3;
   const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
   async function open(u, { extra } = {}) {
     const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, timezoneId: 'America/Chicago', locale: 'en-US', serviceWorkers: 'allow' });
+    await ctx.addInitScript(() => { try { localStorage.setItem('sandy.welcome.off', '1'); } catch (e) {} }); // beta welcome sheet: covered by tests/welcome.test.js
     await ctx.grantPermissions(['notifications'], { origin: new URL(BASE).origin });
     const cfg = `window.CALENDAR_CONFIG = { APP_NAME: 'SANDY', SUPABASE_URL: '${BASE.replace(/\/$/, '')}', SUPABASE_ANON_KEY: 'local-anon', OWNER_EMAIL: 'scottro1522@gmail.com', VAPID_PUBLIC_KEY: '${VAPID}' };`;
     await ctx.route('**/config.js', r => r.fulfill({ contentType: 'application/javascript', body: cfg }));

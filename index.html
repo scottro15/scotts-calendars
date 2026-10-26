@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <title>SANDY — the scheduling app</title>
-  <link rel="stylesheet" href="styles.css?v=20261025-fab">
+  <link rel="stylesheet" href="styles.css?v=20261026-welcome">
   <!-- FullCalendar v6 is vendored locally (vendor/) so the app works offline and on GitHub Pages. -->
   <script src="vendor/fullcalendar.min.js"></script>
   <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
@@ -27,16 +27,16 @@
       <p id="authMsg" class="muted"></p>
       <form id="authForm">
         <label>Email <input id="authEmail" type="email" required autocomplete="email"></label>
-        <button type="submit" class="primary">Email me a sign-in link</button>
+        <button type="submit" class="primary">Email me a code</button>
       </form>
       <form id="authCodeForm" class="auth-code" hidden novalidate>
-        <label>Enter the code from your email
-          <input id="authCode" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="8" placeholder="123456" aria-describedby="authCodeErr">
+        <label>Enter the 8-digit code from your email
+          <input id="authCode" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="8" placeholder="12345678" aria-describedby="authCodeErr">
         </label>
         <p id="authCodeErr" class="auth-err" role="alert" hidden></p>
         <button type="submit" class="primary" id="authCodeBtn">Sign in</button>
         <div class="auth-code-links">
-          <button type="button" class="link-btn" id="authResend">Resend email</button>
+          <button type="button" class="link-btn" id="authResend">Resend code</button>
           <button type="button" class="link-btn" id="authChangeEmail">Use a different email</button>
         </div>
       </form>
@@ -383,23 +383,24 @@
     <button type="button" data-tab="profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.2-4 4-5.8 7.5-5.8s6.3 1.8 7.5 5.8"/></svg><span>Profile</span></button>
   </nav>
   <script src="config.js"></script>
-  <script src="storage.js?v=20261025-fab"></script>
+  <script src="storage.js?v=20261026-welcome"></script>
   <script src="places.js"></script>
-  <script src="motion.js?v=20261025-fab"></script>
-  <script src="account.js?v=20261025-fab"></script>
-  <script src="launch.js?v=20261025-fab"></script>
-  <script src="push.js?v=20261025-fab"></script>
-  <script src="smartparse.js?v=20261025-fab"></script>
-  <script src="leaveby.js?v=20261025-fab"></script>
-  <script src="tomorrow.js?v=20261025-fab"></script>
-  <script src="practice.js?v=20261025-fab"></script>
-  <script src="travel.js?v=20261025-fab"></script>
-  <script src="collapse.js?v=20261025-fab"></script>
-  <script src="nav.js?v=20261025-fab"></script>
-  <script src="navbar.js?v=20261025-fab"></script>
-  <script src="quicksheet.js?v=20261025-fab"></script>
-  <script src="games.js?v=20261025-fab"></script>
-  <script src="app.js?v=20261025-fab"></script>
-  <script src="ai.js?v=20261025-fab"></script>
+  <script src="motion.js?v=20261026-welcome"></script>
+  <script src="account.js?v=20261026-welcome"></script>
+  <script src="launch.js?v=20261026-welcome"></script>
+  <script src="push.js?v=20261026-welcome"></script>
+  <script src="smartparse.js?v=20261026-welcome"></script>
+  <script src="leaveby.js?v=20261026-welcome"></script>
+  <script src="tomorrow.js?v=20261026-welcome"></script>
+  <script src="practice.js?v=20261026-welcome"></script>
+  <script src="travel.js?v=20261026-welcome"></script>
+  <script src="collapse.js?v=20261026-welcome"></script>
+  <script src="nav.js?v=20261026-welcome"></script>
+  <script src="navbar.js?v=20261026-welcome"></script>
+  <script src="quicksheet.js?v=20261026-welcome"></script>
+  <script src="games.js?v=20261026-welcome"></script>
+  <script src="welcome.js?v=20261026-welcome"></script>
+  <script src="app.js?v=20261026-welcome"></script>
+  <script src="ai.js?v=20261026-welcome"></script>
 </body>
 </html>

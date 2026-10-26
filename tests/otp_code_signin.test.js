@@ -38,14 +38,14 @@ const session = { access_token: jwt, refresh_token: 'r', token_type: 'bearer', e
     await p.waitForTimeout(400);
     await p.screenshot({ path: `${SHOTS}/otp_code_entry_${dark ? 'dark' : 'light'}_390.png` });
     await p.fill('#authCode', '12'); await p.click('#authCodeBtn');
-    assert(/full code/.test(await p.textContent('#authCodeErr')) && calls.verify.length === 0, 'short code: clear error, no request');
+    assert(/full 8-digit code/.test(await p.textContent('#authCodeErr')) && calls.verify.length === 0, 'short code: clear error, no request');
     await p.type('#authCode', 'ab'); assert(/^\d*$/.test(await p.inputValue('#authCode')), 'non-digits stripped');
     await p.fill('#authCode', '111111'); await p.click('#authCodeBtn');
     await p.waitForFunction(() => /wrong or has expired/.test(document.getElementById('authCodeErr').textContent));
     assert(await p.isVisible('#authGate'), 'wrong code: stays on sign-in with a clear message');
     if (!dark) await p.screenshot({ path: `${SHOTS}/otp_code_error_390.png` });
     await p.click('#authResend'); await p.waitForFunction(() => true); await p.waitForTimeout(300);
-    assert(calls.otp === 2, 'Resend email sends again');
+    assert(calls.otp === 2, 'Resend code sends again');
     await p.fill('#authCode', '123456'); await p.click('#authCodeBtn');
     await p.waitForSelector('#authGate', { state: 'hidden', timeout: 8000 });
     const v = calls.verify[calls.verify.length - 1];

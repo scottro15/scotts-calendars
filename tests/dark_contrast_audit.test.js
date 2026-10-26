@@ -407,6 +407,12 @@ const AUDITOR = `(() => {
     await p.evaluate(async () => { window.SandyAI.hideHistory(); const C = window.SandyAI.Chats; for (const c of await C.list()) await C.remove(c.id); await window.SandyAI.newChat(); });
   }
   await p.keyboard.press('Escape'); await closeDialogs();
+  // beta welcome sheet (welcome.js; auto-shown only in Supabase mode, opened directly here)
+  await p.evaluate(() => window.SandyWelcome.show({ user: null })); await settle(700);
+  await audit('welcome-sheet', '#welcomeSheet', 'welcome_' + THEME);
+  await p.$eval('#welcomeSheet .wl-body', e => { e.scrollTop = e.scrollHeight; }); await settle(200);
+  await audit('welcome-sheet-end', '#welcomeSheet');
+  await p.click('#welcomeSheet .wl-go'); await p.waitForSelector('#welcomeSheet', { state: 'detached' });
   await p.evaluate(() => window.__app.toast('Saved')); await settle(300); await audit('toast', '#toast');
 
   assert(!errs.length, 'no page errors ' + errs.join(';'));

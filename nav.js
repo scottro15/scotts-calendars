@@ -458,6 +458,7 @@
     ['Import JSON', 'import restore upload json data', 'dataSection', 'importBtn'],
     ['Delete my account', 'delete remove account close', 'accountSection', 'acctDelete'],
     ['Send feedback', 'feedback bug idea help contact', 'accountSection', null],
+    ['Welcome guide', 'welcome guide getting started intro beta tips help', 'accountSection', 'welcomeBtn'],
     ['Invites (admin)', 'invite invites admin users', 'accountSection', null],
     ['Sign out', 'sign out log out logout', 'dataSection', 'signOutBtn'],
     ['Remove example events', 'examples sample demo remove', 'dataSection', 'clearExamplesBtn'],

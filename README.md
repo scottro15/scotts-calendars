@@ -54,7 +54,7 @@ In Season mode the panel shows Spring, Summer, Autumn and Winter as buttons. It 
 ## Storage modes
 - **Local (default):** if `config.js` has no Supabase keys, data stays in this browser's localStorage and example events are seeded.
 - **Shared (Supabase):** if `config.js` has `SUPABASE_URL` and `SUPABASE_ANON_KEY`, the app:
-  - asks for **email magic-link sign-in**. Invite-only: sign-ups are off in Supabase Auth and the app asks for magic links with `shouldCreateUser: false`, so an email without an invited account is refused ("hasn't been invited yet"). Row Level Security (`owner_id = auth.uid()`) limits each account to its own calendars.
+  - asks for **email sign-in with an 8-digit code** (the Supabase email templates are code-only: no link). Invite-only: sign-ups are off in Supabase Auth and the app requests a one-time code (`signInWithOtp`) with `shouldCreateUser: false`, so an email without an invited account is refused ("hasn't been invited yet"). Row Level Security (`owner_id = auth.uid()`) limits each account to its own calendars.
   - reads and writes the shared `events` and `categories` tables.
   - shows bot changes **live** (Supabase Realtime) and also re-loads when the tab regains focus, when the device comes back online, every 5 minutes, and when you tap "Refresh now".
   - offers a one-time **"Import my local events"** on any device that still has pre-sync localStorage events (examples are optional).
@@ -106,7 +106,7 @@ window.CALENDAR_CONFIG = {
 ### 5. Deploy to GitHub Pages
 1. Create a GitHub repo, e.g. `scott-calendars`, and push this folder's contents to `main`. The repo can be public because the anon key is designed to be public. A private repo with Pages needs a paid plan.
 2. **Settings → Pages → Build and deployment → Source: Deploy from a branch → `main` / root.**
-3. Open `https://<github-user>.github.io/scott-calendars/` and sign in with the emailed link.
+3. Open `https://<github-user>.github.io/scott-calendars/` and sign in with the 8-digit code from the email.
 4. On each device that has old local events, tap **Import my local events** once.
 5. On the phone, use Share → **Add to Home Screen** to get an app icon.
 

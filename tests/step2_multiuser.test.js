@@ -17,6 +17,7 @@ const jwt = u => { const h = b64(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
 
 async function open(b, base, u, vp = { width: 390, height: 844 }) {
   const ctx = await b.newContext({ viewport: vp, timezoneId: 'America/New_York', locale: 'en-US', acceptDownloads: true });
+  await ctx.addInitScript(() => { try { localStorage.setItem('sandy.welcome.off', '1'); } catch (e) {} }); // beta welcome sheet: covered by tests/welcome.test.js
   const cfg = `window.CALENDAR_CONFIG = { APP_NAME: 'SANDY', SUPABASE_URL: '${base.replace(/\/$/, '')}', SUPABASE_ANON_KEY: 'local-anon', OWNER_EMAIL: '${SCOTT.email}' };`;
   await ctx.route('**/config.js', r => r.fulfill({ contentType: 'application/javascript', body: cfg }));
   await ctx.route('**/auth/v1/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));

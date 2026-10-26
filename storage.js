@@ -4,7 +4,7 @@
  * The app talks to `window.Store` (async API, in-memory cache + adapter).
  *   - LocalStorageAdapter: this device/browser only (used when config.js is empty).
  *   - SupabaseAdapter: shared Postgres via Supabase (used when config.js has
- *     SUPABASE_URL + SUPABASE_ANON_KEY). Requires Scott to sign in (magic link).
+ *     SUPABASE_URL + SUPABASE_ANON_KEY). Requires sign-in (emailed 8-digit code).
  *
  * Event model used by the app (times are America/Chicago wall clock, no offset):
  *   { id, kind:'event'|'task', calendar:'msc'|'mam'|'lifetime', category, title,
@@ -460,8 +460,9 @@
           throw error;
         }
       },
-      // Code sign-in (same email as the magic link carries {{ .Token }}). Needed on iPhone, where the
-      // Home Screen app has its own storage and the emailed link always opens in Safari.
+      // Code sign-in. The Supabase email templates are code-only (subject "Your SANDY sign-in code",
+      // just the 8-digit {{ .Token }}, no link), so this is the only way in, which also suits the
+      // iPhone Home Screen app (its own storage; links would open in Safari).
       async verifyCode(email, token) {
         const { data, error } = await sb.auth.verifyOtp({ email: email.trim(), token: String(token).trim(), type: 'email' });
         if (error) throw error;

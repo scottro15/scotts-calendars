@@ -154,7 +154,7 @@
   // ---------- Sign-in (only when Supabase is configured) ----------
   if (Store.configError) console.warn('Supabase config problem, using localStorage:', Store.configError);
   // Notes Review deep links (?review=day|week|month|season|year&date=YYYY-MM-DD) survive the
-  // magic-link sign-in round trip (the link returns to the bare site URL) via localStorage.
+  // sign-in round trip (and any reload while the code is typed) via localStorage.
   const DL_KEY = 'sandy.pendingReviewLink.v1';
   {
     const q = new URLSearchParams(location.search);
@@ -189,7 +189,7 @@
     const showFor = user => {
       gate.hidden = false;
       formEl.hidden = !!user; outBtn.hidden = !user; document.getElementById('authCodeForm').hidden = true;
-      msg.textContent = user ? `Signed in as ${user.email}, which doesn't have access to these calendars.` : 'Sign in with your email. We\'ll send you a link and a code.';
+      msg.textContent = user ? `Signed in as ${user.email}, which doesn't have access to these calendars.` : 'Sign in with your email. We\'ll email you an 8-digit code. Type it here to sign in.';
     };
     let user = null;
     try { user = await Store.auth.user(); } catch (e) { console.error(e); }
@@ -211,7 +211,7 @@
       msg.textContent = 'Sending…'; localStorage.setItem('sandy.lastEmail', email);
       try {
         await Store.auth.sendMagicLink(email); sentTo = email;
-        msg.textContent = `We emailed ${email} a sign-in link and code. On iPhone's Home Screen app, type the code below.`;
+        msg.textContent = `We emailed ${email} an 8-digit code. Type it here to sign in.`;
         showCode(true);
       } catch (err) { showCode(false); msg.textContent = err && err.notInvited ? 'That email hasn\'t been invited yet. SANDY is invite-only for now.' : (/rate|seconds|429/i.test((err && err.message) || '') ? 'Too many requests. Wait a minute, then try again.' : 'Could not send the email: ' + (err.message || err)); }
     };
@@ -220,16 +220,16 @@
     codeForm.onsubmit = async e => {
       e.preventDefault();
       const code = codeEl.value.replace(/\D/g, '');
-      if (code.length < 6) { setErr('Enter the full code from your email (6–8 digits).'); return; }
+      if (code.length < 6) { setErr('Enter the full 8-digit code from your email.'); return; }
       codeBtn.disabled = true; codeBtn.textContent = 'Checking…';
       try { await Store.auth.verifyCode(sentTo, code); msg.textContent = 'Signed in. Loading…'; }
       catch (err) {
         const m = (err && (err.message || err.code)) || '';
-        setErr(/expired|invalid|otp/i.test(m) ? 'That code is wrong or has expired. Check the newest email, or tap Resend email.' : /rate|429/i.test(m) ? 'Too many tries. Wait a minute, then try again.' : 'Could not sign in: ' + m);
+        setErr(/expired|invalid|otp/i.test(m) ? 'That code is wrong or has expired. Check the newest email, or tap Resend code.' : /rate|429/i.test(m) ? 'Too many tries. Wait a minute, then try again.' : 'Could not sign in: ' + m);
       } finally { codeBtn.disabled = false; codeBtn.textContent = 'Sign in'; }
     };
     document.getElementById('authResend').onclick = () => send(sentTo || emailEl.value.trim());
-    document.getElementById('authChangeEmail').onclick = () => { showCode(false); msg.textContent = 'Sign in with your email. We\'ll send you a link and a code.'; emailEl.focus(); };
+    document.getElementById('authChangeEmail').onclick = () => { showCode(false); msg.textContent = 'Sign in with your email. We\'ll email you an 8-digit code. Type it here to sign in.'; emailEl.focus(); };
     return new Promise(resolve => {
       Store.auth.onSignIn(u => { if (Store.auth.isOwner(u)) { gate.hidden = true; resolve(u); } else showFor(u); });
     });
@@ -1381,6 +1381,7 @@
     if (window.SandyAccount) window.SandyAccount.mountAccount({ store: Store, user, mount: document.getElementById('dataSection') });
     if (window.SandyPush) window.SandyPush.mount({ store: Store, user });
     if (window.SandyLaunch) window.SandyLaunch.mount({ store: Store, user, timeZone: () => TZ, setTZ: z => { if (setTZ(z)) { calendar.render(); refresh(); } } });
+    if (window.SandyWelcome) { window.SandyWelcome.mountRow({ user }); window.SandyWelcome.maybeShow({ user }); } // one-time beta welcome (welcome.js)
     document.getElementById('syncNowBtn').addEventListener('click', () => reloadFromServer(true));
     const local = await Store.localDataForMigration();
     if (local) {
@@ -1530,7 +1531,7 @@
   rvEvent.addEventListener('change', () => { rv.event = rvEvent.value; renderReview(); });
   let rvQT; $('reviewSearch').addEventListener('input', e => { clearTimeout(rvQT); rvQT = setTimeout(() => { rv.q = e.target.value; renderReview(); }, 200); });
   $('reviewClear').addEventListener('click', () => { rv.calsTouched = false; rv.event = ''; rv.q = ''; $('reviewSearch').value = ''; renderReview(); });
-  // deep link: ?review=day|week|month|season|year&date=YYYY-MM-DD (also restored after magic-link sign-in)
+  // deep link: ?review=day|week|month|season|year&date=YYYY-MM-DD (also restored after sign-in)
   {
     const want = params.get('review') || (reviewLink && reviewLink.review);
     const wd = params.get('date') || (reviewLink && reviewLink.date);
