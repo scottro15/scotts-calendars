@@ -30,7 +30,7 @@
       <li><b>Smart to-dos:</b> tap the <b>+</b> button and type naturally, like "meeting next Friday at 3pm." SANDY fills in the date and time, and you can set a priority.</li>
       <li><b>Reminders:</b> go to <b>Profile</b> and tap <b>Enable notifications</b> to get up to 6 reminders per event.</li>
     </ul>
-    <p class="wl-close-note">If something feels off or you have an idea, tap <b>Feedback</b> and tell me. I read every one.</p>
+    <p class="wl-close-note">If something feels off or you have an idea, tap <b>Send feedback</b> and tell me. I read every one.</p>
     <p class="wl-sig">— Scott, Minds Above Matters</p>`;
 
   let cur = null;

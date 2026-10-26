@@ -28,7 +28,7 @@ const VERBATIM = [
   "Today: see what's next, what's on today, anything overdue, and a preview of tomorrow. Tap any section to open or close it.",
   'Smart to-dos: tap the + button and type naturally, like "meeting next Friday at 3pm." SANDY fills in the date and time, and you can set a priority.',
   'Reminders: go to Profile and tap Enable notifications to get up to 6 reminders per event.',
-  'If something feels off or you have an idea, tap Feedback and tell me. I read every one.',
+  'If something feels off or you have an idea, tap Send feedback and tell me. I read every one.',
   '— Scott, Minds Above Matters',
 ];
 async function context(b, { dark, id, email, video, reduced }) {
