@@ -54,4 +54,16 @@ const r = await handle(req({ action: 'list' }), { ...env, SUPABASE_SERVICE_ROLE_
   assert(r3.status === 200 && patched.note === null, 'set_name empty clears note');
   console.log('ok - personalized invite name actions');
 }
+
+// CORS allowlist: only https://scottro15.github.io gets Access-Control-Allow-Origin
+{
+  const optOk = await handle(new Request('https://x', { method: 'OPTIONS', headers: { Origin: 'https://scottro15.github.io' } }), env, mk(true));
+  assert(optOk.headers.get('Access-Control-Allow-Origin') === 'https://scottro15.github.io', 'allowed Origin echoed on OPTIONS');
+  const optBad = await handle(new Request('https://x', { method: 'OPTIONS', headers: { Origin: 'https://evil.example' } }), env, mk(true));
+  assert(!optBad.headers.get('Access-Control-Allow-Origin'), 'disallowed Origin gets no ACAO');
+  const postOk = await handle(new Request('https://x/functions/v1/admin-invites', { method: 'POST', headers: { authorization: 'Bearer user', 'content-type': 'application/json', Origin: 'https://scottro15.github.io' }, body: '{}' }), env, mk(false));
+  assert(postOk.headers.get('Access-Control-Allow-Origin') === 'https://scottro15.github.io', 'allowed Origin echoed on POST');
+  console.log('ok - CORS allowlist');
+}
 console.log('ADMIN INVITES FUNCTION TESTS PASSED');
+

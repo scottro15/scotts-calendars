@@ -12,3 +12,5 @@ Invite-only access for the free prototype. Used by the app's **✉️ Invites** 
 - `set_name` updates only that field (redeploy this function to enable it in production; new invites already store the name via `note`).
 - `revoke` bans sign-in (reversible with `restore`). It never deletes data.
 - Tests: `node tests/admin_invites_function.test.mjs`, plus `tests/launch.test.js` (end to end on the local stand-in).
+
+- CORS: allowlist `https://scottro15.github.io` only (Origin echoed when allowed).

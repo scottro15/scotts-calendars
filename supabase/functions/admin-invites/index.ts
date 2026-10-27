@@ -11,31 +11,36 @@
 //   'revoke' bans the sign-in (reversible with 'restore'); it never deletes anyone's data.
 // Dependency-free (plain fetch) so tests can import it under Node.
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'content-type': 'application/json' } });
+const ALLOWED_ORIGINS = new Set(['https://scottro15.github.io']);
+export function corsFor(req) {
+  const origin = (req && req.headers && req.headers.get('Origin')) || '';
+  const h = {
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+  if (ALLOWED_ORIGINS.has(origin)) h['Access-Control-Allow-Origin'] = origin;
+  return h;
+}
+const json = (body, status = 200, req) => new Response(JSON.stringify(body), { status, headers: { ...corsFor(req), 'content-type': 'application/json' } });
 export const normEmail = e => String(e || '').trim().toLowerCase();
 export const validEmail = e => e.length <= 254 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
 export const MAX_INVITES = 200;
 
 export async function handle(req, env, f = fetch) {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
-  if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsFor(req) });
+  if (req.method !== 'POST') return json({ error: 'POST only' }, 405, req);
   const auth = req.headers.get('authorization') || '';
-  if (!/^Bearer\s+\S+/.test(auth)) return json({ error: 'Sign in required' }, 401);
+  if (!/^Bearer\s+\S+/.test(auth)) return json({ error: 'Sign in required' }, 401, req);
   const base = env.SUPABASE_URL, anon = env.SUPABASE_ANON_KEY, svc = env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!base || !anon || !svc) return json({ error: 'Server not configured' }, 500);
+  if (!base || !anon || !svc) return json({ error: 'Server not configured' }, 500, req);
 
   const u = await f(`${base}/auth/v1/user`, { headers: { authorization: auth, apikey: anon } });
-  if (!u.ok) return json({ error: 'Sign in required' }, 401);
-  const me = await u.json(); if (!me || !me.id) return json({ error: 'Sign in required' }, 401);
+  if (!u.ok) return json({ error: 'Sign in required' }, 401, req);
+  const me = await u.json(); if (!me || !me.id) return json({ error: 'Sign in required' }, 401, req);
   const adm = await f(`${base}/rest/v1/rpc/sandy_is_admin`, { method: 'POST', headers: { authorization: auth, apikey: anon, 'content-type': 'application/json' }, body: '{}' });
-  if (!adm.ok || (await adm.json()) !== true) return json({ error: 'Admins only' }, 403);
+  if (!adm.ok || (await adm.json()) !== true) return json({ error: 'Admins only' }, 403, req);
 
-  let body; try { body = await req.json(); } catch { return json({ error: 'Bad JSON' }, 400); }
+  let body; try { body = await req.json(); } catch { return json({ error: 'Bad JSON' }, 400, req); }
   const S = { apikey: svc, authorization: `Bearer ${svc}`, 'content-type': 'application/json' };
   const rest = (path, init = {}) => f(`${base}/rest/v1/${path}`, { ...init, headers: { ...S, Prefer: 'return=representation', ...(init.headers || {}) } });
   const users = async () => {
@@ -56,21 +61,21 @@ export async function handle(req, env, f = fetch) {
         const status = i.status === 'revoked' || banned ? 'revoked' : (au && au.last_sign_in_at) || i.status === 'accepted' ? 'accepted' : 'invited';
         return { email: i.email, status, note: i.note, firstName: i.note || '', created_at: i.created_at, accepted_at: i.accepted_at, last_sign_in_at: au ? au.last_sign_in_at : null };
       });
-      return json({ invites });
+      return json({ invites }, 200, req);
     }
     const email = normEmail(body.email);
-    if (!validEmail(email)) return json({ error: 'Enter a valid email address' }, 400);
+    if (!validEmail(email)) return json({ error: 'Enter a valid email address' }, 400, req);
 
     if (body.action === 'invite') {
       const cnt = await rest('invites?select=id', { headers: { Prefer: 'count=exact' }, method: 'HEAD' });
       const total = +((cnt.headers.get('content-range') || '').split('/')[1] || 0);
-      if (total >= MAX_INVITES) return json({ error: `Invite limit reached (${MAX_INVITES})` }, 429);
+      if (total >= MAX_INVITES) return json({ error: `Invite limit reached (${MAX_INVITES})` }, 429, req);
       let au = await findUser(email);
       if (!au) {
         const r = body.sendEmail
           ? await f(`${base}/auth/v1/invite`, { method: 'POST', headers: S, body: JSON.stringify({ email }) })
           : await f(`${base}/auth/v1/admin/users`, { method: 'POST', headers: S, body: JSON.stringify({ email, email_confirm: true }) });
-        if (!r.ok) { const t = await r.text(); return json({ error: 'Could not create the invited account: ' + t.slice(0, 200) }, 502); }
+        if (!r.ok) { const t = await r.text(); return json({ error: 'Could not create the invited account: ' + t.slice(0, 200) }, 502, req); }
         au = await r.json();
       }
       const rawName = body.firstName != null ? body.firstName : body.note;
@@ -80,7 +85,7 @@ export async function handle(req, env, f = fetch) {
       const ins = await rest('invites?on_conflict=email', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
         body: JSON.stringify(row) });
       if (!ins.ok) throw new Error('Could not save the invite');
-      return json({ ok: true, email, firstName: note || '', existed: !!au.last_sign_in_at, emailed: !!body.sendEmail });
+      return json({ ok: true, email, firstName: note || '', existed: !!au.last_sign_in_at, emailed: !!body.sendEmail }, 200, req);
     }
 
     if (body.action === 'set_name') {
@@ -88,11 +93,11 @@ export async function handle(req, env, f = fetch) {
       const up = await rest(`invites?email=eq.${encodeURIComponent(email)}`, { method: 'PATCH', body: JSON.stringify({ note: name || null }) });
       if (!up.ok) throw new Error('Could not save the name');
       const rows = await up.json();
-      if (!Array.isArray(rows) || !rows.length) return json({ error: 'Invite not found' }, 404);
-      return json({ ok: true, email, firstName: name });
+      if (!Array.isArray(rows) || !rows.length) return json({ error: 'Invite not found' }, 404, req);
+      return json({ ok: true, email, firstName: name }, 200, req);
     }
     if (body.action === 'revoke' || body.action === 'restore') {
-      if (email === normEmail(me.email)) return json({ error: 'You can\'t revoke your own access' }, 400);
+      if (email === normEmail(me.email)) return json({ error: 'You can\'t revoke your own access' }, 400, req);
       const au = await findUser(email);
       if (au) {
         const r = await f(`${base}/auth/v1/admin/users/${au.id}`, { method: 'PUT', headers: S,
@@ -107,10 +112,10 @@ export async function handle(req, env, f = fetch) {
       }
       const up = await rest(`invites?email=eq.${encodeURIComponent(email)}`, { method: 'PATCH', body: JSON.stringify({ status }) });
       if (!up.ok) throw new Error('Could not update the invite');
-      return json({ ok: true });
+      return json({ ok: true }, 200, req);
     }
-    return json({ error: 'Unknown action' }, 400);
-  } catch (e) { return json({ error: String(e && e.message || e) }, 500); }
+    return json({ error: 'Unknown action' }, 400, req);
+  } catch (e) { return json({ error: String(e && e.message || e) }, 500, req); }
 }
 
 const D = globalThis.Deno;
