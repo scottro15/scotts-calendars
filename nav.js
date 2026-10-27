@@ -322,7 +322,11 @@
       setTimeout(renderTodo, reduceMotion() ? 0 : 380); return;
     }
     if (e.target.closest('.td-title')) {
-      if (row.dataset.ev) a.openEditor(row.dataset.ev, row.dataset.key);
+      // Prefer the quick-add sheet in edit mode (same options as create). Fall back to the full editor/inbox dialog.
+      if (window.SandyQuickSheet && SandyQuickSheet.openEdit) {
+        if (row.dataset.ev) SandyQuickSheet.openEdit({ type: 'task', id: row.dataset.ev, key: row.dataset.key });
+        else SandyQuickSheet.openEdit({ type: 'inbox', id: row.dataset.inbox });
+      } else if (row.dataset.ev) a.openEditor(row.dataset.ev, row.dataset.key);
       else editInbox((Inbox.cache || []).find(x => x.id === row.dataset.inbox));
     }
   }
@@ -432,6 +436,72 @@
     const saved = await Inbox.save(item);
     return { sel: `[data-inbox="${CSS.escape(item.id)}"]`, msg: `Added “${body.split('\n')[0].slice(0, 60)}” to ${o.calendar && a.cal(o.calendar) ? a.cal(o.calendar).name : 'Inbox'}`, item: saved || item };
   }
+
+  // Update an existing scheduled to-do or Inbox jot from the quick-sheet edit mode.
+  // opts: same as saveQuick + { edit: { type:'task'|'inbox', id, key?, ev?, item? } }
+  async function saveEdit(o) {
+    const a = A(); const ed = o.edit; if (!ed || !ed.id) throw new Error('Nothing to edit');
+    const p = o.parsed || parseQuick(o.raw, o.kind);
+    const date = o.date !== undefined ? o.date : p.date, time = o.time !== undefined ? o.time : p.time;
+    const categoryId = (p.category && p.category.id) || o.categoryId || null;
+    const priority = o.priority || p.priority || 4;
+    const desc = (o.description || '').trim();
+    const title = (p.title || o.raw.trim()).slice(0, 200);
+    const wantDated = !!(date && o.kind !== 'note');
+
+    if (ed.type === 'task') {
+      const ev = ed.ev || await a.Store.get(ed.id); if (!ev) throw new Error('To-do not found');
+      if (!wantDated) {
+        // Cleared the date → move back to Inbox
+        const body = (o.kind === 'note' ? o.raw.trim() : title) + (desc ? '\n' + desc : '');
+        const item = { id: uid(), body, kind: o.kind || 'todo', calendar: o.calendar || null, categoryId, done: false, createdAt: new Date().toISOString() };
+        if (priority !== 4) item.priority = priority;
+        await Inbox.save(item);
+        await a.Store.remove(ev.id);
+        if (a.refresh) a.refresh();
+        return { sel: `[data-inbox="${CSS.escape(item.id)}"]`, msg: 'Moved to Inbox', item, reminders: [] };
+      }
+      const start = time ? `${date}T${time}` : date;
+      const next = {
+        ...ev, kind: 'task', title, calendar: o.calendar && a.cal(o.calendar) ? o.calendar : (a.cal(ev.calendar) ? ev.calendar : a.firstVisibleCal()),
+        allDay: !time, start, end: start, notes: desc, todoCategoryId: categoryId,
+        reminders: o.reminders || [], priority: priority !== 4 ? priority : null,
+      };
+      await a.Store.save(next); if (a.refresh) a.refresh();
+      if (window.__app && typeof window.__app.afterReminders === 'function') window.__app.afterReminders(next.reminders);
+      else if (next.reminders && next.reminders.length && window.SandyPush) SandyPush.nudge();
+      return { sel: `[data-ev="${CSS.escape(next.id)}"]`, msg: 'Saved', ev: next, reminders: next.reminders };
+    }
+
+    // inbox jot
+    const it = ed.item || (Inbox.cache || []).find(x => x.id === ed.id);
+    if (!it) throw new Error('To-do not found');
+    if (wantDated) {
+      const start = time ? `${date}T${time}` : date;
+      const ev = {
+        id: uid(), kind: 'task', title, calendar: o.calendar && a.cal(o.calendar) ? o.calendar : a.firstVisibleCal(),
+        allDay: !time, start, end: start, recurrence: { freq: 'none', interval: 1 }, location: '', notes: desc,
+        todoCategoryId: categoryId, reminders: o.reminders || [],
+      };
+      if (priority !== 4) ev.priority = priority;
+      await a.Store.save(ev);
+      await Inbox.remove(it.id).catch(() => {});
+      if (a.refresh) a.refresh();
+      if (ev.reminders && ev.reminders.length && window.SandyPush) SandyPush.nudge();
+      return { sel: `[data-ev="${CSS.escape(ev.id)}"]`, msg: 'Scheduled', ev, reminders: ev.reminders };
+    }
+    const body = (o.kind === 'note' ? o.raw.trim() : title) + (desc ? '\n' + desc : '');
+    const next = { ...it, body, kind: o.kind || 'todo', calendar: o.calendar || null, categoryId, priority: priority !== 4 ? priority : null };
+    const saved = await Inbox.save(next);
+    return { sel: `[data-inbox="${CSS.escape(it.id)}"]`, msg: 'Saved', item: saved || next, reminders: [] };
+  }
+
+  async function deleteTodoTarget(ed) {
+    const a = A(); if (!ed || !ed.id) return;
+    if (ed.type === 'task') { await a.Store.remove(ed.id); if (a.refresh) a.refresh(); }
+    else await Inbox.remove(ed.id);
+  }
+
   async function quickAdd(e) {
     e.preventDefault();
     const raw = $('qaText').value.trim(); if (!raw) { $('qaText').focus(); return; }
@@ -969,5 +1039,5 @@
     wire(); setDark(document.documentElement.classList.contains('dark'));
     const poll = setInterval(() => { const a = A(); if (a && a.calendar && a.Store) { clearInterval(poll); start(); } }, 50);
   });
-  window.SandyNav = { go, get tab() { return tab; }, renderTodo, parseQuick, saveQuick, fmtTime, todoUI, renderToday, renderSearch, setDark, Inbox, Cats };
+  window.SandyNav = { go, get tab() { return tab; }, renderTodo, parseQuick, saveQuick, saveEdit, deleteTodoTarget, fmtTime, todoUI, renderToday, renderSearch, setDark, Inbox, Cats };
 })();

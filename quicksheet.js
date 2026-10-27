@@ -26,7 +26,7 @@
   };
   const PRI = { 1: '#d1453b', 2: '#eb8909', 3: '#246fe0', 4: '' };
   const REM = [['', 'No reminder'], ['0', 'At time of task'], ['10', '10 minutes before'], ['30', '30 minutes before'], ['60', '1 hour before'], ['1440', '1 day before']];
-  const st = { open: false, disabled: new Set(), prev: new Set(), date: undefined, priority: 4, cat: '', rem: '', kind: 'todo', cal: '' };
+  const st = { open: false, edit: null, disabled: new Set(), prev: new Set(), date: undefined, priority: 4, cat: '', rem: '', kind: 'todo', cal: '' };
 
   function build() {
     const fab = document.createElement('button');
@@ -49,6 +49,7 @@
         <div class="qs-foot">
           <label class="qs-proj" id="qsCalChip">${ICON.inbox}<span id="qsCalLbl">Inbox</span><span class="qs-caret" aria-hidden="true">▾</span><select id="qsCal" aria-label="Add to"></select></label>
           <span id="qsKindLbl" class="qs-kind" hidden>Note</span>
+          <button id="qsDelete" class="qs-del" type="button" hidden>Delete</button>
           <button id="qsSend" class="qs-send" type="submit" aria-label="Add task" disabled>${ICON.send}</button>
         </div>
       </form>`;
@@ -68,7 +69,12 @@
   const parsed = () => N().parseQuick($('qsText').value, st.kind, st.disabled);
   function effective(p) {
     const date = st.kind === 'note' ? null : (st.date !== undefined ? st.date : p.date);
-    const time = date && st.date === undefined ? p.time : null;
+    // Manual date chip clears parsed time; edit mode may keep the event's existing clock time.
+    let time = null;
+    if (date) {
+      if (st.date === undefined) time = p.time || null;
+      else if (st._editTime) time = st._editTime;
+    }
     return { date, time, priority: p.priority || st.priority, catId: (p.category && p.category.id) || st.cat || null };
   }
   function paint() {
@@ -103,7 +109,8 @@
     $('qsKindLbl').hidden = st.kind !== 'note';
     inp.placeholder = st.kind === 'note' ? 'Note' : 'Task name';
     $('qsSend').disabled = !text.trim();
-    $('qsSend').setAttribute('aria-label', st.kind === 'note' ? 'Add note' : 'Add task');
+    if (st.edit) { $('qsSend').setAttribute('aria-label', 'Save'); }
+    else $('qsSend').setAttribute('aria-label', st.kind === 'note' ? 'Add note' : 'Add task');
   }
   function fillSelects() {
     const a = A(); const t = today();
@@ -112,7 +119,7 @@
     $('qsDate').innerHTML = `<option value="~">Date…</option><option value="${t}">Today</option><option value="${addDays(t, 1)}">Tomorrow</option><option value="${wk}">This weekend</option><option value="${nw}">Next week</option><option value="pick">Pick a date…</option><option value="none">No date</option>`;
     $('qsDate').value = '~';
     const cats = N().Cats.cache || [];
-    $('qsCat').innerHTML = `<option value="">No category</option>` + cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+    $('qsCat').innerHTML = `<option value="">No category</option>` + cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('') + `<option value="__new__">+ New category…</option>`;
     $('qsCal').innerHTML = `<option value="">Inbox</option>` + a.calendars().map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
     $('qsCal').value = st.cal || '';
   }
@@ -126,38 +133,123 @@
   }
 
   // ---------- open / close
-  function open() {
-    if (st.open) { $('qsText').focus(); return; }
+  function syncEditChrome() {
+    const editing = !!st.edit;
+    const sh = $('qsSheet');
+    sh.classList.toggle('qs-editing', editing);
+    sh.setAttribute('aria-label', editing ? 'Edit to-do' : 'Quick add');
+    const del = $('qsDelete'); if (del) del.hidden = !editing;
+    const send = $('qsSend');
+    if (editing) {
+      send.innerHTML = 'Save'; send.classList.add('qs-save');
+      send.setAttribute('aria-label', 'Save');
+      send.disabled = !$('qsText').value.trim();
+    } else {
+      send.innerHTML = ICON.send; send.classList.remove('qs-save');
+      send.setAttribute('aria-label', st.kind === 'note' ? 'Add note' : 'Add task');
+    }
+  }
+  function showSheet(focus) {
     st.open = true; const sh = $('qsSheet'), bd = $('qsBackdrop');
-    const f = N().todoUI && N().todoUI.filter; st.cal = f && f !== 'all' && f !== 'inbox' && A().cal(f) ? f : '';
-    fillSelects();
+    fillSelects(); syncEditChrome();
     sh.hidden = false; bd.hidden = false; sh.style.transform = '';
     document.body.classList.add('qs-open');
-    $('qsText').focus({ preventScroll: true }); // synchronous, inside the tap: iOS Safari only shows the keyboard this way
-    paint(); kb();
+    if (focus) $('qsText').focus({ preventScroll: true });
+    paint(); kb(); syncEditChrome();
     if (reduce()) { sh.classList.add('open'); bd.classList.add('open'); }
     else { void sh.offsetWidth; sh.classList.add('open'); bd.classList.add('open'); }
     clearTimeout(st.hideT);
+  }
+  function open() {
+    if (st.open && !st.edit) { $('qsText').focus(); return; }
+    if (st.open && st.edit) close();
+    st.edit = null; reset();
+    const f = N().todoUI && N().todoUI.filter; st.cal = f && f !== 'all' && f !== 'inbox' && A().cal(f) ? f : '';
+    showSheet(true);
+  }
+  async function openEdit(target) {
+    if (!target || !target.id) return;
+    const a = A(), n = N();
+    let edit = { type: target.type, id: target.id, key: target.key || null, ev: null, item: null };
+    reset();
+    if (target.type === 'task') {
+      const ev = await a.Store.get(target.id); if (!ev) { a.toast('To-do not found'); return; }
+      edit.ev = ev;
+      const start = target.key && a.occurrences
+        ? (function () { try { const os = (a.occurrenceStart || (() => null)); return null; } catch (_) { return null; } })()
+        : null;
+      // Prefer the row's occurrence key date when present; else the event start.
+      let ymd = (ev.start || '').slice(0, 10), time = null;
+      if (target.key && /^\d{4}-\d{2}-\d{2}/.test(target.key)) ymd = target.key.slice(0, 10);
+      if (!ev.allDay && ev.start && ev.start.length >= 16) time = ev.start.slice(11, 16);
+      $('qsText').value = ev.title || '';
+      $('qsDesc').value = ev.notes || '';
+      st.kind = 'todo';
+      st.date = ymd || null;
+      st.priority = (ev.priority >= 1 && ev.priority <= 3) ? ev.priority : 4;
+      st.cat = ev.todoCategoryId || '';
+      st.cal = ev.calendar || '';
+      const rems = Array.isArray(ev.reminders) ? ev.reminders : [];
+      st.rem = rems.length ? String(rems[0]) : '';
+      if (time) {
+        // Keep natural-language time in the title chips by appending a readable time if not already present
+        // Actual time is stored via st + parse; force via a hidden hint: put HH:MM into disabled-free parse by setting st and disabling auto time from title
+        st._editTime = time;
+      } else st._editTime = null;
+    } else {
+      const it = (n.Inbox.cache || []).find(x => x.id === target.id);
+      if (!it) { a.toast('To-do not found'); return; }
+      edit.item = it;
+      const lines = String(it.body || '').split('\n');
+      $('qsText').value = lines[0] || '';
+      $('qsDesc').value = lines.slice(1).join('\n');
+      st.kind = it.kind === 'note' ? 'note' : 'todo';
+      st.date = null; // Inbox = no date
+      st.priority = (it.priority >= 1 && it.priority <= 3) ? it.priority : 4;
+      st.cat = it.categoryId || '';
+      st.cal = it.calendar || '';
+      st.rem = '';
+      st._editTime = null;
+    }
+    st.edit = edit;
+    if (st.open) { fillSelects(); syncEditChrome(); paint(); kb(); $('qsText').focus({ preventScroll: true }); return; }
+    showSheet(true);
   }
   function close() {
     if (!st.open) return; st.open = false; const sh = $('qsSheet'), bd = $('qsBackdrop');
     const ae = document.activeElement; if (ae && sh.contains(ae)) ae.blur();
     sh.classList.remove('open'); bd.classList.remove('open'); document.body.classList.remove('qs-open');
-    const done = () => { if (!st.open) { sh.hidden = true; bd.hidden = true; sh.style.transform = ''; } };
+    const wasEdit = !!st.edit;
+    const done = () => { if (!st.open) { sh.hidden = true; bd.hidden = true; sh.style.transform = ''; if (wasEdit) { st.edit = null; reset(); syncEditChrome(); } } };
     clearTimeout(st.hideT); if (reduce()) done(); else st.hideT = setTimeout(done, 280);
-    $('todoFab').focus({ preventScroll: true });
+    if (!wasEdit) $('todoFab').focus({ preventScroll: true });
   }
   function reset() {
-    $('qsText').value = ''; $('qsDesc').value = ''; st.disabled.clear(); st.date = undefined; st.priority = 4; st.cat = ''; st.rem = ''; $('qsDate').value = '~';
+    $('qsText').value = ''; $('qsDesc').value = ''; st.disabled.clear(); st.date = undefined; st.priority = 4; st.cat = ''; st.rem = ''; st.kind = 'todo'; st._editTime = null; $('qsDate').value = '~';
   }
 
-  // ---------- submit (Enter or the send arrow); the sheet stays open for the next one
+  // ---------- submit (Enter or the send arrow); create keeps the sheet open, edit saves & closes
   async function submit(e) {
     if (e) e.preventDefault();
     const raw = $('qsText').value.trim(); if (!raw) return;
     const p = parsed(); const ef = effective(p);
+    // In edit mode, prefer an explicit time captured from the existing event when the title didn't parse one
+    let time = ef.time;
+    if (st.edit && !time && st._editTime && ef.date) time = st._editTime;
     const opts = { raw, parsed: p, kind: st.kind, categoryId: ef.catId, calendar: st.cal || null, priority: ef.priority,
-      reminders: ef.date && st.rem !== '' ? [+st.rem] : [], description: $('qsDesc').value, date: ef.date, time: ef.time };
+      reminders: ef.date && st.rem !== '' ? [+st.rem] : [], description: $('qsDesc').value, date: ef.date, time };
+    if (st.edit) {
+      try {
+        const r = await N().saveEdit({ ...opts, edit: st.edit });
+        A().toast(r.msg || 'Saved');
+        close();
+        await N().renderTodo();
+        const row = document.querySelector(r.sel);
+        if (row) { row.classList.add('just-added'); row.scrollIntoView({ block: 'center', behavior: reduce() ? 'auto' : 'smooth' }); }
+        document.dispatchEvent(new CustomEvent('sandy:quickedited', { detail: r }));
+      } catch (err) { A().toast('Could not save: ' + err.message); }
+      return;
+    }
     const undo = { text: $('qsText').value, desc: $('qsDesc').value, date: st.date, priority: st.priority, cat: st.cat, rem: st.rem };
     // clear at once (before the network) so the next task can be typed straight away - rapid entry never loses text
     reset(); paint(); $('qsText').focus({ preventScroll: true });
@@ -172,6 +264,30 @@
       if (!$('qsText').value) { $('qsText').value = undo.text; $('qsDesc').value = undo.desc; Object.assign(st, { date: undo.date, priority: undo.priority, cat: undo.cat, rem: undo.rem }); paint(); }
       A().toast('Could not save: ' + err.message);
     }
+  }
+  async function removeEdit() {
+    if (!st.edit) return;
+    if (!window.confirm('Delete this to-do?')) return;
+    try {
+      await N().deleteTodoTarget(st.edit);
+      A().toast('Deleted');
+      close();
+      await N().renderTodo();
+    } catch (err) { A().toast('Could not delete: ' + err.message); }
+  }
+  async function newCategory() {
+    const name = (window.prompt('New category name') || '').trim();
+    if (!name) { $('qsCat').value = st.cat || ''; return; }
+    try {
+      if (!N().Cats.available) { A().toast('Categories turn on after the database update.'); $('qsCat').value = st.cat || ''; return; }
+      const COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280'];
+      const cats = N().Cats.cache || [];
+      const id = (crypto.randomUUID ? crypto.randomUUID() : 'c' + Date.now() + Math.random().toString(16).slice(2));
+      const c = await N().Cats.save({ id, name: name.slice(0, 40), color: COLORS[cats.length % COLORS.length], sort: cats.length, createdAt: new Date().toISOString() });
+      st.cat = c.id;
+      fillSelects(); $('qsCat').value = c.id; paint();
+      A().toast('Category “' + c.name + '” added');
+    } catch (err) { A().toast(err.message || String(err)); $('qsCat').value = st.cat || ''; }
   }
 
   // ---------- swipe the sheet down to dismiss
@@ -201,6 +317,7 @@
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => fab.addEventListener(t, () => setTimeout(() => fab.classList.remove('pressed'), 120)));
     fab.addEventListener('click', open);
     $('qsBackdrop').addEventListener('click', close);
+    $('qsDelete').addEventListener('click', removeEdit);
     $('qsForm').addEventListener('submit', submit);
     inp.addEventListener('input', paint);
     inp.addEventListener('scroll', () => { $('qsHl').scrollTop = inp.scrollTop; });
@@ -217,12 +334,12 @@
     $('qsDate').addEventListener('change', e => {
       const v = e.target.value;
       if (v === 'pick') { const pk = $('qsDatePick'); pk.value = effective(st.p || parsed()).date || today(); try { pk.showPicker(); } catch (_) { pk.focus(); pk.click(); } }
-      else if (v === 'none') st.date = null; else if (v !== '~') st.date = v;
+      else if (v === 'none') { st.date = null; st._editTime = null; } else if (v !== '~') { st.date = v; /* keep _editTime if editing same-day clock */ }
       e.target.value = '~'; paint();
     });
     $('qsDatePick').addEventListener('change', e => { if (e.target.value) { st.date = e.target.value; paint(); } });
     $('qsPri').addEventListener('change', e => { st.priority = +e.target.value; const p = st.p; if (p && p.priority) { const t = p.tokens.find(x => x.kind === 'priority'); if (t) st.disabled.add(t.key); } paint(); });
-    $('qsCat').addEventListener('change', e => { st.cat = e.target.value; const p = st.p; if (p && p.category) { const t = p.tokens.find(x => x.kind === 'category'); if (t) st.disabled.add(t.key); } paint(); });
+    $('qsCat').addEventListener('change', e => { if (e.target.value === '__new__') { newCategory(); return; } st.cat = e.target.value; const p = st.p; if (p && p.category) { const t = p.tokens.find(x => x.kind === 'category'); if (t) st.disabled.add(t.key); } paint(); });
     $('qsRem').addEventListener('change', e => { st.rem = e.target.value; if (st.rem !== '' && !effective(st.p || parsed()).date) st.date = today(); paint(); });
     $('qsCal').addEventListener('change', e => { st.cal = e.target.value; paint(); });
     $('qsMore').addEventListener('change', async e => {
@@ -237,7 +354,7 @@
     });
     swipe();
     if (window.visualViewport) { visualViewport.addEventListener('resize', kb); visualViewport.addEventListener('scroll', kb); }
-    window.SandyQuickSheet = { open, close, layout: kb, get isOpen() { return st.open; }, state: st };
+    window.SandyQuickSheet = { open, openEdit, close, layout: kb, get isOpen() { return st.open; }, get editing() { return !!st.edit; }, state: st };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

@@ -1498,6 +1498,12 @@ html.dark .qs-sheet { background: var(--qs-bg); box-shadow: 0 -8px 30px rgba(0, 
 .qs-send:active:not(:disabled) { transform: scale(.9); }
 .qs-send:disabled, html.dark .qs-send:disabled { background: var(--qs-line); color: var(--qs-ph); cursor: default; opacity: 1; }
 html.dark .qs-send { background: var(--fab); color: #fff; }
+.qs-send.qs-save { width: auto; min-width: 64px; padding: 0 16px; border-radius: 20px; font: 700 14px/1 system-ui, sans-serif; letter-spacing: .01em; }
+.qs-del { border: 0; background: none; color: #dc2626; font: 600 14px/1 system-ui, sans-serif; padding: 8px 10px; border-radius: 10px; cursor: pointer; margin-left: auto; }
+.qs-del:hover, .qs-del:focus-visible { background: rgba(220, 38, 38, .1); }
+html.dark .qs-del { color: #f87171; }
+.qs-editing .qs-send { margin-left: 0; }
+
 .td-pri { display: inline-flex; align-items: center; gap: 2px; font-weight: 600; font-size: 12px; color: var(--muted); }
 .td-pri svg { color: var(--p); } .td-p1 { --p: #d1453b; } .td-p2 { --p: #eb8909; } .td-p3 { --p: #246fe0; }
 @media (prefers-reduced-motion: reduce) { .todo-fab, .qs-backdrop, .qs-sheet, .qs-send { transition: none !important; } }
