@@ -13,7 +13,8 @@
   function whenReady(fn) { if (window.__app) fn(); else setTimeout(() => whenReady(fn), 50); }
 
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const t12 = d => { let h = d.getUTCHours(); const m = d.getUTCMinutes(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return m ? `${h}:${String(m).padStart(2, '0')} ${ap}` : `${h} ${ap}`; };
+  const t12fixed = d => { let h = d.getUTCHours(); const m = d.getUTCMinutes(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return m ? `${h}:${String(m).padStart(2, '0')} ${ap}` : `${h} ${ap}`; };
+  const t12 = d => (window.SandyTime ? SandyTime.fmt(d, { compact: true }) : t12fixed(d)); // follows Profile → Time format
   const fmtDay = k => A.parseLocal(k).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
   const fmtWhen = s => { if (!s) return ''; const d = A.parseLocal(s); return s.length > 10 ? `${fmtDay(s.slice(0, 10))}, ${t12(d)}` : fmtDay(s); };
   const calName = id => { const c = A.calendars().find(x => x.id === id); return c ? (c.short || c.name) : id; };
@@ -100,7 +101,7 @@
       }
     }
     events.sort((a, b) => a.start < b.start ? -1 : 1);
-    return { timeZone: A.timeZone ? A.timeZone() : 'America/Chicago', today: A.ymd(today), now: `${A.ymd(now)} ${t12(now)}`, calendars: A.calendars().map(c => ({ id: c.id, name: c.name })), events };
+    return { timeZone: A.timeZone ? A.timeZone() : 'America/Chicago', today: A.ymd(today), now: `${A.ymd(now)} ${t12fixed(now)}`, calendars: A.calendars().map(c => ({ id: c.id, name: c.name })), events };
   }
 
   async function token() {
@@ -213,7 +214,7 @@
   const whenLabel = iso => {
     const d = new Date(iso); if (isNaN(d)) return '';
     const tz = (A.timeZone && A.timeZone()) || undefined; const day = x => x.toLocaleDateString('en-CA', { timeZone: tz });
-    const now = new Date(); const t = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz });
+    const now = new Date(); const t = window.SandyTime ? SandyTime.fmtIn(d, tz || 'America/Chicago') : d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz });
     if (day(d) === day(now)) return 'Today ' + t;
     if (day(d) === day(new Date(now.getTime() - DAY))) return 'Yesterday ' + t;
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}), timeZone: tz });

@@ -10,7 +10,7 @@
   'use strict';
   const EVENING_HOUR = 18, EARLY_HOUR = 8, MAX_PREP = 6;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const t12 = d => { let h = d.getUTCHours(); const m = d.getUTCMinutes(); const ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12; return `${h}:${String(m).padStart(2, '0')} ${ap}`; };
+  const t12 = d => (window.SandyTime ? SandyTime.fmt(d) : (() => { let h = d.getUTCHours(); const m = d.getUTCMinutes(); const ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12; return `${h}:${String(m).padStart(2, '0')} ${ap}`; })());
   const ckKey = t => t.toLowerCase().replace(/\s+/g, ' ').trim();
   const CHECK_RE = /^\s*[-*]\s*\[( |x|X)?\]\s*(.+?)\s*$/;
   const PREP_RE = /^\s*(?:[-*•]\s*)?((?:bring|pack|wear|remember|need|don['’]?t forget)\b.*?)\s*$/i;

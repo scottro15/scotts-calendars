@@ -298,6 +298,9 @@
   let coldListUntil = initialViewType.startsWith('list') && !params.get('review') ? Date.now() + 4000 : 0;
   const stopCold = () => { coldListUntil = 0; };
   ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(t => window.addEventListener(t, stopCold, { passive: true, once: true }));
+  // 12h / 24h (Profile → Time format; timefmt.js)
+  const fcEventFmt = () => (window.SandyTime ? SandyTime.fcEvent() : { hour: 'numeric', minute: '2-digit', meridiem: 'short' });
+  const fcSlotFmt = () => (window.SandyTime ? SandyTime.fcSlot() : { hour: 'numeric', minute: '2-digit', omitZeroMinute: true, meridiem: 'short' });
   const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
     timeZone: 'UTC',          // see "Date helpers": UTC fields == Chicago wall clock
     now: () => nowWall(),     // so "today" and the now-line are Chicago's, on any device
@@ -314,7 +317,7 @@
     selectable: true,
     scrollTime: '06:00:00',
     slotMinTime: '05:00:00',
-    eventTimeFormat: { hour: 'numeric', minute: '2-digit', meridiem: 'short' },
+    eventTimeFormat: fcEventFmt(), slotLabelFormat: fcSlotFmt(),
     events: async (info, ok, fail) => {
       try { ok(await buildFcEvents(info.start, info.end)); } catch (err) { console.error(err); fail(err); }
     },
@@ -378,12 +381,17 @@
     timeZone: 'UTC', now: () => nowWall(), headerToolbar: false, height: 'auto', firstDay: 0, nowIndicator: true,
     dayMaxEvents: true, editable: false, selectable: false, scrollTime: '06:00:00', slotMinTime: '05:00:00',
     views: { timeGridDay: { dayHeaderFormat: { weekday: 'long' } } },
-    eventTimeFormat: { hour: 'numeric', minute: '2-digit', meridiem: 'short' },
+    eventTimeFormat: fcEventFmt(), slotLabelFormat: fcSlotFmt(),
     events: async (info, ok, fail) => { try { ok(await buildFcEvents(info.start, info.end)); } catch (err) { fail(err); } },
     eventDidMount: info => { const cc = CAL[info.event.extendedProps.calendar]?.color; if (cc) { info.el.style.setProperty('--cal', cc); info.el.classList.add('sandy-tint'); }
       if (info.event.extendedProps.game && window.SandyGames) SandyGames.decorate(info.el, info.event.extendedProps.game, info.view.type); },
   };
   const ghosts = {};
+  window.addEventListener('sandy:timeformat', () => {
+    ghostOpts.eventTimeFormat = fcEventFmt(); ghostOpts.slotLabelFormat = fcSlotFmt();
+    for (const c of [calendar, ghosts[1] && ghosts[1].cal, ghosts[-1] && ghosts[-1].cal]) if (c) { c.setOption('eventTimeFormat', fcEventFmt()); c.setOption('slotLabelFormat', fcSlotFmt()); }
+    if (typeof refresh === 'function') refresh();
+  });
   for (const d of [1, -1]) {
     const g = document.createElement('div'); g.className = 'swipe-ghost'; g.dataset.dir = d > 0 ? 'next' : 'prev'; g.setAttribute('aria-hidden', 'true');
     stage.appendChild(g); ghosts[d] = { el: g, cal: null, key: '' };
@@ -522,7 +530,7 @@
   window.addEventListener('resize', () => syncStickyOffsets());
   if (window.ResizeObserver) new ResizeObserver(() => syncStickyOffsets()).observe(document.querySelector('.topbar') || document.body);
   function scheduleListDecorate() { cancelAnimationFrame(listDecoTimer); listDecoTimer = requestAnimationFrame(decorateList); }
-  const fmtNow = d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+  const fmtNow = d => (window.SandyTime ? SandyTime.fmt(d) : d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }));
   function decorateList() {
     const root = document.getElementById('calendar');
     if (listDecorating) return; listDecorating = true;
@@ -763,7 +771,7 @@
     if (scope === 'season') return seasonPeriod(briefSeason || seasonOf(ref), ref);
     return periodFor(scope, ref);
   }
-  const fmtTime = d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+  const fmtTime = d => (window.SandyTime ? SandyTime.fmt(d) : d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }));
   const fmtLong = d => d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
   const fmtShort = (d, yr) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(yr ? { year: 'numeric' } : {}), timeZone: 'UTC' });
   function periodTitle(scope, ps, pe, ref) {

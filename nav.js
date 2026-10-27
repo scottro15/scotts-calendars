@@ -19,7 +19,7 @@
   const DAY = 864e5;
   const TABS = ['home', 'today', 'todo', 'search', 'profile'];
   const reduceMotion = () => document.documentElement.classList.contains('reduce-motion') || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const t12 = d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+  const t12 = d => (window.SandyTime ? SandyTime.fmt(d) : d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }));
   const toast = m => A() && A().toast(m);
   let tab = 'home', homeState = null, ready = false;
 
@@ -341,12 +341,12 @@
   }
   // ---- Smart quick add (Todoist-style): recognized dates, times and categories show as blue chips while typing.
   const qa = { disabled: new Set(), parsed: null, prev: new Set() };
-  const fmtTime = hm => { const [h, m] = hm.split(':').map(Number); return `${(h % 12) || 12}${m ? ':' + String(m).padStart(2, '0') : ''} ${h < 12 ? 'AM' : 'PM'}`; };
+  const fmtTime = hm => { if (window.SandyTime) return SandyTime.fmtHM(hm, { compact: true }); const [h, m] = hm.split(':').map(Number); return `${(h % 12) || 12}${m ? ':' + String(m).padStart(2, '0') : ''} ${h < 12 ? 'AM' : 'PM'}`; };
   // shared by the inline quick add and the To-Do "+" sheet (quicksheet.js)
   function parseQuick(text, kind = 'todo', disabled = new Set()) {
     const a = A();
     if (!window.SandyParse || !a) return { tokens: [], date: null, time: null, category: null, priority: null, title: text.trim() };
-    const p = window.SandyParse.parse(text, { now: a.nowWall(), categories: Cats.available ? (Cats.cache || []) : [], disabled });
+    const p = window.SandyParse.parse(text, { now: a.nowWall(), categories: Cats.available ? (Cats.cache || []) : [], disabled, h24: !!(window.SandyTime && SandyTime.is24()) });
     if (kind === 'note') { p.tokens = p.tokens.filter(t => t.kind === 'category'); p.date = p.time = null; p.priority = null; p.title = text.trim(); }
     return p;
   }
@@ -448,6 +448,7 @@
   const SETTINGS = [
     ['Dark mode', 'dark theme night appearance colors', 'appearanceSection', 'darkToggle'],
     ['Default view', 'home start view last used day week month season list', 'appearanceSection', 'defaultView'],
+    ['Time format', 'time format 12 hour 24 hour military clock am pm', 'appearanceSection', 'timeFormat'],
     ['Profile picture', 'avatar photo picture image', 'page-profile', 'avatarBtn'],
     ['Change email', 'email address account login', 'page-profile', 'pfEmailBtn'],
     ['Calendars: show / hide / add', 'calendars toggle visible add new color rename manage', 'calSection', 'toggleAll'],
@@ -652,6 +653,7 @@
     $('pfEmailBtn').hidden = !(u && sbc());
     $('darkToggle').checked = document.documentElement.classList.contains('dark');
     let dv = 'last'; try { dv = localStorage.getItem('sandy.defaultView') || 'last'; } catch (_) {} $('defaultView').value = dv;
+    if (window.SandyTime && $('timeFormat')) { $('timeFormat').value = SandyTime.pref(); $('timeFmtNote').textContent = `Auto follows your phone (now ${SandyTime.label()})`; }
     if (!profileOnce) { profileOnce = true; showAvatar(await avatarUrl()); }
     if (window.SandyLeave) SandyLeave.getHome().then(h => { const i = $('homeAddr'); if (i && document.activeElement !== i) i.value = h ? h.address : ''; }).catch(() => {});
     paintLeaveAlerts();
@@ -729,6 +731,10 @@
     $('homeForm').addEventListener('submit', e => { e.preventDefault(); saveHome($('homeAddr').value); });
     $('homeClear').addEventListener('click', () => saveHome(''));
     ['leaveAlerts', 'leaveEarly', 'leaveUseLoc'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', leaveSwitch); });
+    if ($('timeFormat')) $('timeFormat').addEventListener('change', e => {
+      if (!window.SandyTime) return; SandyTime.set(e.target.value);
+      toast(e.target.value === 'auto' ? `Times follow your phone (${SandyTime.label()})` : `Times show as ${e.target.value}-hour`);
+    });
     $('defaultView').addEventListener('change', e => { try { localStorage.setItem('sandy.defaultView', e.target.value); } catch (_) {} toast(e.target.value === 'last' ? 'Home opens the view you used last' : 'Home view saved'); });
     $('avatarBtn').addEventListener('click', () => $('avatarFile').click());
     $('avatarFile').addEventListener('change', e => { uploadAvatar(e.target.files[0]); e.target.value = ''; });

@@ -15,7 +15,7 @@
   const WX_URL = 'https://api.open-meteo.com/v1/forecast', WX_KEY = 'sandy.wx.v1', WX_TTL = HOUR;
   const MARYVILLE = { address: 'Maryville University, 650 Maryville University Dr, St. Louis, MO 63141', label: 'Maryville University' };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const t12 = d => { let h = d.getUTCHours(); const m = d.getUTCMinutes(); const ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12; return `${h}:${String(m).padStart(2, '0')} ${ap}`; };
+  const t12 = d => (window.SandyTime ? SandyTime.fmt(d) : (() => { let h = d.getUTCHours(); const m = d.getUTCMinutes(); const ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12; return `${h}:${String(m).padStart(2, '0')} ${ap}`; })());
   const dayLbl = (d, today) => { const n = Math.round((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - today.getTime()) / DAY);
     return n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : new Date(d.getTime()).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }); };
   const ymd = d => d.toISOString().slice(0, 10);

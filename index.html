@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <title>SANDY — the scheduling app</title>
-  <link rel="stylesheet" href="styles.css?v=20261026-jennings">
+  <link rel="stylesheet" href="styles.css?v=20261026-24h">
   <!-- FullCalendar v6 is vendored locally (vendor/) so the app works offline and on GitHub Pages. -->
   <script src="vendor/fullcalendar.min.js"></script>
   <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
@@ -169,6 +169,8 @@
         <label class="pf-row"><span>Dark mode</span><span class="switch"><input type="checkbox" id="darkToggle" role="switch"><span></span></span></label>
         <label class="pf-row"><span>Default view (Home)</span>
           <select id="defaultView"><option value="last">Last used</option><option value="timeGridDay">Day</option><option value="timeGridWeek">Week</option><option value="dayGridMonth">Month</option><option value="season">Season (Month + Season briefing)</option><option value="listWeek">List</option></select></label>
+        <label class="pf-row pf-stack"><span><span class="pf-lbl">Time format</span><small class="pf-note" id="timeFmtNote">Auto follows your phone</small></span>
+          <select id="timeFormat"><option value="auto">Auto (phone setting)</option><option value="12">12-hour (2:30 PM)</option><option value="24">24-hour (14:30)</option></select></label>
       </section>
       <section id="homeSection" class="pf-card">
         <h2>Home <span class="pf-h-sub">for leave-by times</span></h2>
@@ -304,7 +306,7 @@
         <legend>Reminders <span class="muted small">(notifications, up to 6)</span></legend>
         <ul id="remList" class="rem-list"></ul>
         <button type="button" id="remAdd" class="btn-link rem-add">+ Add reminder</button>
-        <p id="remHint" class="muted small" hidden>All-day: counted back from 9:00 AM on the day.</p>
+        <p id="remHint" class="muted small" hidden>All-day: counted back from <span data-sandy-time="09:00">9:00 AM</span> on the day.</p>
       </fieldset>
       <label><span id="notesLabel">Notes</span> <textarea name="notes" rows="3"></textarea></label>
 
@@ -383,24 +385,25 @@
     <button type="button" data-tab="profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.2-4 4-5.8 7.5-5.8s6.3 1.8 7.5 5.8"/></svg><span>Profile</span></button>
   </nav>
   <script src="config.js"></script>
-  <script src="storage.js?v=20261026-jennings"></script>
+  <script src="storage.js?v=20261026-24h"></script>
   <script src="places.js"></script>
-  <script src="motion.js?v=20261026-jennings"></script>
-  <script src="account.js?v=20261026-jennings"></script>
-  <script src="launch.js?v=20261026-jennings"></script>
-  <script src="push.js?v=20261026-jennings"></script>
-  <script src="smartparse.js?v=20261026-jennings"></script>
-  <script src="leaveby.js?v=20261026-jennings"></script>
-  <script src="tomorrow.js?v=20261026-jennings"></script>
-  <script src="practice.js?v=20261026-jennings"></script>
-  <script src="travel.js?v=20261026-jennings"></script>
-  <script src="collapse.js?v=20261026-jennings"></script>
-  <script src="nav.js?v=20261026-jennings"></script>
-  <script src="navbar.js?v=20261026-jennings"></script>
-  <script src="quicksheet.js?v=20261026-jennings"></script>
-  <script src="games.js?v=20261026-jennings"></script>
-  <script src="welcome.js?v=20261026-jennings"></script>
-  <script src="app.js?v=20261026-jennings"></script>
-  <script src="ai.js?v=20261026-jennings"></script>
+  <script src="motion.js?v=20261026-24h"></script>
+  <script src="account.js?v=20261026-24h"></script>
+  <script src="launch.js?v=20261026-24h"></script>
+  <script src="push.js?v=20261026-24h"></script>
+  <script src="timefmt.js?v=20261026-24h"></script>
+  <script src="smartparse.js?v=20261026-24h"></script>
+  <script src="leaveby.js?v=20261026-24h"></script>
+  <script src="tomorrow.js?v=20261026-24h"></script>
+  <script src="practice.js?v=20261026-24h"></script>
+  <script src="travel.js?v=20261026-24h"></script>
+  <script src="collapse.js?v=20261026-24h"></script>
+  <script src="nav.js?v=20261026-24h"></script>
+  <script src="navbar.js?v=20261026-24h"></script>
+  <script src="quicksheet.js?v=20261026-24h"></script>
+  <script src="games.js?v=20261026-24h"></script>
+  <script src="welcome.js?v=20261026-24h"></script>
+  <script src="app.js?v=20261026-24h"></script>
+  <script src="ai.js?v=20261026-24h"></script>
 </body>
 </html>
