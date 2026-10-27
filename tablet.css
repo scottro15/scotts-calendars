@@ -1,0 +1,152 @@
+/* ===== SANDY tablet / iPad layout (t134u, branch tablet-layout) =====
+   Linked with media="(min-width: 768px)" and every rule is scoped to html.lay-* classes that tablet.js only
+   sets at ≥768px, so the phone layout (< 768px) is pixel-identical.
+   lay-tablet ≥768 · lay-wide ≥1024 · lay-rail = left sidebar rail instead of the floating capsule. */
+:root { --rail-w: 92px; --pane-w: 340px; }
+html.lay-wide { --pane-w: 420px; }
+
+/* ---------- general: roomier pages, comfortable targets ---------- */
+html.lay-tablet .tab-page { max-width: 880px; padding: 22px 28px 32px; }
+html.lay-tablet .main { padding: 16px 22px; }
+html.lay-tablet .page-head h1 { font-size: 28px; }
+html.lay-tablet .topbar { padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+html.lay-tablet .todo-row { min-height: 52px; padding: 12px 14px; }
+html.lay-tablet .chips button, html.lay-tablet .seg button { min-height: 40px; }
+/* no input zoom on iPad either (Safari zooms < 16px on touch) */
+@media (pointer: coarse) {
+  html.lay-tablet input:not([type=checkbox]):not([type=radio]):not([type=color]):not([type=range]), html.lay-tablet select, html.lay-tablet textarea { font-size: 16px !important; }
+}
+
+/* ---------- portrait capsule: same floating bar, centred and capped ---------- */
+html.lay-tablet:not(.lay-rail) .bottom-nav, html.lay-tablet.dark:not(.lay-rail) .bottom-nav { max-width: 560px; }
+
+/* ---------- sidebar rail (landscape default; portrait opt-in) ---------- */
+html.lay-rail body { padding-left: calc(var(--rail-w) + env(safe-area-inset-left)); padding-bottom: calc(env(safe-area-inset-bottom) + 20px); }
+html.lay-rail .layout { min-height: calc(100vh - 52px); }
+html.lay-rail .bottom-nav, html.lay-rail.dark .bottom-nav, html.lay-rail .bottom-nav.nav-compact, html.lay-rail.dark .bottom-nav.nav-compact {
+  left: 0; right: auto; top: 0; bottom: 0; width: calc(var(--rail-w) + env(safe-area-inset-left)); max-width: none; margin: 0;
+  flex-direction: column; justify-content: flex-start; align-items: center; gap: 6px;
+  padding: max(14px, env(safe-area-inset-top)) 0 max(14px, env(safe-area-inset-bottom)) env(safe-area-inset-left);
+  border: 0; border-right: 1px solid var(--nav-hair); border-radius: 0; box-shadow: none; transform: none !important;
+  background: var(--panel); -webkit-backdrop-filter: none; backdrop-filter: none; z-index: 60; }
+html.lay-rail .bottom-nav button, html.lay-rail.dark .bottom-nav button {
+  flex: none; width: 74px; max-width: none; height: 64px; min-height: 64px; padding: 0; border-radius: 16px;
+  flex-direction: column; justify-content: center; gap: 4px; font-size: 11.5px; transition: background-color .18s ease, color .18s ease; }
+html.lay-rail .bottom-nav button > svg, html.lay-rail .bottom-nav button > .nav-av { margin-top: 0; transform: none !important; }
+html.lay-rail .bottom-nav button > span { opacity: 1 !important; transform: none !important; font-size: 11.5px; }
+html.lay-rail .bottom-nav button[data-tab]:hover { background: color-mix(in srgb, var(--nav-pill) 55%, transparent); }
+html.lay-rail .bottom-nav button[aria-current=page] { background: var(--nav-pill); }
+html.lay-rail .bottom-nav .nav-badge { top: 6px; transform: none !important; }
+html.lay-rail .nav-pill { display: none; }
+html.lay-rail .bottom-nav .rail-new, html.lay-rail.dark .bottom-nav .rail-new { width: 60px; height: 60px; min-height: 60px; margin: 0 0 14px; border-radius: 18px;
+  background: var(--accent, #2563eb); color: #fff; box-shadow: 0 6px 16px rgba(37, 99, 235, .3); }
+html.lay-rail .bottom-nav .rail-new svg { stroke: #fff; stroke-width: 2.4; }
+html.lay-rail .bottom-nav .rail-new > span { font-weight: 700; }
+html.lay-rail .bottom-nav .rail-new:hover { background: #1d4ed8; }
+html.lay-rail .bottom-nav .rail-new:active { transform: scale(.95); }
+html.lay-rail .bottom-nav .rail-new[hidden] { display: none; }
+html.lay-rail #addBtn { display: none; } /* "+ New" lives in the rail */
+/* fixed bits re-centre on the content area and drop the capsule clearance */
+html.lay-rail .toast { left: calc(50% + var(--rail-w) / 2); bottom: calc(env(safe-area-inset-bottom) + 24px); }
+html.lay-rail body.tab-todo .toast { bottom: calc(env(safe-area-inset-bottom) + 96px); }
+html.lay-rail .update-banner { left: calc(50% + var(--rail-w) / 2); bottom: calc(env(safe-area-inset-bottom) + 24px); }
+html.lay-rail .todo-fab { bottom: calc(env(safe-area-inset-bottom) + 24px); right: max(28px, calc(env(safe-area-inset-right) + 16px)); }
+html.lay-rail .tour-tip, html.lay-rail .tour-offer { bottom: calc(env(safe-area-inset-bottom) + 24px); }
+
+/* ---------- Home: big calendar left + Briefing panel right (landscape) ---------- */
+html.lay-wide body:not(.tab-today) #page-home:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); gap: 18px; align-items: start; }
+html.lay-wide body:not(.tab-today) #page-home > :not(#briefing):not(#todayCard) { grid-column: 1; grid-row: 1; min-width: 0; }
+html.lay-wide body:not(.tab-today) #page-home > #briefing { grid-column: 2; grid-row: 1; margin: 0; position: sticky; top: calc(var(--topbar-h, 56px) + 12px);
+  max-height: calc(100vh - var(--topbar-h, 56px) - 28px); overflow: auto; overscroll-behavior: contain; }
+html.lay-wide body:not(.tab-today) .brief-list { max-height: none; }
+html.lay-wide body:not(.tab-today) #briefing .brief-head { flex-wrap: wrap; }
+html.lay-wide body:not(.tab-today) #briefing .seg#briefScope { order: 3; width: 100%; display: flex; }
+html.lay-wide body:not(.tab-today) #briefing .seg#briefScope button { flex: 1; }
+html.lay-wide body:not(.tab-today) #briefing .brief-item { flex-direction: column; gap: 2px; }
+html.lay-wide body:not(.tab-today) #briefing .brief-item .bi-time { width: auto; font-size: 12px; }
+html.lay-tablet #calendar { padding: 12px 14px; border-radius: 14px; }
+html.lay-tablet .fc .fc-daygrid-day-frame { min-height: 96px; }
+html.lay-wide .fc .fc-daygrid-day-frame { min-height: 108px; }
+html.lay-tablet .fc .fc-toolbar-title { font-size: 1.35em; }
+
+/* ---------- Today: two-column card grid (Option C tiles unchanged) ---------- */
+html.lay-tablet body.tab-today #page-home > :not(#todayCard):not(#briefing) { display: none; } /* Home owns the big calendar on tablet */
+html.lay-tablet .today-card { max-width: 1120px; margin: 0 auto 16px; padding: 18px 22px 10px; border-radius: 18px; }
+html.lay-tablet #todayBody.tt-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 20px; align-items: start; }
+html.lay-tablet #todayBody.tt-grid.tt-one { grid-template-columns: minmax(0, 1fr); max-width: 680px; }
+html.lay-tablet .tt-col { min-width: 0; }
+html.lay-tablet .tt-col-l > .tc-summary { margin-bottom: 14px; }
+html.lay-tablet .tc-item { min-height: 44px; }
+
+/* ---------- To-Do: list + details pane (Todoist iPad style) ---------- */
+html.lay-tablet body.tab-todo .qs-sheet, html.lay-tablet.dark body.tab-todo .qs-sheet {
+  top: var(--topbar-h, 56px); bottom: 0 !important; left: auto; right: 0; width: var(--pane-w); max-width: none; margin: 0;
+  border-radius: 0; border: 0; border-left: 1px solid var(--qs-line, var(--line)); box-shadow: -10px 0 30px rgba(15, 23, 42, .08);
+  padding: 0 max(20px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) 20px;
+  display: flex; flex-direction: column; overflow-y: auto; transform: translateX(105%); z-index: 50; }
+html.lay-tablet.dark body.tab-todo .qs-sheet { box-shadow: -10px 0 30px rgba(0, 0, 0, .4); }
+html.lay-tablet body.tab-todo .qs-sheet.open { transform: translateX(0); }
+html.lay-tablet body.tab-todo .qs-backdrop { display: none; }
+html.lay-tablet body.tab-todo .qs-grab { display: none; }
+html.lay-tablet body.tab-todo .qs-sheet form { flex: 1; }
+html.lay-tablet body.tab-todo .qs-sheet .qs-field { flex: none; }
+html.lay-tablet body.tab-todo .qs-chips { flex-wrap: wrap; overflow: visible; }
+html.lay-tablet body.tab-todo .qs-foot { margin-top: auto; padding-top: 14px; }
+html.lay-tablet body.tab-todo .qs-desc { min-height: 96px; }
+.qs-pane-head { display: none; }
+html.lay-tablet body.tab-todo .qs-pane-head { display: flex; align-items: center; justify-content: space-between; min-height: 56px; margin: 0 0 6px;
+  border-bottom: 1px solid var(--qs-line, var(--line)); position: sticky; top: 0; background: inherit; z-index: 2; }
+.qs-pane-title { font-size: 13px; font-weight: 750; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.qs-pane-close { width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 12px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; }
+.qs-pane-close:hover { background: var(--chip); color: var(--text); }
+.qs-pane-close svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+html.lay-tablet.qs-pane-open #page-todo { max-width: none; margin: 0 var(--pane-w) 0 0; }
+html.lay-tablet #page-todo { transition: margin .3s cubic-bezier(.2, .9, .25, 1); }
+html.lay-tablet.qs-pane-open .todo-fab { opacity: 0; pointer-events: none; }
+html.lay-tablet .todo-row.td-selected { background: color-mix(in srgb, var(--accent, #2563eb) 9%, transparent); box-shadow: inset 3px 0 0 var(--accent, #2563eb); }
+html.lay-tablet.dark .todo-row.td-selected { background: color-mix(in srgb, #60a5fa 14%, transparent); box-shadow: inset 3px 0 0 #60a5fa; }
+
+/* ---------- Search + Profile ---------- */
+html.lay-tablet #page-search { max-width: 760px; }
+html.lay-wide #page-profile { max-width: 1120px; }
+html.lay-wide #page-profile { columns: 2 420px; column-gap: 20px; }
+html.lay-wide #page-profile > .page-head, html.lay-wide #page-profile > .pf-hero { column-span: all; }
+html.lay-wide #page-profile > * { break-inside: avoid; }
+.tt-nav-row[hidden] { display: none; }
+
+/* ---------- sheets + dialogs become centred modals ---------- */
+html.lay-tablet dialog { width: min(640px, calc(100vw - 64px)); max-height: min(88vh, 900px); border-radius: 20px; }
+html.lay-tablet #eventDialog.anim-in, html.lay-tablet dialog.anim-in { animation: tt-pop-in 240ms cubic-bezier(.2, .9, .3, 1.1); transform-origin: 50% 50% !important; }
+html.lay-tablet #eventDialog.closing, html.lay-tablet dialog.closing { animation: tt-pop-out 180ms cubic-bezier(.4, 0, 1, 1) forwards; transform-origin: 50% 50% !important; }
+html.lay-tablet .ai-panel { left: 50%; right: auto; bottom: auto; top: 50%; width: min(640px, calc(100vw - 64px)); transform: translate(-50%, -50%); border-radius: 20px; height: min(80vh, 760px); }
+html.lay-tablet .ai-sheet.ai-anim .ai-panel, html.lay-tablet .ai-sheet.ai-closing .ai-panel { animation: none; }
+html.lay-tablet body:not(.tab-todo) .qs-sheet { top: 50%; bottom: auto !important; left: 50%; right: auto; width: min(600px, calc(100vw - 64px)); border-radius: 20px;
+  padding-bottom: 14px; transform: translate(-50%, -46%) scale(.96); opacity: 0; transition: transform .28s cubic-bezier(.2, .9, .25, 1), opacity .22s ease; }
+html.lay-tablet body:not(.tab-todo) .qs-sheet.open { transform: translate(-50%, -50%); opacity: 1; }
+html.lay-tablet body:not(.tab-todo) .qs-grab { display: none; }
+@keyframes tt-pop-in { from { opacity: 0; transform: scale(.95); } to { opacity: 1; transform: none; } }
+@keyframes tt-pop-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(.96); } }
+
+/* ---------- reduced motion ---------- */
+html.reduce-motion.lay-tablet #page-todo, html.reduce-motion.lay-tablet .qs-sheet, html.reduce-motion.lay-tablet .bottom-nav button { transition: none !important; }
+html.reduce-motion.lay-tablet dialog.anim-in, html.reduce-motion.lay-tablet dialog.closing { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  html.lay-tablet #page-todo, html.lay-tablet .qs-sheet, html.lay-tablet .bottom-nav button { transition: none !important; }
+  html.lay-tablet dialog.anim-in, html.lay-tablet dialog.closing { animation: none !important; }
+}
+
+/* ---------- 768–800px band (Android tablets in portrait) still matches the old ≤800 phone rules: undo the cramped bits ---------- */
+html.lay-tablet .briefing { padding: 12px 16px; border-radius: 14px; margin-bottom: 14px; }
+html.lay-tablet .brief-item { flex-direction: row; gap: 10px; }
+html.lay-tablet .fc .fc-button { font-size: .9em; }
+html.lay-tablet .fc .fc-toolbar-title { font-size: 1.35em; }
+html.lay-wide body:not(.tab-today) #briefing .brief-item { flex-direction: column; gap: 2px; }
+/* list column narrows while the details pane is open: stack the quick-add row */
+html.lay-tablet.qs-pane-open .quick-add { flex-wrap: wrap; }
+html.lay-tablet.qs-pane-open .quick-add .qa-field { flex-basis: 100%; }
+html.lay-tablet.qs-pane-open .qa-opts { width: 100%; }
+html.lay-tablet.qs-pane-open .qa-opts select { flex: 1 1 0; min-width: 0; }
+/* capsule mode: the details pane stops above the floating bar so Save / Delete stay reachable */
+html.lay-tablet:not(.lay-rail) body.tab-todo .qs-sheet { bottom: calc(var(--nav-h) + var(--nav-lift, 10px) + env(safe-area-inset-bottom) + 14px) !important; border-bottom: 1px solid var(--qs-line, var(--line)); border-bottom-left-radius: 16px; }
+/* dark: Today's inline links (stats line, Now/Next, Show more) are text links, not filled buttons */
+html.lay-tablet.dark #todayBody .tc-stat-link, html.lay-tablet.dark #todayBody .tc-link, html.lay-tablet.dark #todayBody .hu-more-btn { background: transparent; }

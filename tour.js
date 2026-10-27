@@ -241,6 +241,7 @@
     } catch (e) {}
   }
 
+  const nav0 = () => document.getElementById('bottomNav');
   function navClearance() {
     const nav = document.getElementById('bottomNav');
     const fab = document.getElementById('todoFab');
@@ -251,7 +252,9 @@
     let clear = navH + lift + 24;
     if (nav) {
       const nr = nav.getBoundingClientRect();
-      if (nr.height) clear = Math.max(clear, window.innerHeight - nr.top + 12);
+      // tablet sidebar rail (tablet.js, html.lay-rail) sits on the left, not the bottom — nothing to clear there
+      if (nr.height && !document.documentElement.classList.contains('lay-rail')) clear = Math.max(clear, window.innerHeight - nr.top + 12);
+      else if (nr.height) clear = 24;
     }
     // Only reserve FAB space when the tour is NOT currently spotlighting the FAB itself.
     const targetingFab = !!(state && state.hole && state.hole.dataset && state.hole.dataset.target === 'fab');
@@ -274,7 +277,8 @@
     const safeBottom = navClearance();
     const tipH = tip.offsetHeight || 180;
     const vh = window.innerHeight;
-    tip.style.left = '12px';
+    const railW = document.documentElement.classList.contains('lay-rail') && nav0() ? Math.round(nav0().getBoundingClientRect().right) : 0;
+    tip.style.left = (railW + 12) + 'px';
     tip.style.right = '12px';
     tip.style.marginLeft = 'auto';
     tip.style.marginRight = 'auto';
