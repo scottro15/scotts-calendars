@@ -3,9 +3,11 @@
 //   (admin = the owner account; there is no flag a user could set on themselves).
 // - Only then does it use the service-role key (provided to Edge Functions automatically by Supabase,
 //   never sent to the browser) for the Auth admin API: create the invited user so their magic link works.
-// - Actions (POST JSON): {action:'list'} | {action:'invite', email, note?, sendEmail?} | {action:'revoke', email} | {action:'restore', email}
+// - Actions (POST JSON): {action:'list'} | {action:'invite', email, firstName?|note?, sendEmail?} | {action:'set_name', email, firstName?} | {action:'revoke', email} | {action:'restore', email}
 //   'invite' creates the auth user WITHOUT sending email by default (Scott sends his own invite text);
 //   sendEmail:true uses Supabase's invite email instead (counts against the SMTP rate limit).
+//   firstName (or note) is stored on invites.note (max 80 chars) so the Invites screen can fill "Hey [Name]! …".
+//   'set_name' updates only that field (does not change status); needs a redeploy of this function.
 //   'revoke' bans the sign-in (reversible with 'restore'); it never deletes anyone's data.
 // Dependency-free (plain fetch) so tests can import it under Node.
 
@@ -52,7 +54,7 @@ export async function handle(req, env, f = fetch) {
         const au = byEmail.get(i.email);
         const banned = au && au.banned_until && new Date(au.banned_until) > new Date();
         const status = i.status === 'revoked' || banned ? 'revoked' : (au && au.last_sign_in_at) || i.status === 'accepted' ? 'accepted' : 'invited';
-        return { email: i.email, status, note: i.note, created_at: i.created_at, accepted_at: i.accepted_at, last_sign_in_at: au ? au.last_sign_in_at : null };
+        return { email: i.email, status, note: i.note, firstName: i.note || '', created_at: i.created_at, accepted_at: i.accepted_at, last_sign_in_at: au ? au.last_sign_in_at : null };
       });
       return json({ invites });
     }
@@ -71,13 +73,24 @@ export async function handle(req, env, f = fetch) {
         if (!r.ok) { const t = await r.text(); return json({ error: 'Could not create the invited account: ' + t.slice(0, 200) }, 502); }
         au = await r.json();
       }
-      const note = body.note ? String(body.note).slice(0, 500) : null;
+      const rawName = body.firstName != null ? body.firstName : body.note;
+      const note = rawName != null ? String(rawName).trim().slice(0, 80) || null : undefined;
+      const row = { email, user_id: au.id || null, invited_by: me.id, status: 'invited' };
+      if (note !== undefined) row.note = note;
       const ins = await rest('invites?on_conflict=email', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-        body: JSON.stringify({ email, note, user_id: au.id || null, invited_by: me.id, status: 'invited' }) });
+        body: JSON.stringify(row) });
       if (!ins.ok) throw new Error('Could not save the invite');
-      return json({ ok: true, email, existed: !!au.last_sign_in_at, emailed: !!body.sendEmail });
+      return json({ ok: true, email, firstName: note || '', existed: !!au.last_sign_in_at, emailed: !!body.sendEmail });
     }
 
+    if (body.action === 'set_name') {
+      const name = String(body.firstName != null ? body.firstName : (body.note || '')).trim().slice(0, 80);
+      const up = await rest(`invites?email=eq.${encodeURIComponent(email)}`, { method: 'PATCH', body: JSON.stringify({ note: name || null }) });
+      if (!up.ok) throw new Error('Could not save the name');
+      const rows = await up.json();
+      if (!Array.isArray(rows) || !rows.length) return json({ error: 'Invite not found' }, 404);
+      return json({ ok: true, email, firstName: name });
+    }
     if (body.action === 'revoke' || body.action === 'restore') {
       if (email === normEmail(me.email)) return json({ error: 'You can\'t revoke your own access' }, 400);
       const au = await findUser(email);

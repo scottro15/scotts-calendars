@@ -21,4 +21,37 @@ assert((await handle(req({ action: 'invite', email: 'nope' }), env, mk(true))).s
 assert((await handle(req({ action: 'revoke', email: 'A@B.co' }), env, mk(true))).status === 400, 'admin cannot revoke self');
 assert((await handle(new Request('https://x', { method: 'GET' }), env, mk(true))).status === 405, 'GET -> 405');
 const r = await handle(req({ action: 'list' }), { ...env, SUPABASE_SERVICE_ROLE_KEY: '' }, mk(true)); assert(r.status === 500 && !(await r.text()).includes('svc'), 'missing config -> 500, no secrets echoed');
+
+// Personalized first name (Scott 2026-10-26): stored on invites.note; set_name patches only that field.
+{
+  let patched = null, created = null;
+  const mk2 = async (url, init = {}) => {
+    const u = new URL(url); const h = init.headers || {};
+    if (u.pathname === '/auth/v1/user') return new Response('{"id":"u1","email":"a@b.co"}');
+    if (u.pathname === '/rest/v1/rpc/sandy_is_admin') return new Response('true');
+    if (u.pathname === '/auth/v1/admin/users' && init.method === 'POST') {
+      created = JSON.parse(init.body); return new Response(JSON.stringify({ id: 'nu1', email: created.email }), { status: 200 });
+    }
+    if (u.pathname.startsWith('/auth/v1/admin/users')) return new Response(JSON.stringify({ users: [] }));
+    if (u.pathname.startsWith('/rest/v1/invites') && (init.method === 'HEAD' || !init.method)) {
+      return new Response('[]', { headers: { 'content-range': '0-0/0' } });
+    }
+    if (u.pathname.startsWith('/rest/v1/invites') && init.method === 'POST') {
+      created = JSON.parse(init.body); return new Response(JSON.stringify([created]));
+    }
+    if (u.pathname.startsWith('/rest/v1/invites') && init.method === 'PATCH') {
+      patched = JSON.parse(init.body); return new Response(JSON.stringify([{ email: 'pat@x.co', note: patched.note }]));
+    }
+    return new Response('[]');
+  };
+  const r1 = await handle(req({ action: 'invite', email: 'Pat@X.co', firstName: '  Pat  ' }), env, mk2);
+  assert(r1.status === 200, 'invite with firstName -> 200');
+  const j1 = await r1.json();
+  assert(j1.firstName === 'Pat' && created.note === 'Pat' && created.email === 'pat@x.co', 'firstName trimmed and stored on invites.note');
+  const r2 = await handle(req({ action: 'set_name', email: 'pat@x.co', firstName: 'Patricia' }), env, mk2);
+  assert(r2.status === 200 && patched.note === 'Patricia', 'set_name patches note only');
+  const r3 = await handle(req({ action: 'set_name', email: 'pat@x.co', firstName: '' }), env, mk2);
+  assert(r3.status === 200 && patched.note === null, 'set_name empty clears note');
+  console.log('ok - personalized invite name actions');
+}
 console.log('ADMIN INVITES FUNCTION TESTS PASSED');

@@ -504,6 +504,19 @@ dialog.closing::backdrop { animation: bd-out 200ms ease-in forwards; }
 .launch-dlg label.inv-send { flex-direction: row; align-items: center; gap: 6px; margin: 6px 0; }
 .inv-add { display: flex; gap: 8px; }
 .inv-add input { flex: 1; min-width: 0; }
+.inv-add { flex-wrap: wrap; }
+.inv-add #invName { flex: 1 1 8rem; max-width: 12rem; }
+.inv-row { align-items: flex-start; flex-direction: column; }
+.inv-main { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.inv-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; width: 100%; }
+.inv-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; }
+.inv-name-row span { color: var(--muted, #6b7280); }
+.inv-name-row .inv-name { flex: 1; min-width: 6rem; max-width: 14rem; }
+.inv-note { width: 100%; box-sizing: border-box; min-height: 7.5rem; resize: vertical; font: inherit; font-size: 0.85rem; line-height: 1.4; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line, #e5e7eb); background: var(--card, #fff); color: inherit; }
+.inv-actions { margin: 0; flex-wrap: wrap; gap: 8px; }
+.inv-actions a.btn-link { display: inline-flex; align-items: center; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line, #d1d5db); text-decoration: none; color: inherit; font: inherit; font-size: 0.9rem; }
+html.dark .inv-note { background: #0f1729; border-color: var(--line); }
+html.dark .inv-actions a.btn-link { border-color: var(--line); }
 .inv-list { list-style: none; padding: 0; margin: 10px 0; max-height: 50vh; overflow: auto; }
 .inv-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid #e5e7eb; animation: msgUp .28s ease both; }
 .inv-row.st-accepted .inv-status { color: #15803d; font-weight: 600; }

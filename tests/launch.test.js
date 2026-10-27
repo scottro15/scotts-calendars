@@ -75,9 +75,14 @@ const SVC = sign({ role: 'service_role', exp: Math.floor(Date.now() / 1000) + 86
     await p.click('#invitesBtn'); await p.waitForSelector('.inv-dlg .inv-list li');
     await p.fill('#invEmail', 'not-an-email'); await p.click('#invGo');
     assert(/valid email/.test(await p.textContent('.inv-dlg .onb-err')), 'invite: rejects a bad email');
-    await p.fill('#invEmail', 'Alice@Example.com '); await p.click('#invGo');
+    assert(await p.$('#invName'), 'invite: First name field present');
+    await p.fill('#invEmail', 'Alice@Example.com '); await p.fill('#invName', 'Alice'); await p.click('#invGo');
     await p.waitForSelector('.inv-row:has-text("alice@example.com")');
     assert(/Invited · not signed in yet/.test(await p.textContent('.inv-row:has-text("alice@example.com")')), 'invite: Alice listed as Invited (email normalized)');
+    const aliceNote = await p.locator('.inv-row', { hasText: 'alice@example.com' }).locator('.inv-note').inputValue();
+    assert(/^Hey Alice!/.test(aliceNote) && /scottro15\.github\.io\/scotts-calendars/.test(aliceNote), 'invite: note personalized for Alice');
+    assert(await p.locator('.inv-row', { hasText: 'alice@example.com' }).locator('button[data-act=copy]').count() === 1, 'invite: Copy button');
+    assert((await p.locator('.inv-row', { hasText: 'alice@example.com' }).locator('a[data-act=sms]').getAttribute('href') || '').startsWith('sms:&body='), 'invite: Text it is sms:&body=');
     assert(adminCalls.includes('POST /auth/v1/admin/users'), 'invite: account created via Auth admin API (no email sent by default)');
     await p.fill('#invEmail', 'bob@example.com'); await p.click('#invGo'); await p.waitForSelector('.inv-row:has-text("bob@example.com")');
     await p.waitForTimeout(400); await p.screenshot({ path: SHOT + '34_invites_admin_desktop.png' });

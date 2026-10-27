@@ -8,5 +8,7 @@ Invite-only access for the free prototype. Used by the app's **✉️ Invites** 
 - The caller's own JWT is checked first (`/auth/v1/user` + `rpc sandy_is_admin`); non-admins get 403 before the service key is touched.
 - `invite` creates the auth user with `email_confirm: true` and sends **no email** by default, so the person can request a magic link at the site.
   `sendEmail: true` uses Supabase's invite email instead (needs custom SMTP for non-team addresses).
+- `firstName` (or `note`) on `invite` is stored on `invites.note` (max 80 chars) for the personalized invite text in the app.
+- `set_name` updates only that field (redeploy this function to enable it in production; new invites already store the name via `note`).
 - `revoke` bans sign-in (reversible with `restore`). It never deletes data.
 - Tests: `node tests/admin_invites_function.test.mjs`, plus `tests/launch.test.js` (end to end on the local stand-in).
