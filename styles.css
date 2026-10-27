@@ -1661,3 +1661,39 @@ html.dark .tc-weather .wx-buf { color: #94a3b8; }
   .brief-item:hover { background: #fff; }
   html.dark .brief-item:hover { background: var(--panel, #111a2b); }
 }
+
+/* ===== Update banner (2026-10-26): pill above floating bottom nav ===== */
+.update-banner {
+  position: fixed; z-index: 70; left: 50%;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--nav-lift, 10px) + 18px);
+  transform: translateX(-50%) translateY(12px);
+  opacity: 0;
+  display: none;
+  align-items: center; gap: 0;
+  max-width: min(420px, calc(100% - 28px));
+  padding: 2px 4px 2px 14px;
+  border-radius: 999px;
+  background: #111827; color: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .28), 0 1px 0 rgba(255,255,255,.08) inset;
+  font: 600 13px/1.2 system-ui, -apple-system, sans-serif;
+  letter-spacing: .01em;
+  transition: opacity .28s ease, transform .28s cubic-bezier(.2, .9, .3, 1.1);
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+.update-banner:not([hidden]) { display: flex; }
+.update-banner.is-in { opacity: 1; transform: translateX(-50%) translateY(0); }
+.update-banner-tap {
+  flex: 1; min-width: 0; border: 0; background: transparent; color: inherit;
+  font: inherit; text-align: left; padding: 10px 6px 10px 0; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.update-banner-x {
+  flex: 0 0 auto; width: 36px; height: 36px; border: 0; border-radius: 50%;
+  background: transparent; color: inherit; font: 700 18px/1 system-ui, sans-serif;
+  opacity: .7; cursor: pointer; padding: 0;
+}
+.update-banner-x:hover, .update-banner-x:focus-visible { opacity: 1; background: rgba(255,255,255,.12); }
+@media (prefers-reduced-motion: reduce) {
+  .update-banner { transition: none; }
+}

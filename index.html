@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <title>SANDY — the scheduling app</title>
-  <link rel="stylesheet" href="styles.css?v=20261026-brief">
+  <link rel="stylesheet" href="styles.css?v=20261026-update">
   <!-- FullCalendar v6 is vendored locally (vendor/) so the app works offline and on GitHub Pages. -->
   <script src="vendor/fullcalendar.min.js"></script>
   <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
@@ -390,6 +390,11 @@
 
   <div id="toast" class="toast" hidden></div>
 
+  <div id="updateBanner" class="update-banner" hidden role="status" aria-live="polite">
+    <button type="button" class="update-banner-tap" id="updateBannerTap">New update available · Tap to refresh</button>
+    <button type="button" class="update-banner-x" id="updateBannerDismiss" aria-label="Dismiss update">×</button>
+  </div>
+
   <nav id="bottomNav" class="bottom-nav" aria-label="Main">
     <button type="button" data-tab="home" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg><span>Home</span></button>
     <button type="button" data-tab="today"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><text x="12" y="18.2" text-anchor="middle" class="nav-day">1</text></svg><span>Today</span></button>
@@ -398,32 +403,33 @@
     <button type="button" data-tab="profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.2-4 4-5.8 7.5-5.8s6.3 1.8 7.5 5.8"/></svg><span>Profile</span></button>
   </nav>
   <script src="config.js"></script>
-  <script src="storage.js?v=20261026-brief"></script>
+  <script src="storage.js?v=20261026-update"></script>
   <script src="places.js"></script>
-  <script src="motion.js?v=20261026-brief"></script>
-  <script src="account.js?v=20261026-brief"></script>
-  <script src="launch.js?v=20261026-brief"></script>
-  <script src="push.js?v=20261026-brief"></script>
-  <script src="timefmt.js?v=20261026-brief"></script>
-  <script src="smartparse.js?v=20261026-brief"></script>
-  <script src="leaveby.js?v=20261026-brief"></script>
-  <script src="tomorrow.js?v=20261026-brief"></script>
-  <script src="longday.js?v=20261026-brief"></script>
-  <script src="freegap.js?v=20261026-brief"></script>
-  <script src="clash.js?v=20261026-brief"></script>
-  <script src="weekly.js?v=20261026-brief"></script>
-  <script src="grocery.js?v=20261026-brief"></script>
-  <script src="weather.js?v=20261026-brief"></script>
-  <script src="practice.js?v=20261026-brief"></script>
-  <script src="travel.js?v=20261026-brief"></script>
-  <script src="collapse.js?v=20261026-brief"></script>
-  <script src="nav.js?v=20261026-brief"></script>
-  <script src="navbar.js?v=20261026-brief"></script>
-  <script src="quicksheet.js?v=20261026-brief"></script>
-  <script src="games.js?v=20261026-brief"></script>
-  <script src="welcome.js?v=20261026-brief"></script>
-  <script src="tour.js?v=20261026-brief"></script>
-  <script src="app.js?v=20261026-brief"></script>
-  <script src="ai.js?v=20261026-brief"></script>
+  <script src="motion.js?v=20261026-update"></script>
+  <script src="account.js?v=20261026-update"></script>
+  <script src="launch.js?v=20261026-update"></script>
+  <script src="push.js?v=20261026-update"></script>
+  <script src="update.js?v=20261026-update"></script>
+  <script src="timefmt.js?v=20261026-update"></script>
+  <script src="smartparse.js?v=20261026-update"></script>
+  <script src="leaveby.js?v=20261026-update"></script>
+  <script src="tomorrow.js?v=20261026-update"></script>
+  <script src="longday.js?v=20261026-update"></script>
+  <script src="freegap.js?v=20261026-update"></script>
+  <script src="clash.js?v=20261026-update"></script>
+  <script src="weekly.js?v=20261026-update"></script>
+  <script src="grocery.js?v=20261026-update"></script>
+  <script src="weather.js?v=20261026-update"></script>
+  <script src="practice.js?v=20261026-update"></script>
+  <script src="travel.js?v=20261026-update"></script>
+  <script src="collapse.js?v=20261026-update"></script>
+  <script src="nav.js?v=20261026-update"></script>
+  <script src="navbar.js?v=20261026-update"></script>
+  <script src="quicksheet.js?v=20261026-update"></script>
+  <script src="games.js?v=20261026-update"></script>
+  <script src="welcome.js?v=20261026-update"></script>
+  <script src="tour.js?v=20261026-update"></script>
+  <script src="app.js?v=20261026-update"></script>
+  <script src="ai.js?v=20261026-update"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@
 // (the link comes from the event's notes; the home address is never in the app code). Maryville stays red.
 // Badge (hssu2): YELLOW letter inside a YELLOW border on a dark tile (not a solid yellow fill), >= 3:1 in both themes.
 // Also: the away / neutral HSSU travel plan on Today (from Profile home, else the notes' "Drive from home"; yellow
-// accent) with OSM routing / Open-Meteo mocked, and the fresh-build check (push.js SandyUpdate).
+// accent) with OSM routing / Open-Meteo mocked, and the update-banner check (update.js SandyUpdate).
 // Uses a FAKE home address. Light + dark at 390x844, List / Day / Week.
 //   node tests/games_hssu.test.js http://127.0.0.1:8787/ [screenshotDir]
 const { chromium } = require(process.env.PW || '/workspace/shot-tools/node_modules/playwright-core');
@@ -214,19 +214,28 @@ const notes = (miles, drive, loc, extra = '') => `Harris-Stowe State University 
     assert(T.te.length === 0, `${tag} travel: no page errors ${T.te.join(' | ')}`);
     await T.c2.close();
   }
-  // ================= Fresh-build check (push.js SandyUpdate) =================
+  // ================= Fresh-build check (update.js SandyUpdate banner) =================
   { const c2 = await b.newContext(); const tp = await c2.newPage(); await tp.goto(BASE); await tp.waitForFunction(() => window.SandyUpdate);
     const html = await (await tp.request.get(BASE)).text(); const tagNow = (html.match(/styles\.css\?v=([\w.-]+)/) || [])[1];
     const u = await tp.evaluate(() => ({ running: SandyUpdate.running, t: SandyUpdate.tagOf('<link rel="stylesheet" href="styles.css?v=20991231-x">') }));
     assert(u.running === tagNow && u.t === '20991231-x', `update: running build tag read from the page (${u.running})`);
-    // serve a "newer" index once and confirm the app reloads onto it with a cache-busting URL, exactly once
-    await c2.route(/\?fresh=/, r => r.fulfill({ status: 200, contentType: 'text/html', body: html.replace(/20\d{6}-[\w]+/g, '20991231-x') }));
+    // serve a newer version.json; banner should appear (no silent reload)
+    await c2.route(/version\.json/, r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ v: '20991231-x' }) }));
     await tp.evaluate(() => { window.__SANDY_UPDATE_TEST = 1; });
+    await tp.evaluate(() => SandyUpdate.check());
+    await tp.waitForFunction(() => window.SandyUpdate.visible && document.getElementById('updateBanner') && !document.getElementById('updateBanner').hidden, null, { timeout: 5000 });
+    assert(await tp.locator('#updateBanner').isVisible(), 'update: banner shown when a newer deploy is detected');
+    assert(await tp.locator('#updateBannerTap').innerText().then(t => /New update available/.test(t)), 'update: banner copy');
     const nav = tp.waitForURL(/build=20991231-x/, { timeout: 5000 }).then(() => true).catch(() => false);
-    await tp.evaluate(() => SandyUpdate.check()); assert(await nav, 'update: a newer deploy reloads the app (…?build=<new tag>)');
+    await tp.locator('#updateBannerTap').click();
+    assert(await nav, 'update: tapping the banner reloads once (…?build=<new tag>)');
     await tp.waitForFunction(() => window.SandyUpdate); await tp.evaluate(() => { window.__SANDY_UPDATE_TEST = 1; });
-    const url0 = tp.url(); await tp.evaluate(() => SandyUpdate.check()); await tp.waitForTimeout(800);
-    assert(tp.url() === url0, 'update: no reload loop if the cache still serves the old page');
+    // re-show banner (dismissed flag cleared by reload; same mock) then check no loop without tap
+    await tp.evaluate(() => SandyUpdate.check());
+    await tp.waitForTimeout(600);
+    const url0 = tp.url();
+    await tp.evaluate(() => SandyUpdate.check()); await tp.waitForTimeout(600);
+    assert(tp.url() === url0, 'update: no reload loop without a tap (tried-tag guard)');
     await c2.close(); }
   console.log(`\n${n} checks passed`); await b.close();
 })().catch(e => { console.error(e); process.exit(1); });

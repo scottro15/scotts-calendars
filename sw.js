@@ -1,5 +1,12 @@
-/* SANDY service worker: shows reminder notifications (Web Push). No offline caching. */
-self.addEventListener('install', () => self.skipWaiting());
+/* SANDY service worker: shows reminder notifications (Web Push). No offline caching.
+   New installs wait until the page posts {type:'SKIP_WAITING'} (update banner tap, or
+   first-visit auto-activate in push.js) so a deploy never silently swaps the running page. */
+self.addEventListener('install', () => {
+  /* stay in waiting until SKIP_WAITING — do not call skipWaiting() here */
+});
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 
 self.addEventListener('push', e => {
