@@ -186,6 +186,16 @@
     if (window.SandyLongDay) { try { ld = await SandyLongDay.data(a, d.now); if (ld) h += SandyLongDay.html(ld); } catch (e) { console.warn('long-day:', e); ld = null; } }
     // Sandy Intelligence #4: free-gap to-do coach (freegap.js)
     if (window.SandyFreeGap) { try { const fg = await SandyFreeGap.data(a, d.now); if (fg) h += SandyFreeGap.html(fg); } catch (e) { console.warn('free-gap:', e); } }
+    // Sandy Intelligence #6: Sunday weekly review (weekly.js)
+    let wkFocus = false;
+    if (window.SandyWeekly) {
+      try {
+        const force = !!(window.__wkForceOpen);
+        window.__wkForceOpen = false;
+        const wk = await SandyWeekly.data(a, d.now, { force });
+        if (wk) { h += SandyWeekly.html(wk); wkFocus = force || new URLSearchParams(location.search).get('si') === 'weekly'; }
+      } catch (e) { console.warn('weekly:', e); }
+    }
     // Sandy Intelligence: evening preview of tomorrow (tomorrow.js)
     let tm = null;
     if (window.SandyTomorrow && SandyTomorrow.isEvening(d.now)) { try { tm = await SandyTomorrow.data(a, d.now); h += SandyTomorrow.html(tm); } catch (e) { console.warn('tomorrow:', e); tm = null; } }
@@ -193,6 +203,7 @@
     if (d.overdue.length) h += `<section class="tc-sec tc-card tc-overdue"><h3>Overdue To-Dos</h3><ul class="tc-list">${d.overdue.map(x => row(x, `<span class="overdue-badge">Overdue ${esc(a.overdueText(d.now - (x.ev.allDay ? a.startOfDay(x.o.start) : (x.o.end || x.o.start))))}</span>`)).join('')}</ul></section>`;
     $('todayBody').innerHTML = h;
     if (window.SandyCollapse) { try { SandyCollapse.apply($('todayBody')); } catch (e) { console.warn('collapse:', e); } }
+    if (wkFocus && window.SandyWeekly) { try { SandyWeekly.focusCard(); } catch (_) {} }
     if (window.SandyLeave) SandyLeave.render($('tcLeave'), d.items, d.now).catch(e => console.warn('leave-by:', e));
     if (tv) tv.run();
     if (tm) SandyTomorrow.fillLeave($('tmLeave'), tm).catch(e => console.warn('tomorrow leave-by:', e));
@@ -714,6 +725,10 @@
       const p = await SandyClash.getPrefs();
       $('siClash').checked = p.enabled;
     }
+    if ($('siWeeklyReview') && window.SandyWeekly) {
+      const p = await SandyWeekly.getPrefs();
+      $('siWeeklyReview').checked = p.enabled;
+    }
     if (msg && !msg.dataset.keep) { msg.className = 'small home-msg'; msg.textContent = ''; }
   }
   async function siSwitch(e) {
@@ -729,6 +744,9 @@
       } else if (t.id === 'siClash' && window.SandyClash) {
         await SandyClash.setPrefs({ enabled: t.checked });
         toast(t.checked ? 'Clash check on' : 'Clash check off');
+      } else if (t.id === 'siWeeklyReview' && window.SandyWeekly) {
+        await SandyWeekly.setPrefs({ enabled: t.checked });
+        toast(t.checked ? 'Weekly review on' : 'Weekly review off');
       } else return;
       if (tab === 'today') renderToday();
     } catch (ex) { t.checked = !t.checked; if (msg) { msg.textContent = ex.message || String(ex); msg.classList.add('bad'); msg.dataset.keep = '1'; } }
@@ -832,7 +850,16 @@
     $('homeForm').addEventListener('submit', e => { e.preventDefault(); saveHome($('homeAddr').value); });
     $('homeClear').addEventListener('click', () => saveHome(''));
     ['leaveAlerts', 'leaveEarly', 'leaveUseLoc'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', leaveSwitch); });
-    ['siLongDay', 'siFreeGap', 'siClash'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', siSwitch); });
+    ['siLongDay', 'siFreeGap', 'siClash', 'siWeeklyReview'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', siSwitch); });
+    const wkOpen = $('siWeeklyOpen');
+    if (wkOpen) wkOpen.addEventListener('click', () => {
+      if (!window.SandyWeekly || !A()) return;
+      const a = A(); const ws = SandyWeekly.weekStartSunday(a.startOfDay(a.nowWall()));
+      SandyWeekly.forceOpen(a.ymd(ws));
+      window.__wkForceOpen = true;
+      go('today');
+      toast('Week review');
+    });
     if ($('timeFormat')) $('timeFormat').addEventListener('change', e => {
       if (!window.SandyTime) return; SandyTime.set(e.target.value);
       toast(e.target.value === 'auto' ? `Times follow your phone (${SandyTime.label()})` : `Times show as ${e.target.value}-hour`);
@@ -865,6 +892,12 @@
     let t0 = null; try { t0 = sessionStorage.getItem('sandy.tab'); } catch (_) {}
     const qt = new URLSearchParams(location.search).get('tab');
     if (new URLSearchParams(location.search).get('locate') === '1' && window.SandyLeave) SandyLeave.locateSoon(); // opened from "Check your drive"
+    if (new URLSearchParams(location.search).get('si') === 'weekly' && window.SandyWeekly) {
+      try {
+        const a = A(); const ws = SandyWeekly.weekStartSunday(a.startOfDay(a.nowWall()));
+        SandyWeekly.forceOpen(a.ymd(ws)); window.__wkForceOpen = true;
+      } catch (_) {}
+    }
     const first = TABS.includes(qt) ? qt : (t0 && t0 !== 'home' && TABS.includes(t0) ? t0 : null);
     if (first && !new URLSearchParams(location.search).get('review')) go(first);
     refreshBadge(); avatarUrl().then(showAvatar).catch(() => {});

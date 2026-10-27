@@ -1555,3 +1555,37 @@ html.dark .tc-clash .cl-when { color: #94a3b8; }
 html.dark .tc-clash .cl-add { background: #78350f; color: #fde68a; }
 html.dark .tc-clash .cl-add:hover, html.dark .tc-clash .cl-add:focus-visible { background: #92400e; }
 html.dark .tc-clash .cl-done { color: #34d399; }
+
+
+/* ---- Sandy Intelligence #6: Sunday weekly review ---- */
+.tc-weekly { border-left: 4px solid #6366f1; animation: wk-in .28s ease-out; }
+@keyframes wk-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+html.reduce-motion .tc-weekly { animation: none; }
+.tc-weekly .wk-range { margin: 0 0 8px; }
+.tc-weekly .wk-block { padding: 6px 0; }
+.tc-weekly .wk-block + .wk-block { border-top: 1px solid #eef2ff; }
+.tc-weekly .wk-h4 {
+  margin: 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: #4f46e5;
+}
+.tc-weekly .wk-list { list-style: none; margin: 0; padding: 0; }
+.tc-weekly .wk-list li { padding: 3px 0; font-size: 13px; line-height: 1.35; }
+.tc-weekly .wk-hours .wk-k { font-weight: 600; }
+.tc-weekly .wk-hours .wk-v { float: right; color: #4b5563; font-variant-numeric: tabular-nums; }
+.tc-weekly .wk-when { color: #6b7280; font-size: 12px; }
+.tc-weekly .wk-muted { color: #9ca3af; }
+.tc-weekly .wk-bad { color: #dc2626; }
+.tc-weekly .wk-ha {
+  display: inline-block; min-width: 1.1em; text-align: center;
+  font-size: 11px; font-weight: 800; padding: 0 4px; border-radius: 4px;
+  background: #e0e7ff; color: #3730a3;
+}
+.tc-weekly.wk-flash { box-shadow: 0 0 0 3px rgba(99,102,241,.45); transition: box-shadow .4s; }
+.wk-open-row { margin: 4px 0 0; }
+html.dark .tc-weekly { border-left-color: #818cf8; }
+html.dark .tc-weekly .wk-block + .wk-block { border-top-color: #1e293b; }
+html.dark .tc-weekly .wk-h4 { color: #a5b4fc; }
+html.dark .tc-weekly .wk-hours .wk-v,
+html.dark .tc-weekly .wk-when { color: #94a3b8; }
+html.dark .tc-weekly .wk-ha { background: #312e81; color: #c7d2fe; }
+html.dark .tc-weekly .wk-bad { color: #f87171; }

@@ -1149,3 +1149,6 @@ alter table public.profiles add column if not exists si_free_gap boolean not nul
 -- ---------------------------------------------------------------- 2026-10-26 SI #5 clash check (migration-2026-10-26-si-clash.sql)
 alter table public.profiles add column if not exists si_clash boolean not null default true;
 -- si_nudge_sends.kind widened to ('long_day','clash','weekly_review','grocery','weather') — see migration
+
+-- ---------------------------------------------------------------- 2026-10-26 SI #6 weekly review (migration-2026-10-26-si-weekly-review.sql)
+alter table public.profiles add column if not exists si_weekly_review boolean not null default true;

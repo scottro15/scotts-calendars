@@ -358,6 +358,37 @@ export function dueLongDayNudges(profiles, events, sent, now = Date.now()) {
   return out;
 }
 
+// ------------------------------------------------------------------ weekly review nudge (Sandy Intelligence feature #6)
+// FREE. Sunday PUSH_HOUR local: "Your week ahead is ready" once (si_nudge_sends kind weekly_review).
+export const WEEKLY_REVIEW_PUSH_HOUR = 18;
+export const WEEKLY_REVIEW_WINDOW_MIN = 15;
+/** profiles: [{user_id,time_zone}]; sent: Set of `${owner}|${sundayYmd}`; now ms.
+ *  Returns [{owner_id, target, fireAt, payload}] due in the Sunday 6 PM window. */
+export function dueWeeklyReviewNudges(profiles, sent, now = Date.now()) {
+  const out = [];
+  for (const p of profiles) {
+    const tz = p.time_zone || 'America/Chicago';
+    const wall = utcToWall(now, tz);
+    if (wall.getUTCDay() !== 0) continue; // Sunday only
+    const h = wall.getUTCHours(), mi = wall.getUTCMinutes();
+    const minutesPast = h * 60 + mi;
+    const pushAt = WEEKLY_REVIEW_PUSH_HOUR * 60;
+    if (minutesPast < pushAt || minutesPast > pushAt + WEEKLY_REVIEW_WINDOW_MIN) continue;
+    const today = startOfDay(wall);
+    const target = ymd(today); // that Sunday
+    if (sent.has(`${p.user_id}|${target}`)) continue;
+    const fireAt = wallToUtc(W(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), WEEKLY_REVIEW_PUSH_HOUR, 0), tz);
+    out.push({ owner_id: p.user_id, target, fireAt, payload: {
+      title: '📋 Your week ahead is ready',
+      body: 'Open Today for busiest day, games, long days, clashes, and to-dos.',
+      tag: `weekly:${target}`,
+      url: './?tab=today&si=weekly',
+      ts: fireAt
+    }});
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------ HTTP handler
 const json = (b, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { 'content-type': 'application/json' } });
 export async function handle(req, env, f = fetch, now = Date.now()) {
@@ -381,7 +412,10 @@ export async function handle(req, env, f = fetch, now = Date.now()) {
   // long-day nudge: who has it on (column may not exist yet -> skipped)
   const ldr = await rest('profiles?select=user_id,time_zone&si_long_day=is.true');
   const longDayProfiles = ldr.ok ? await ldr.json() : [];
-  const owners = [...new Set([...rows.map(r => r.owner_id), ...leaveProfiles.map(p => p.user_id), ...longDayProfiles.map(p => p.user_id)])];
+  // weekly review: who has it on (column may not exist yet -> skipped)
+  const wrr = await rest('profiles?select=user_id,time_zone&si_weekly_review=is.true');
+  const weeklyProfiles = wrr.ok ? await wrr.json() : [];
+  const owners = [...new Set([...rows.map(r => r.owner_id), ...leaveProfiles.map(p => p.user_id), ...longDayProfiles.map(p => p.user_id), ...weeklyProfiles.map(p => p.user_id)])];
   if (!owners.length) return json({ due: 0, sent: 0 });
   const inList = `(${owners.join(',')})`;
   const [pr, sr] = await Promise.all([rest(`profiles?select=user_id,time_zone&user_id=in.${inList}`), rest(`push_subscriptions?select=id,owner_id,endpoint,p256dh,auth&owner_id=in.${inList}`)]);
@@ -462,7 +496,19 @@ export async function handle(req, env, f = fetch, now = Date.now()) {
       }
     }
   }
-  return json({ due: due.length, sent, failed, gone, leave_due: leaveDue, planned, long_day_due: longDayDue });
+  let weeklyDue = 0;
+  if (weeklyProfiles.length) {
+    const wIn = `(${weeklyProfiles.map(p => p.user_id).join(',')})`;
+    const sentW = await rest(`si_nudge_sends?select=owner_id,target_date&kind=eq.weekly_review&owner_id=in.${wIn}&target_date=gte.${ymd(addDays(utcToWall(now, 'UTC'), -8))}`);
+    const alreadyW = new Set((sentW.ok ? await sentW.json() : []).map(r => `${r.owner_id}|${String(r.target_date).slice(0, 10)}`));
+    const wd = dueWeeklyReviewNudges(weeklyProfiles, alreadyW, now); weeklyDue = wd.length;
+    for (const a of wd) {
+      const c = await rest('si_nudge_sends', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
+        body: JSON.stringify({ owner_id: a.owner_id, kind: 'weekly_review', target_date: a.target }) });
+      if (c.ok && (await c.json()).length > 0) await deliver(a.owner_id, a.payload);
+    }
+  }
+  return json({ due: due.length, sent, failed, gone, leave_due: leaveDue, planned, long_day_due: longDayDue, weekly_review_due: weeklyDue });
 }
 
 const D = globalThis.Deno;

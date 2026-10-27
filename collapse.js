@@ -17,6 +17,9 @@
     ['tc-tomorrow', () => 'tomorrow', s => { const b = [...s.querySelectorAll('.tm-stats b')].map(x => +x.textContent || 0); return b.length ? n(b.reduce((x, y) => x + y, 0), 'item') : ''; }],
     ['tc-practice', s => 'practice:' + (s.dataset.team || ''), s => { const q = s.querySelector('.pp-next'); const t = q && (q.querySelector('.tc-next-v') || q).textContent.match(/\b(Today|Tomorrow|\w{3}, \w{3} \d+)?\s*\d{1,2}(:\d\d)? ?[AP]M\b/); return t ? t[0].trim() : ''; }],
     ['tc-travel', () => 'travel', s => { const l = s.querySelector('.tv-leave'); return l && l.dataset.leave ? 'leave ' + l.dataset.leave : ''; }],
+    ['tc-freegap', () => 'freegap', s => String(s.querySelectorAll('.fg-row').length || '')],
+    ['tc-longday', () => 'longday', () => ''],
+    ['tc-weekly', () => 'weekly', s => { const r = s.querySelector('.wk-range'); return r ? r.textContent.trim() : ''; }],
   ];
   const n = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`;
   TYPES.push(['tc-nudges', () => 'si-intro', () => '']);
