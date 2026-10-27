@@ -1152,3 +1152,6 @@ alter table public.profiles add column if not exists si_clash boolean not null d
 
 -- ---------------------------------------------------------------- 2026-10-26 SI #6 weekly review (migration-2026-10-26-si-weekly-review.sql)
 alter table public.profiles add column if not exists si_weekly_review boolean not null default true;
+
+-- Sandy Intelligence #7 grocery nudge (migration-2026-10-26-si-grocery.sql)
+alter table public.profiles add column if not exists si_grocery boolean not null default true;

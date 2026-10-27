@@ -256,9 +256,14 @@
     const freeEve = freeEvenings(days);
     const todos = await todoStats(a, now, ws, we, prevWs, prevWe);
 
+    let groceryLine = null;
+    if (window.SandyGrocery && SandyGrocery.weeklyLine) {
+      try { groceryLine = await SandyGrocery.weeklyLine(a, now); } catch (_) { groceryLine = null; }
+    }
     return {
       now, today, ws, we, prevWs, prevWe,
       days, busiest, byCal, games, early, late, longs, clashes, freeEve, todos,
+      groceryLine,
       aheadCount: ahead.timed.length,
       lastWeekCount: back.timed.length,
       totalScheduledMin: days.reduce((s, d) => s + d.scheduledMin, 0)
@@ -300,6 +305,9 @@
     h += `<li>Timed events: <b>${d.aheadCount}</b> · ${esc(hoursLbl2(d.totalScheduledMin))} merged</li>`;
     h += `<li>Overdue to-dos: <b class="${d.todos.overdue ? 'wk-bad' : ''}">${d.todos.overdue}</b>`;
     h += ` · Due this week: <b>${d.todos.dueThisWeek}</b></li>`;
+    if (d.groceryLine) {
+      h += `<li class="${d.groceryLine.ok ? '' : 'wk-bad'}">${esc(d.groceryLine.text)}</li>`;
+    }
     h += `</ul></div>`;
 
     // Hours by calendar

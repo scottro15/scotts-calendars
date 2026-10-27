@@ -196,6 +196,8 @@
         if (wk) { h += SandyWeekly.html(wk); wkFocus = force || new URLSearchParams(location.search).get('si') === 'weekly'; }
       } catch (e) { console.warn('weekly:', e); }
     }
+    // Sandy Intelligence #7: grocery nudge (grocery.js)
+    if (window.SandyGrocery) { try { const gr = await SandyGrocery.data(a, d.now); if (gr) h += SandyGrocery.html(gr); } catch (e) { console.warn('grocery:', e); } }
     // Sandy Intelligence: evening preview of tomorrow (tomorrow.js)
     let tm = null;
     if (window.SandyTomorrow && SandyTomorrow.isEvening(d.now)) { try { tm = await SandyTomorrow.data(a, d.now); h += SandyTomorrow.html(tm); } catch (e) { console.warn('tomorrow:', e); tm = null; } }
@@ -729,6 +731,10 @@
       const p = await SandyWeekly.getPrefs();
       $('siWeeklyReview').checked = p.enabled;
     }
+    if ($('siGrocery') && window.SandyGrocery) {
+      const p = await SandyGrocery.getPrefs();
+      $('siGrocery').checked = p.enabled;
+    }
     if (msg && !msg.dataset.keep) { msg.className = 'small home-msg'; msg.textContent = ''; }
   }
   async function siSwitch(e) {
@@ -747,6 +753,9 @@
       } else if (t.id === 'siWeeklyReview' && window.SandyWeekly) {
         await SandyWeekly.setPrefs({ enabled: t.checked });
         toast(t.checked ? 'Weekly review on' : 'Weekly review off');
+      } else if (t.id === 'siGrocery' && window.SandyGrocery) {
+        await SandyGrocery.setPrefs({ enabled: t.checked });
+        toast(t.checked ? 'Grocery nudge on' : 'Grocery nudge off');
       } else return;
       if (tab === 'today') renderToday();
     } catch (ex) { t.checked = !t.checked; if (msg) { msg.textContent = ex.message || String(ex); msg.classList.add('bad'); msg.dataset.keep = '1'; } }
@@ -828,6 +837,46 @@
         }).catch(err => { toast(err.message || String(err)); fg.disabled = false; });
         return;
       }
+      const gr = e.target.closest('[data-gr]');
+      if (gr && window.SandyGrocery) {
+        e.preventDefault();
+        const act = gr.dataset.gr;
+        if (act === 'settings') {
+          go('profile');
+          const s = $('siSection'); if (s) s.scrollIntoView({ block: 'center' });
+          return;
+        }
+        if (act === 'snooze') {
+          gr.disabled = true;
+          SandyGrocery.snooze(A().nowWall()).then(r => {
+            toast(r.msg);
+            if (tab === 'today') renderToday();
+          }).catch(err => { toast(err.message || String(err)); gr.disabled = false; });
+          return;
+        }
+        if (act === 'add') {
+          gr.disabled = true;
+          SandyGrocery.addRun().then(r => {
+            const t = $('toast');
+            const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            t.innerHTML = `${esc(r.msg)} <button type="button" class="toast-undo">Undo</button>`;
+            t.hidden = false;
+            clearTimeout(window.__grToast);
+            const undoBtn = t.querySelector('.toast-undo');
+            const hide = () => { t.hidden = true; t.textContent = ''; };
+            undoBtn.addEventListener('click', async () => {
+              undoBtn.disabled = true;
+              try { await r.undo(); toast('Undone'); if (tab === 'today') renderToday(); if (tab === 'todo') renderTodo(); }
+              catch (err) { toast(err.message || 'Could not undo'); }
+            }, { once: true });
+            window.__grToast = setTimeout(hide, 6000);
+            if (tab === 'today') renderToday();
+            if (tab === 'todo') renderTodo();
+            window.dispatchEvent(new Event('sandy:refresh'));
+          }).catch(err => { toast(err.message || String(err)); gr.disabled = false; });
+          return;
+        }
+      }
       const b = e.target.closest('.tc-item'); if (b) A().openEditor(b.dataset.id, b.dataset.key); });
     // Search
     let st = 0; $('searchBox').addEventListener('input', () => { clearTimeout(st); st = setTimeout(renderSearch, 120); });
@@ -850,7 +899,7 @@
     $('homeForm').addEventListener('submit', e => { e.preventDefault(); saveHome($('homeAddr').value); });
     $('homeClear').addEventListener('click', () => saveHome(''));
     ['leaveAlerts', 'leaveEarly', 'leaveUseLoc'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', leaveSwitch); });
-    ['siLongDay', 'siFreeGap', 'siClash', 'siWeeklyReview'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', siSwitch); });
+    ['siLongDay', 'siFreeGap', 'siClash', 'siWeeklyReview', 'siGrocery'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', siSwitch); });
     const wkOpen = $('siWeeklyOpen');
     if (wkOpen) wkOpen.addEventListener('click', () => {
       if (!window.SandyWeekly || !A()) return;

@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <title>SANDY — the scheduling app</title>
-  <link rel="stylesheet" href="styles.css?v=20261026-si6">
+  <link rel="stylesheet" href="styles.css?v=20261026-si7">
   <!-- FullCalendar v6 is vendored locally (vendor/) so the app works offline and on GitHub Pages. -->
   <script src="vendor/fullcalendar.min.js"></script>
   <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
@@ -208,6 +208,7 @@
         <label class="pf-row"><span><span class="pf-lbl">Clash check</span><small class="pf-note">Flags personal or client events that overlap a Life Time shift, MSC session, or Maryville / HSSU / Jennings practice or game over the next 7 days. One-tap “Who’s covering?” to-do in Heads Up.</small></span><span class="switch"><input type="checkbox" id="siClash" role="switch" checked><span></span></span></label>
         <label class="pf-row"><span><span class="pf-lbl">Sunday weekly review</span><small class="pf-note">From Sunday 4 PM through the week: busiest day, hours by calendar, games, long days, clashes, free evenings, and to-dos. Push at 6 PM Sunday when notifications are on.</small></span><span class="switch"><input type="checkbox" id="siWeeklyReview" role="switch" checked><span></span></span></label>
         <p class="pf-row wk-open-row"><button type="button" class="link-btn" id="siWeeklyOpen">Open this week’s review</button></p>
+        <label class="pf-row"><span><span class="pf-lbl">Grocery nudge</span><small class="pf-note">Weekly reminder when no grocery shopping is on your calendar in the next 7 days. Today card + Saturday 10 AM push when notifications are on. Match Costco, Aldi, Schnucks, and similar.</small></span><span class="switch"><input type="checkbox" id="siGrocery" role="switch" checked><span></span></span></label>
         <p id="siMsg" class="small home-msg" role="status" aria-live="polite"></p>
       </section>
           <section id="calSection" class="pf-card">
@@ -396,30 +397,31 @@
     <button type="button" data-tab="profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.2-4 4-5.8 7.5-5.8s6.3 1.8 7.5 5.8"/></svg><span>Profile</span></button>
   </nav>
   <script src="config.js"></script>
-  <script src="storage.js?v=20261026-si6"></script>
+  <script src="storage.js?v=20261026-si7"></script>
   <script src="places.js"></script>
-  <script src="motion.js?v=20261026-si6"></script>
-  <script src="account.js?v=20261026-si6"></script>
-  <script src="launch.js?v=20261026-si6"></script>
-  <script src="push.js?v=20261026-si6"></script>
-  <script src="timefmt.js?v=20261026-si6"></script>
-  <script src="smartparse.js?v=20261026-si6"></script>
-  <script src="leaveby.js?v=20261026-si6"></script>
-  <script src="tomorrow.js?v=20261026-si6"></script>
-  <script src="longday.js?v=20261026-si6"></script>
-  <script src="freegap.js?v=20261026-si6"></script>
-  <script src="clash.js?v=20261026-si6"></script>
-  <script src="weekly.js?v=20261026-si6"></script>
-  <script src="practice.js?v=20261026-si6"></script>
-  <script src="travel.js?v=20261026-si6"></script>
-  <script src="collapse.js?v=20261026-si6"></script>
-  <script src="nav.js?v=20261026-si6"></script>
-  <script src="navbar.js?v=20261026-si6"></script>
-  <script src="quicksheet.js?v=20261026-si6"></script>
-  <script src="games.js?v=20261026-si6"></script>
-  <script src="welcome.js?v=20261026-si6"></script>
-  <script src="tour.js?v=20261026-si6"></script>
-  <script src="app.js?v=20261026-si6"></script>
-  <script src="ai.js?v=20261026-si6"></script>
+  <script src="motion.js?v=20261026-si7"></script>
+  <script src="account.js?v=20261026-si7"></script>
+  <script src="launch.js?v=20261026-si7"></script>
+  <script src="push.js?v=20261026-si7"></script>
+  <script src="timefmt.js?v=20261026-si7"></script>
+  <script src="smartparse.js?v=20261026-si7"></script>
+  <script src="leaveby.js?v=20261026-si7"></script>
+  <script src="tomorrow.js?v=20261026-si7"></script>
+  <script src="longday.js?v=20261026-si7"></script>
+  <script src="freegap.js?v=20261026-si7"></script>
+  <script src="clash.js?v=20261026-si7"></script>
+  <script src="weekly.js?v=20261026-si7"></script>
+  <script src="grocery.js?v=20261026-si7"></script>
+  <script src="practice.js?v=20261026-si7"></script>
+  <script src="travel.js?v=20261026-si7"></script>
+  <script src="collapse.js?v=20261026-si7"></script>
+  <script src="nav.js?v=20261026-si7"></script>
+  <script src="navbar.js?v=20261026-si7"></script>
+  <script src="quicksheet.js?v=20261026-si7"></script>
+  <script src="games.js?v=20261026-si7"></script>
+  <script src="welcome.js?v=20261026-si7"></script>
+  <script src="tour.js?v=20261026-si7"></script>
+  <script src="app.js?v=20261026-si7"></script>
+  <script src="ai.js?v=20261026-si7"></script>
 </body>
 </html>

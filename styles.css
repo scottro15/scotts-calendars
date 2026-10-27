@@ -1589,3 +1589,17 @@ html.dark .tc-weekly .wk-hours .wk-v,
 html.dark .tc-weekly .wk-when { color: #94a3b8; }
 html.dark .tc-weekly .wk-ha { background: #312e81; color: #c7d2fe; }
 html.dark .tc-weekly .wk-bad { color: #f87171; }
+
+/* ---- Sandy Intelligence #7: Grocery nudge ---- */
+.tc-grocery { border-left: 4px solid #16a34a; }
+.tc-grocery .gr-msg { margin: 0 0 6px; font-size: 14px; line-height: 1.4; }
+.tc-grocery .gr-gap { margin: 0 0 10px; }
+.tc-grocery .gr-actions { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.tc-grocery .gr-add {
+  appearance: none; border: 0; border-radius: 999px; padding: 8px 14px;
+  background: #16a34a; color: #fff; font-weight: 600; font-size: 13px; cursor: pointer;
+}
+.tc-grocery .gr-add:disabled { opacity: .55; cursor: default; }
+.tc-grocery .gr-snooze, .tc-grocery .gr-settings { font-size: 13px; }
+html.dark .tc-grocery { border-left-color: #4ade80; }
+html.dark .tc-grocery .gr-add { background: #15803d; }

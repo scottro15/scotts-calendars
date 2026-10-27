@@ -389,6 +389,76 @@ export function dueWeeklyReviewNudges(profiles, sent, now = Date.now()) {
   return out;
 }
 
+
+// ------------------------------------------------------------------ grocery nudge (Sandy Intelligence feature #7)
+// FREE. Saturday PUSH_HOUR local: "Time for a grocery run?" once/week (si_nudge_sends kind grocery).
+// Skipped when a grocery-related event/to-do exists in the next GROCERY_WINDOW_DAYS (title/notes/category).
+export const GROCERY_PUSH_DOW = 6;       // Saturday
+export const GROCERY_PUSH_HOUR = 10;
+export const GROCERY_PUSH_WINDOW_MIN = 15;
+export const GROCERY_WINDOW_DAYS = 7;
+/** Keep in sync with grocery.js GROCERY_WORDS. */
+export const GROCERY_WORDS = [
+  'grocery', 'groceries', 'costco', 'aldi', 'schnucks', "schnuck's",
+  'dierbergs', "dierberg's", 'walmart', 'target run',
+  "trader joe's", 'trader joes', 'trader joe',
+  'whole foods', 'instacart', 'meal prep', 'food shopping'
+];
+const GROCERY_RE = (() => {
+  const alt = GROCERY_WORDS.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+')).join('|');
+  return new RegExp('\\b(?:' + alt + ')\\b', 'i');
+})();
+export function isGroceryText(row) {
+  if (!row) return false;
+  return GROCERY_RE.test(`${row.title || ''} ${row.notes || ''} ${row.category || ''}`);
+}
+/** Sunday ymd (wall) for the week containing wall Date. */
+export function groceryWeekSundayYmd(wall) {
+  const d = startOfDay(wall);
+  return ymd(addDays(d, -d.getUTCDay()));
+}
+/** True if owner has a grocery-related item starting in [today, today+WINDOW). */
+export function hasGroceryInWindow(rows, ownerId, wallToday, windowDays = GROCERY_WINDOW_DAYS) {
+  const from = wallToday.getTime();
+  const to = addDays(wallToday, windowDays).getTime();
+  for (const r of rows) {
+    if (r.owner_id !== ownerId) continue;
+    if (r.done === true) continue;
+    if (!isGroceryText(r)) continue;
+    const s = parseLocal(String(r.start_at).slice(0, 16).replace(' ', 'T'));
+    if (!s) continue;
+    const t = s.getTime();
+    if (t >= from && t < to) return true;
+  }
+  return false;
+}
+/** profiles: [{user_id,time_zone}]; events: DB rows; sent: Set owner|sundayYmd; now ms. */
+export function dueGroceryNudges(profiles, events, sent, now = Date.now()) {
+  const out = [];
+  for (const p of profiles) {
+    const tz = p.time_zone || 'America/Chicago';
+    const wall = utcToWall(now, tz);
+    if (wall.getUTCDay() !== GROCERY_PUSH_DOW) continue;
+    const h = wall.getUTCHours(), mi = wall.getUTCMinutes();
+    const minutesPast = h * 60 + mi;
+    const pushAt = GROCERY_PUSH_HOUR * 60;
+    if (minutesPast < pushAt || minutesPast > pushAt + GROCERY_PUSH_WINDOW_MIN) continue;
+    const today = startOfDay(wall);
+    const weekSun = groceryWeekSundayYmd(wall);
+    if (sent.has(`${p.user_id}|${weekSun}`)) continue;
+    if (hasGroceryInWindow(events, p.user_id, today)) continue;
+    const fireAt = wallToUtc(W(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), GROCERY_PUSH_HOUR, 0), tz);
+    out.push({ owner_id: p.user_id, target: weekSun, fireAt, payload: {
+      title: '🛒 Grocery run?',
+      body: 'Nothing grocery-related on your calendar this week. Open Today to add a run.',
+      tag: `grocery:${weekSun}`,
+      url: './?tab=today&si=grocery',
+      ts: fireAt
+    }});
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------ HTTP handler
 const json = (b, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { 'content-type': 'application/json' } });
 export async function handle(req, env, f = fetch, now = Date.now()) {
@@ -415,7 +485,10 @@ export async function handle(req, env, f = fetch, now = Date.now()) {
   // weekly review: who has it on (column may not exist yet -> skipped)
   const wrr = await rest('profiles?select=user_id,time_zone&si_weekly_review=is.true');
   const weeklyProfiles = wrr.ok ? await wrr.json() : [];
-  const owners = [...new Set([...rows.map(r => r.owner_id), ...leaveProfiles.map(p => p.user_id), ...longDayProfiles.map(p => p.user_id), ...weeklyProfiles.map(p => p.user_id)])];
+  // grocery nudge: who has it on (column may not exist yet -> skipped; safe if undeployed before migration)
+  const grr = await rest('profiles?select=user_id,time_zone&si_grocery=is.true');
+  const groceryProfiles = grr.ok ? await grr.json() : [];
+  const owners = [...new Set([...rows.map(r => r.owner_id), ...leaveProfiles.map(p => p.user_id), ...longDayProfiles.map(p => p.user_id), ...weeklyProfiles.map(p => p.user_id), ...groceryProfiles.map(p => p.user_id)])];
   if (!owners.length) return json({ due: 0, sent: 0 });
   const inList = `(${owners.join(',')})`;
   const [pr, sr] = await Promise.all([rest(`profiles?select=user_id,time_zone&user_id=in.${inList}`), rest(`push_subscriptions?select=id,owner_id,endpoint,p256dh,auth&owner_id=in.${inList}`)]);
@@ -508,7 +581,23 @@ export async function handle(req, env, f = fetch, now = Date.now()) {
       if (c.ok && (await c.json()).length > 0) await deliver(a.owner_id, a.payload);
     }
   }
-  return json({ due: due.length, sent, failed, gone, leave_due: leaveDue, planned, long_day_due: longDayDue, weekly_review_due: weeklyDue });
+  let groceryDue = 0;
+  if (groceryProfiles.length) {
+    const gIn = `(${groceryProfiles.map(p => p.user_id).join(',')})`;
+    const evrG = await rest(`events?select=${COLS},end_at,notes,category&owner_id=in.${gIn}&limit=20000`);
+    const sentG = await rest(`si_nudge_sends?select=owner_id,target_date&kind=eq.grocery&owner_id=in.${gIn}&target_date=gte.${ymd(addDays(utcToWall(now, 'UTC'), -8))}`);
+    if (evrG.ok) {
+      const evsG = await evrG.json();
+      const alreadyG = new Set((sentG.ok ? await sentG.json() : []).map(r => `${r.owner_id}|${String(r.target_date).slice(0, 10)}`));
+      const gd = dueGroceryNudges(groceryProfiles, evsG, alreadyG, now); groceryDue = gd.length;
+      for (const a of gd) {
+        const c = await rest('si_nudge_sends', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
+          body: JSON.stringify({ owner_id: a.owner_id, kind: 'grocery', target_date: a.target }) });
+        if (c.ok && (await c.json()).length > 0) await deliver(a.owner_id, a.payload);
+      }
+    }
+  }
+  return json({ due: due.length, sent, failed, gone, leave_due: leaveDue, planned, long_day_due: longDayDue, weekly_review_due: weeklyDue, grocery_due: groceryDue });
 }
 
 const D = globalThis.Deno;

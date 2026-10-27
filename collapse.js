@@ -20,6 +20,7 @@
     ['tc-freegap', () => 'freegap', s => String(s.querySelectorAll('.fg-row').length || '')],
     ['tc-longday', () => 'longday', () => ''],
     ['tc-weekly', () => 'weekly', s => { const r = s.querySelector('.wk-range'); return r ? r.textContent.trim() : ''; }],
+    ['tc-grocery', () => 'grocery', () => ''],
   ];
   const n = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`;
   TYPES.push(['tc-nudges', () => 'si-intro', () => '']);
