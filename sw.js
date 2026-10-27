@@ -14,7 +14,13 @@ self.addEventListener('push', e => {
 
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const url = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
+  // Only open URLs under this app's scope (ignore absolute third-party links in the push payload).
+  let url = self.registration.scope;
+  try {
+    const raw = (e.notification.data && e.notification.data.url) || './';
+    const abs = new URL(raw, self.registration.scope);
+    if (abs.href.startsWith(self.registration.scope)) url = abs.href;
+  } catch (_) {}
   e.waitUntil((async () => {
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const c of all) {
