@@ -237,11 +237,18 @@
       for (const o of occs) {
         const done = a.isDone(ev, o.key); if (done && !todoUI.showDone) continue;
         const overdue = !done && dueAt(ev, o) <= now;
-        out.push({ type: 'task', ev, key: o.key, date: o.start, done, overdue, overdueMs: overdue ? now - (ev.allDay ? a.startOfDay(o.start) : dueAt(ev, o)) : 0, calendar: ev.calendar, categoryId: ev.todoCategoryId || null, title: ev.title });
+        out.push({ type: 'task', ev, key: o.key, date: o.start, done, overdue, overdueMs: overdue ? now - (ev.allDay ? a.startOfDay(o.start) : dueAt(ev, o)) : 0, calendar: ev.calendar, categoryId: ev.todoCategoryId || null, title: ev.title, desc: String(ev.notes || '').trim() });
       }
     }
     let inbox = []; try { inbox = await Inbox.list(); } catch (e) { console.warn('inbox:', e); }
-    for (const i of inbox) { if (i.done && !todoUI.showDone) continue; out.push({ type: 'inbox', item: i, done: i.done, date: null, overdue: false, calendar: i.calendar, categoryId: i.categoryId, title: i.body, note: i.kind === 'note' }); }
+    for (const i of inbox) {
+      if (i.done && !todoUI.showDone) continue;
+      const raw = String(i.body || '');
+      const nl = raw.indexOf('\n');
+      const title = (nl < 0 ? raw : raw.slice(0, nl)).trim() || raw.trim();
+      const desc = nl < 0 ? '' : raw.slice(nl + 1).trim();
+      out.push({ type: 'inbox', item: i, done: i.done, date: null, overdue: false, calendar: i.calendar, categoryId: i.categoryId, title, desc, note: i.kind === 'note', priority: i.priority || null });
+    }
     return { items: out, now, today };
   }
   function dateLabel(a, it, today) {
@@ -300,11 +307,14 @@
         meta.push(`<span class="td-date${it.overdue ? ' bad' : ''}">${it.overdue ? 'Due ' : ''}${esc(dateLabel(a, it, today))}</span>`);
         if (c && todoUI.group !== 'calendar') meta.push(`<span class="td-cal"><span class="dot" style="background:${esc(c.color)}"></span>${esc(c.short || c.name)}</span>`);
         if (cat && todoUI.group !== 'category') meta.push(`<span class="td-cat" style="--c:${esc(cat.color)}">${esc(cat.name)}</span>`);
-        { const pr = it.type === 'task' ? it.ev.priority : it.item && it.item.priority; if (pr >= 1 && pr <= 3) meta.push(`<span class="td-pri td-p${pr}" title="Priority ${pr}"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M5 21V4h11l-1.5 4L16 12H5" fill="currentColor"/></svg>P${pr}</span>`); }
+        const pr = it.type === 'task' ? it.ev.priority : (it.priority || (it.item && it.item.priority));
+        if (pr >= 1 && pr <= 3) meta.push(`<span class="td-pri td-p${pr}" title="Priority ${pr}"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M5 21V4h11l-1.5 4L16 12H5" fill="currentColor"/></svg>P${pr}</span>`);
         const id = it.type === 'task' ? `data-ev="${esc(it.ev.id)}" data-key="${esc(it.key)}"` : `data-inbox="${esc(it.item.id)}"`;
-        return `<li class="todo-row${it.done ? ' done' : ''}${it.overdue ? ' overdue' : ''}${it.note ? ' note' : ''}" ${id} style="--c:${esc(c ? c.color : '#9ca3af')}">
+        const checkC = pr === 1 ? '#d1453b' : pr === 2 ? '#eb8909' : pr === 3 ? '#246fe0' : '#b0b0b0';
+        const descHtml = it.desc ? `<p class="td-desc">${esc(it.desc)}</p>` : '';
+        return `<li class="todo-row${it.done ? ' done' : ''}${it.overdue ? ' overdue' : ''}${it.note ? ' note' : ''}${pr >= 1 && pr <= 3 ? ' td-has-p' + pr : ''}" ${id} style="--c:${esc(c ? c.color : '#9ca3af')};--check:${checkC}">
           ${it.note ? '<span class="td-note" aria-hidden="true">📝</span>' : `<button type="button" class="td-check" role="checkbox" aria-checked="${it.done}" aria-label="${it.done ? 'Mark not done' : 'Mark done'}: ${esc(it.title)}"><span></span></button>`}
-          <div class="td-main"><button type="button" class="td-title">${esc(it.title)}</button><div class="td-meta">${meta.join('')}</div></div>
+          <div class="td-main"><button type="button" class="td-title">${esc(it.title)}</button>${descHtml}<div class="td-meta">${meta.join('')}</div></div>
           ${catSel(it)}</li>`;
       }).join('')}</ul></section>`;
     }).join('');
@@ -321,7 +331,7 @@
       } catch (err) { toast('Could not save: ' + err.message); }
       setTimeout(renderTodo, reduceMotion() ? 0 : 380); return;
     }
-    if (e.target.closest('.td-title')) {
+    if (e.target.closest('.td-title, .td-desc, .td-main') && !e.target.closest('.td-check, .cat-pick, select')) {
       // Prefer the quick-add sheet in edit mode (same options as create). Fall back to the full editor/inbox dialog.
       if (window.SandyQuickSheet && SandyQuickSheet.openEdit) {
         if (row.dataset.ev) SandyQuickSheet.openEdit({ type: 'task', id: row.dataset.ev, key: row.dataset.key });

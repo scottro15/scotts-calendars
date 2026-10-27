@@ -340,6 +340,8 @@ dialog .checklist-items label:hover { background: #e0f2fe; }
   select, textarea,
   dialog input:not([type=checkbox]):not([type=radio]):not([type=color]):not([type=range]):not([type=file]):not([type=hidden]),
   dialog select, dialog textarea { font-size: 16px !important; }
+  /* Task name stays larger than the 16px iOS floor so hierarchy still reads vs description */
+  .qs-sheet .qs-field #qsText, .qs-sheet textarea.qs-title { font-size: 20px !important; font-weight: 700; }
   dialog { max-width: calc(100vw - 16px); box-sizing: border-box; }
   dialog form { box-sizing: border-box; max-width: 100%; }
 }
@@ -677,16 +679,18 @@ button.tc-item:not(.tc-link) { display: flex; align-items: center; gap: 8px; wid
 .todo-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); transition: opacity .3s, background .3s; }
 .todo-row:first-child { border-top: 0; }
 .todo-row.just-added { animation: msgUp .3s ease-out, sandy-flash 1.2s ease-out; }
-.td-check { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--c); background: none; padding: 0; margin-top: 1px; position: relative; transition: background .2s, transform .15s; }
+.td-check { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--check, var(--c, #b0b0b0)); background: none; padding: 0; margin-top: 2px; position: relative; transition: background .2s, transform .15s, border-color .2s; }
 .td-check:active { transform: scale(.88); }
-.td-check[aria-checked=true] { background: var(--c); }
+.td-check[aria-checked=true] { background: var(--check, var(--c, #b0b0b0)); border-color: var(--check, var(--c, #b0b0b0)); }
 .td-check[aria-checked=true] span::after { content: ""; position: absolute; left: 6px; top: 2px; width: 5px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
 .td-note { flex: none; width: 22px; text-align: center; }
-.td-main { flex: 1; min-width: 0; }
-.td-title { display: block; border: 0; background: none; padding: 0; text-align: left; width: 100%; color: var(--text); font-size: 15px; overflow-wrap: anywhere; }
-.todo-row.done .td-title { text-decoration: line-through; color: var(--muted); }
+.td-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
+/* Todoist inbox hierarchy: title ~15–16px normal, description smaller muted, meta under that */
+.td-title { display: block; border: 0; background: none; padding: 0; text-align: left; width: 100%; color: var(--text); font-size: 15.5px; font-weight: 400; line-height: 1.35; overflow-wrap: anywhere; letter-spacing: -.01em; }
+.td-desc { margin: 0; padding: 0; font-size: 13px; font-weight: 400; line-height: 1.35; color: var(--muted, #6b7280); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.todo-row.done .td-title, .todo-row.done .td-desc { text-decoration: line-through; color: var(--muted); }
 .todo-row.checking { opacity: .5; }
-.td-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 3px; font-size: 12px; color: var(--muted); align-items: center; }
+.td-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; font-size: 12px; color: var(--muted); align-items: center; }
 .td-date.bad { color: #b91c1c; }
 .td-cal { display: inline-flex; gap: 4px; align-items: center; }
 .td-cat { border-radius: 999px; padding: 0 7px; background: color-mix(in srgb, var(--c) 15%, transparent); color: var(--c); font-weight: 600; }
@@ -1468,15 +1472,16 @@ html.dark .qs-sheet { background: var(--qs-bg); box-shadow: 0 -8px 30px rgba(0, 
 .qs-grab { width: 36px; height: 5px; border-radius: 3px; background: var(--qs-line); margin: 2px auto 6px; }
 .qs-sheet form { display: flex; flex-direction: column; gap: 2px; margin: 0; }
 .qs-field { display: flex; }
-.qs-sheet .qs-field #qsText, .qs-hl { font: inherit; font-size: 19px; font-weight: 600; line-height: 26px; padding: 6px 0; letter-spacing: normal; }
+.qs-sheet .qs-field #qsText, .qs-hl { font: inherit; font-size: 20px; font-weight: 700; line-height: 1.3; padding: 6px 0 4px; letter-spacing: -.015em; }
 .qs-sheet .qs-field #qsText { position: relative; z-index: 1; width: 100%; border: 0; outline: 0; background: transparent; min-width: 0; resize: none; overflow: hidden; display: block; margin: 0; box-shadow: none; border-radius: 0; max-height: 132px;
   color: transparent; -webkit-text-fill-color: transparent; caret-color: var(--text); }
-.qs-sheet .qs-field #qsText::placeholder { color: var(--qs-ph); -webkit-text-fill-color: var(--qs-ph); font-weight: 600; }
+.qs-sheet .qs-field #qsText::placeholder { color: var(--qs-ph); -webkit-text-fill-color: var(--qs-ph); font-weight: 700; }
 .qs-sheet .qs-field #qsText::selection { background: rgba(37, 99, 235, .25); }
 .qs-sheet .qs-hl { color: var(--text); white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; overflow: hidden; }
 .qs-sheet .qs-desc, html.dark .qs-sheet .qs-desc, .qs-sheet .qs-field #qsText, html.dark .qs-sheet .qs-field #qsText { background: transparent; border: 0; box-shadow: none; border-radius: 0; }
-.qs-desc { border: 0; outline: 0; background: transparent; font: inherit; font-size: 16px; line-height: 22px; padding: 2px 0 8px; color: var(--text); width: 100%; }
-.qs-desc::placeholder { color: var(--qs-ph); }
+.qs-desc { border: 0; outline: 0; background: transparent; font: inherit; font-size: 16px; font-weight: 400; line-height: 22px; padding: 2px 0 10px; color: var(--muted, #6b7280); width: 100%; }
+.qs-desc::placeholder { color: var(--qs-ph); font-weight: 400; }
+.qs-desc:focus { color: var(--text); }
 .qs-chips { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 12px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .qs-chips::-webkit-scrollbar { display: none; }
 .qs-chip, .qs-proj { position: relative; flex: none; display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 11px; border-radius: 8px;
