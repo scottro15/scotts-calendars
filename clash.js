@@ -289,14 +289,22 @@
   function htmlItems(d) {
     if (!d || !d.clashes.length) return '';
     const a = A();
-    return d.clashes.map(c => {
+    // One "Who's covering?" for the whole card (first uncovered clash); rows stay text-only.
+    const firstOpen = d.clashes.find(c => !c.hasCover);
+    const rows = d.clashes.map(c => {
       const duty = c.duty, oth = c.other;
       const when = `${dayLabel(a, duty.o.start, d.today)} ${esc(t12(duty.o.start))}–${esc(t12(duty.o.end))}`;
-      const btn = c.hasCover
-        ? `<span class="cl-done">Covering to-do added</span>`
-        : `<button type="button" class="cl-add" data-cl-key="${esc(c.key)}" data-duty-id="${esc(duty.ev.id)}" data-duty-key="${esc(duty.o.key)}" data-other-id="${esc(oth.ev.id)}" data-other-key="${esc(oth.o.key)}">Add “Who's covering?”</button>`;
-      return `<li class="cl-row">⚠️ <b>${esc(duty.ev.title)}</b> overlaps <b>${esc(oth.ev.title)}</b> <span class="cl-when">(${when})</span> ${btn}</li>`;
+      const done = c.hasCover ? ` <span class="cl-done">Covering added</span>` : '';
+      return `<li class="cl-row">⚠️ <b>${esc(duty.ev.title)}</b> overlaps <b>${esc(oth.ev.title)}</b> <span class="cl-when">(${when})</span>${done}</li>`;
     }).join('');
+    let foot = '';
+    if (firstOpen) {
+      const c = firstOpen, duty = c.duty, oth = c.other;
+      foot = `<li class="cl-row cl-actions"><button type="button" class="cl-add" data-cl-key="${esc(c.key)}" data-duty-id="${esc(duty.ev.id)}" data-duty-key="${esc(duty.o.key)}" data-other-id="${esc(oth.ev.id)}" data-other-key="${esc(oth.o.key)}">Add “Who's covering?”</button>${d.clashes.length > 1 ? `<span class="cl-more muted small">for ${d.clashes.length} overlaps</span>` : ''}</li>`;
+    } else if (d.clashes.every(c => c.hasCover)) {
+      foot = `<li class="cl-row cl-actions"><span class="cl-done">Covering to-dos added</span></li>`;
+    }
+    return rows + foot;
   }
 
   /** Full Heads Up fragment (ul) — nav injects into #tcClash. */

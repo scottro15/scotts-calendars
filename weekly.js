@@ -294,7 +294,7 @@
     const a = A();
     const range = `${a.fmtDay(d.ws)} – ${a.fmtDay(a.addDays(d.we, -1))}`;
     let h = `<section class="tc-sec tc-card tc-weekly" id="tcWeekly" data-ws="${esc(a.ymd(d.ws))}" aria-labelledby="wkH">`;
-    h += `<h3 id="wkH">📋 Your week ahead</h3>`;
+    h += `<h3 id="wkH">📋 Week ahead &amp; Sunday review</h3>`;
     h += `<p class="wk-range muted small">${esc(range)}</p>`;
 
     // Snapshot

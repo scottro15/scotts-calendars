@@ -1975,3 +1975,59 @@ html.reduce-motion .sug-tile.sug-leaving { transition: none; }
 .sug-tile.tc-tomorrow { border-left-color: #6366f1; }
 .sug-body .ld-msg, .sug-body .gr-msg { margin: 0 0 4px; font-size: 14px; }
 .sug-body .ld-meta, .sug-body .gr-gap { margin: 0; }
+
+/* Merged Today stats line (replaces pill chips) */
+.tc-stats-line {
+  margin: 12px 0 0; font-size: 13px; color: var(--muted); line-height: 1.4;
+}
+.tc-stat-link {
+  border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
+}
+.tc-stat-link b { color: #0f172a; font-weight: 800; }
+html.dark .tc-stat-link b { color: #f8fafc; }
+.tc-stat-sep { opacity: .45; }
+.tc-stat-od, .tc-stat-od b { color: #b91c1c !important; }
+html.dark .tc-stat-od, html.dark .tc-stat-od b { color: #fca5a5 !important; }
+.tc-simple-tog {
+  display: inline-flex; align-items: center; gap: 6px;
+  float: right; margin: 2px 0 0 8px;
+  font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer;
+  user-select: none;
+}
+.tc-simple-tog input { width: 14px; height: 14px; accent-color: #6366f1; }
+
+/* Card spacing: more between, tighter inside */
+.tc-card {
+  margin: 0 0 18px;
+  padding: 10px 12px 8px;
+}
+.tc-card h3 { margin: 0 0 6px !important; }
+
+/* Single accent On Today: left bar only, quieter overdue badge */
+.tc-on button.tc-item.tc-ev .overdue-badge,
+.tc-overdue button.tc-item.tc-ev .overdue-badge {
+  background: transparent; border: 0; padding: 0; font-size: 11px; font-weight: 600;
+  color: #b91c1c;
+}
+html.dark .tc-on button.tc-item.tc-ev .overdue-badge,
+html.dark .tc-overdue button.tc-item.tc-ev .overdue-badge {
+  background: transparent; color: #fca5a5;
+}
+
+/* One Who's covering footer row */
+.tc-clash .cl-actions {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: transparent !important; border-style: dashed !important;
+}
+.tc-clash .cl-more { font-size: 12px; }
+
+/* Simple mode: hide extras if any still rendered */
+body.today-simple .tc-suggestions,
+body.today-simple .tc-weekly,
+body.today-simple #todayNudges,
+body.today-simple .tc-travel,
+body.today-simple .tc-practice,
+body.today-simple .tc-longday,
+body.today-simple .tc-freegap,
+body.today-simple .tc-grocery,
+body.today-simple .tc-tomorrow { display: none !important; }

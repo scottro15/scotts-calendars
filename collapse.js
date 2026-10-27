@@ -46,8 +46,18 @@
     const count = document.createElement('span'); count.className = 'tc-count';
     const chev = document.createElement('span'); chev.className = 'tc-chev'; chev.setAttribute('aria-hidden', 'true');
     label.appendChild(count); btn.append(label, chev); h3.appendChild(btn);
-    set(sec, !!state[key], false);
-    btn.addEventListener('click', () => { const closed = !sec.classList.contains('is-collapsed'); set(sec, closed, true); const s = read(); if (closed) s[key] = 1; else delete s[key]; write(s); });
+    // Weekly / Sunday review starts collapsed; other cards default open. state[key]=1 closed, 0 open (weekly), absent = default.
+    const defaultClosed = key === 'weekly';
+    const startClosed = state[key] === undefined ? defaultClosed : !!state[key];
+    set(sec, startClosed, false);
+    btn.addEventListener('click', () => {
+      const closed = !sec.classList.contains('is-collapsed');
+      set(sec, closed, true);
+      const s = read();
+      if (defaultClosed) s[key] = closed ? 1 : 0;
+      else if (closed) s[key] = 1; else delete s[key];
+      write(s);
+    });
     if (focusKey === key && (document.activeElement === document.body || !document.activeElement)) btn.focus({ preventScroll: true });
   }
   function set(sec, closed, animate) {

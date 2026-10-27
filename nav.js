@@ -155,8 +155,14 @@
     const mins = m => m < 60 ? `${m} min` : `${Math.floor(m / 60)} hr${m >= 120 ? 's' : ''}${m % 60 ? ` ${m % 60} min` : ''}`;
     let h = '';
     const nTasks = d.items.filter(x => x.ev.kind === 'task').length, nEv = d.items.length - nTasks;
-    const pill = (cls, n, word) => `<span class="tc-pill ${cls}"><b>${n}</b> ${word}</span>`;
-    h += `<div class="tc-summary"><div class="tc-stats">${pill('tc-p-ev', nEv, 'event' + (nEv === 1 ? '' : 's'))}${pill('tc-p-todo', nTasks, 'to-do' + (nTasks === 1 ? '' : 's'))}${pill('tc-p-od' + (d.overdue.length ? ' bad' : ''), d.overdue.length, 'overdue')}</div>`;
+    const od = d.overdue.length;
+    const statsLine = `<p class="tc-stats-line" role="status"><button type="button" class="tc-stat-link" data-stat="events"><b>${nEv}</b> event${nEv === 1 ? '' : 's'}</button>` +
+      `<span class="tc-stat-sep" aria-hidden="true"> · </span>` +
+      `<button type="button" class="tc-stat-link" data-stat="todos"><b>${nTasks}</b> to-do${nTasks === 1 ? '' : 's'}</button>` +
+      (od ? `<span class="tc-stat-sep" aria-hidden="true"> · </span><button type="button" class="tc-stat-link tc-stat-od" data-stat="overdue"><b>${od}</b> overdue</button>` : '') +
+      `</p>`;
+    const simpleBar = window.SandySimple ? SandySimple.toolbarHtml() : '';
+    h += `<div class="tc-summary">${simpleBar}${statsLine}`;
     if (d.nowOn || d.next) {
       h += '<div class="tc-upnext">';
       if (d.nowOn) h += `<p class="tc-next"><span class="tc-next-k">Now</span><span class="tc-next-v"><button type="button" class="tc-link tc-item" data-id="${esc(d.nowOn.ev.id)}" data-key="${esc(d.nowOn.o.key)}">${esc(d.nowOn.ev.title)}</button> until ${esc(t12(d.nowOn.o.end))}</span></p>`;
@@ -184,21 +190,23 @@
       ? `<li>⚠️ <b>${esc(g.p.ev.title)}</b> overlaps <b>${esc(g.n.ev.title)}</b> (${esc(t12(g.n.o.start))})</li>`
       : `<li>⏱️ Tight: <b>${esc(g.p.ev.title)}</b> ends ${esc(t12(g.p.o.end))}, <b>${esc(g.n.ev.title)}</b> starts ${g.min ? `${g.min} min later` : 'right after'}</li>`).join('')}</ul>` : ''}</section>`;
     // Sandy Intelligence nudges → one Suggestions card (dismissible tiles). Weekly stays its own card.
+    // Simple mode: skip Suggestions + Week ahead entirely (Now/Next, Heads Up, On Today, Overdue only).
+    const simpleOn = !!(window.SandySimple && SandySimple.isOn());
     const sug = window.SandySuggestions;
     let sugTiles = '';
-    let tv = null;
-    if (window.SandyTravel) { try { tv = await SandyTravel.render(null, a, d.now); if (tv && tv.html) sugTiles += sug ? sug.wrap(tv.html, 'travel') : tv.html; } catch (e) { console.warn('travel plan:', e); tv = null; } }
-    if (window.SandyPractice) { try { const ph = SandyPractice.html(await SandyPractice.data(a, d.now), d.now, d.today); if (ph) sugTiles += sug ? sug.wrap(ph, 'practice') : ph; } catch (e) { console.warn('practice prep:', e); } }
-    let ld = null;
-    if (window.SandyLongDay) { try { ld = await SandyLongDay.data(a, d.now); if (ld) { const lh = SandyLongDay.html(ld); sugTiles += sug ? sug.wrap(lh, 'longday') : lh; } } catch (e) { console.warn('long-day:', e); ld = null; } }
-    if (window.SandyFreeGap) { try { const fg = await SandyFreeGap.data(a, d.now); if (fg) { const fh = SandyFreeGap.html(fg); if (fh) sugTiles += sug ? sug.wrap(fh, 'freegap') : fh; } } catch (e) { console.warn('free-gap:', e); } }
-    if (window.SandyGrocery) { try { const gr = await SandyGrocery.data(a, d.now); if (gr) { const gh = SandyGrocery.html(gr); if (gh) sugTiles += sug ? sug.wrap(gh, 'grocery') : gh; } } catch (e) { console.warn('grocery:', e); } }
-    let tm = null;
-    if (window.SandyTomorrow && SandyTomorrow.isEvening(d.now)) { try { tm = await SandyTomorrow.data(a, d.now); const th = SandyTomorrow.html(tm); if (th) sugTiles += sug ? sug.wrap(th, 'tomorrow') : th; } catch (e) { console.warn('tomorrow:', e); tm = null; } }
-    if (sugTiles) h += sug ? sug.shell(sugTiles) : sugTiles;
-    // Sandy Intelligence #6: Sunday weekly review (weekly.js) — own card (collapsed in a later step)
+    let tv = null, ld = null, tm = null;
+    if (!simpleOn) {
+      if (window.SandyTravel) { try { tv = await SandyTravel.render(null, a, d.now); if (tv && tv.html) sugTiles += sug ? sug.wrap(tv.html, 'travel') : tv.html; } catch (e) { console.warn('travel plan:', e); tv = null; } }
+      if (window.SandyPractice) { try { const ph = SandyPractice.html(await SandyPractice.data(a, d.now), d.now, d.today); if (ph) sugTiles += sug ? sug.wrap(ph, 'practice') : ph; } catch (e) { console.warn('practice prep:', e); } }
+      if (window.SandyLongDay) { try { ld = await SandyLongDay.data(a, d.now); if (ld) { const lh = SandyLongDay.html(ld); sugTiles += sug ? sug.wrap(lh, 'longday') : lh; } } catch (e) { console.warn('long-day:', e); ld = null; } }
+      if (window.SandyFreeGap) { try { const fg = await SandyFreeGap.data(a, d.now); if (fg) { const fh = SandyFreeGap.html(fg); if (fh) sugTiles += sug ? sug.wrap(fh, 'freegap') : fh; } } catch (e) { console.warn('free-gap:', e); } }
+      if (window.SandyGrocery) { try { const gr = await SandyGrocery.data(a, d.now); if (gr) { const gh = SandyGrocery.html(gr); if (gh) sugTiles += sug ? sug.wrap(gh, 'grocery') : gh; } } catch (e) { console.warn('grocery:', e); } }
+      if (window.SandyTomorrow && SandyTomorrow.isEvening(d.now)) { try { tm = await SandyTomorrow.data(a, d.now); const th = SandyTomorrow.html(tm); if (th) sugTiles += sug ? sug.wrap(th, 'tomorrow') : th; } catch (e) { console.warn('tomorrow:', e); tm = null; } }
+    }
+    if (!simpleOn && sugTiles) h += sug ? sug.shell(sugTiles) : sugTiles;
+    // Sandy Intelligence #6: Sunday weekly review (weekly.js) — own card (collapsed by default)
     let wkFocus = false;
-    if (window.SandyWeekly) {
+    if (!simpleOn && window.SandyWeekly) {
       try {
         const force = !!(window.__wkForceOpen);
         window.__wkForceOpen = false;
@@ -206,9 +214,10 @@
         if (wk) { h += SandyWeekly.html(wk); wkFocus = force || new URLSearchParams(location.search).get('si') === 'weekly'; }
       } catch (e) { console.warn('weekly:', e); }
     }
-    h += `<section class="tc-sec tc-card tc-on"><h3>On Today</h3>${d.items.length ? `<ul class="tc-list">${d.items.map(x => row(x)).join('')}</ul>` : '<p class="muted small">Nothing on the calendar today.</p>'}</section>`;
+    if (d.items.length) h += `<section class="tc-sec tc-card tc-on"><h3>On Today</h3><ul class="tc-list">${d.items.map(x => row(x)).join('')}</ul></section>`;
     if (d.overdue.length) h += `<section class="tc-sec tc-card tc-overdue"><h3>Overdue To-Dos</h3><ul class="tc-list">${d.overdue.map(x => row(x, `<span class="overdue-badge">Overdue ${esc(a.overdueText(d.now - (x.ev.allDay ? a.startOfDay(x.o.start) : (x.o.end || x.o.start))))}</span>`)).join('')}</ul></section>`;
     $('todayBody').innerHTML = h;
+    if (window.SandySimple) { try { SandySimple.bind($('todayBody')); } catch (e) { console.warn('simple:', e); } }
     if (window.SandyCollapse) { try { SandyCollapse.apply($('todayBody')); } catch (e) { console.warn('collapse:', e); } }
     if (wkFocus && window.SandyWeekly) { try { SandyWeekly.focusCard(); } catch (_) {} }
     if (window.SandyLeave) SandyLeave.render($('tcLeave'), d.items, d.now).catch(e => console.warn('leave-by:', e));
@@ -824,6 +833,9 @@
       const p = await SandyWeather.getPrefs();
       $('siWeather').checked = p.enabled;
     }
+    if ($('siSimpleMode') && window.SandySimple) {
+      $('siSimpleMode').checked = SandySimple.isOn();
+    }
     if (msg && !msg.dataset.keep) { msg.className = 'small home-msg'; msg.textContent = ''; }
   }
   async function siSwitch(e) {
@@ -848,6 +860,9 @@
       } else if (t.id === 'siWeather' && window.SandyWeather) {
         await SandyWeather.setPrefs({ enabled: t.checked });
         toast(t.checked ? 'Weather Heads Up on' : 'Weather Heads Up off');
+      } else if (t.id === 'siSimpleMode' && window.SandySimple) {
+        SandySimple.set(t.checked);
+        toast(t.checked ? 'Simple Today on' : 'Simple Today off');
       } else return;
       if (tab === 'today') renderToday();
     } catch (ex) { t.checked = !t.checked; if (msg) { msg.textContent = ex.message || String(ex); msg.classList.add('bad'); msg.dataset.keep = '1'; } }
@@ -878,6 +893,19 @@
     // Today card taps
     $('todayCard').addEventListener('click', e => {
       if (window.SandySuggestions && SandySuggestions.onClick(e)) return;
+      const stat = e.target.closest('[data-stat]');
+      if (stat) {
+        const k = stat.dataset.stat;
+        if (k === 'overdue') {
+          const el = document.querySelector('.tc-overdue');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (k === 'todos') { go('todo'); }
+        else if (k === 'events') {
+          const el = document.querySelector('.tc-on');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        return;
+      }
       if (e.target.closest('.lb-loc-yes, .lb-loc-no')) { SandyLeave.answerAsk(!!e.target.closest('.lb-loc-yes')).catch(() => {}); return; }
       if (e.target.closest('.lb-sethome')) { go('profile'); const s = $('homeSection'); if (s) { s.scrollIntoView({ block: 'center' }); setTimeout(() => $('homeAddr').focus(), 300); } return; }
       const cl = e.target.closest('.cl-add');
