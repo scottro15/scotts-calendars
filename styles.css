@@ -141,12 +141,25 @@ dialog .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px
 .brief-summary { margin: 2px 0 6px; }
 .brief-list { max-height: 340px; overflow-y: auto; }
 .brief-list .empty { color: var(--muted); font-size: 13px; margin: 4px 0; }
-.brief-day { font-size: 12px; font-weight: 600; color: var(--muted); margin: 10px 0 2px; position: sticky; top: 0; background: var(--panel); padding: 2px 0; }
-.brief-day.is-today { color: var(--text); }
+/* Briefing day headers: match List view .fc-list-day-cushion (weight/size/border/sticky/today) — List itself unchanged */
+.brief-day {
+  /* mirrors #calendar .fc-list-day .fc-list-day-cushion (List view unchanged) */
+  font-size: 15px; font-weight: 700; color: var(--text);
+  margin: 8px 4px 4px; padding: 8px 14px;
+  position: sticky; top: 0; z-index: 2;
+  background: #f3f4f6; border: 1px solid #94a3b8; border-radius: 8px;
+  letter-spacing: .01em;
+}
+.brief-day.is-today { background: #dbeafe; color: var(--text); }
+html.dark .brief-day { background: var(--fc-neutral-bg-color, #172036); border-color: rgba(255, 255, 255, .85); color: var(--text); }
+html.dark .brief-day.is-today { background: #1e3a8a; color: #f8fafc; }
+html.dark .brief-item { background: var(--panel, #111a2b); color: var(--text); }
+html.dark .brief-item .bi-title { color: var(--text); }
 .brief-items { list-style: none; margin: 0; padding: 0; }
 .brief-item { display: flex; gap: 10px; width: 100%; text-align: left; border: none; border-left: 4px solid var(--c); border-radius: 6px; background: #fff;
-  padding: 6px 8px; margin: 2px 0; align-items: baseline; min-height: 44px; }
-.brief-item:hover { background: #f9fafb; }
+  padding: 6px 8px; margin: 2px 0; align-items: baseline; min-height: 44px;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.brief-item:active { transform: none; } /* press via .is-press only — no scroll flash */
 .brief-item .bi-time { flex: none; width: 150px; font-size: 13px; color: #374151; font-variant-numeric: tabular-nums; }
 .brief-item .bi-main { display: flex; flex-direction: column; min-width: 0; }
 .brief-item .bi-title { font-weight: 500; }
@@ -188,10 +201,14 @@ dialog .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px
 .fc-list tr.sandy-ongoing > td { background: #eff6ff; }
 /* List View: each row tinted with a faded version of its calendar color (follows CAL color) */
 .fc-list tr.sandy-tint > td { background: color-mix(in srgb, var(--cal) 12%, #fff); transition: background-color .15s ease-out; }
-.fc-list tr.sandy-tint:hover > td { background: color-mix(in srgb, var(--cal) 20%, #fff); }
+@media (hover: hover) and (pointer: fine) {
+  .fc-list tr.sandy-tint:hover > td { background: color-mix(in srgb, var(--cal) 20%, #fff); }
+}
 .fc-list tr.sandy-tint.sandy-ongoing > td { background: color-mix(in srgb, var(--cal) 24%, #fff); font-weight: 600; }
 .fc-list tr.sandy-tint.sandy-ongoing > :first-child { box-shadow: inset 3px 0 0 var(--today), inset 7px 0 0 var(--cal); }
-.fc-list tr.sandy-tint.sandy-ongoing:hover > td { background: color-mix(in srgb, var(--cal) 30%, #fff); }
+@media (hover: hover) and (pointer: fine) {
+  .fc-list tr.sandy-tint.sandy-ongoing:hover > td { background: color-mix(in srgb, var(--cal) 30%, #fff); }
+}
 @media (prefers-reduced-motion: reduce) { .fc-list tr.sandy-tint > td { transition: none; } }
 .fc-list tr.sandy-now-row > td { padding: 0 !important; height: 0; }
 .sandy-now-line { position: relative; height: 2px; background: #ef4444; margin: 9px 3px; }
@@ -217,7 +234,20 @@ dialog.closing::backdrop { animation: bd-out 160ms ease-in forwards; }
 .brief-collapse { transition: transform 220ms cubic-bezier(.2,.8,.2,1); }
 .briefing.collapsed .brief-collapse { transform: rotate(-90deg); }
 button { transition: transform 120ms ease-out, background-color 150ms, color 150ms, border-color 150ms; }
-button:active:not(:disabled), .title-picker:active { transform: scale(.96); }
+button:active:not(:disabled):not(.brief-item):not(.tc-item):not(.sr-item):not(.td-title), .title-picker:active { transform: scale(.96); }
+/* Scrollable list rows: no :active/:hover flash while the finger is dragging. Press = .is-press (motion.js). */
+.brief-item.is-press { background: #f3f4f6; }
+button.tc-item.tc-ev.is-press { background: color-mix(in srgb, var(--cal) 20%, #fff); }
+.sr-item.is-press { background: var(--chip); }
+.todo-row .td-title.is-press { opacity: .7; }
+.fc-list-event.is-press > td { background: color-mix(in srgb, var(--cal, #94a3b8) 18%, #fff) !important; }
+html.dark .brief-item.is-press { background: #1c2638; }
+html.dark button.tc-item.tc-ev.is-press { background: color-mix(in srgb, var(--cal) 28%, #16213a); }
+html.dark .sr-item.is-press { background: var(--chip); }
+html.dark .fc-list-event.is-press > td { background: color-mix(in srgb, var(--cal, #64748b) 28%, #111a2b) !important; }
+.brief-item, button.tc-item.tc-ev, .sr-item, .todo-row .td-title, .fc-list-event {
+  -webkit-tap-highlight-color: transparent;
+}
 .briefing.collapsed .brief-collapse:active { transform: rotate(-90deg) scale(.92); }
 .seg button:active { transform: scale(.94); }
 .toast { transition: opacity 150ms; }
@@ -613,7 +643,9 @@ body.tab-today #briefing { display: none; }
 .tc-list, .tc-warn { list-style: none; margin: 0; padding: 0; }
 .tc-warn li { padding: 5px 0; font-size: 14px; }
 button.tc-item:not(.tc-link) { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0; border-radius: 8px; background: none; padding: 6px 4px; }
-button.tc-item:not(.tc-link):hover { background: rgba(99, 102, 241, .08); }
+@media (hover: hover) and (pointer: fine) {
+  button.tc-item:not(.tc-link):hover { background: rgba(99, 102, 241, .08); }
+}
 .tc-when { font-size: 12px; color: var(--muted); min-width: 92px; flex: none; }
 .tc-title { flex: 1; min-width: 0; }
 .tc-title.client-key { font-weight: 700; text-decoration: underline; }
@@ -667,7 +699,11 @@ button.tc-item:not(.tc-link):hover { background: rgba(99, 102, 241, .08); }
 .sr-group ul { list-style: none; margin: 0; padding: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .sr-group li + li { border-top: 1px solid var(--line); }
 .sr-item { display: grid; grid-template-columns: 14px 1fr; gap: 2px 8px; align-items: center; width: 100%; text-align: left; border: 0; border-radius: 0; background: none; padding: 10px 12px; color: var(--text); }
-.sr-item:hover { background: var(--chip); }
+@media (hover: hover) and (pointer: fine) {
+  .sr-item:hover { background: var(--chip); }
+  .brief-item:hover { background: #f9fafb; }
+  html.dark .brief-item:hover { background: #1c2638; }
+}
 .sr-t { overflow-wrap: anywhere; }
 .sr-m { grid-column: 2; font-size: 12px; color: var(--muted); }
 .sr-ico { color: var(--muted); }
@@ -789,8 +825,10 @@ html.dark .auth-err { color: #f87171; }
 .tc-heads .tc-warn li + li { border-top: 1px solid #f1f5f9; }
 .tc-list { display: flex; flex-direction: column; gap: 6px; }
 button.tc-item.tc-ev { --cal: #9ca3af; border-radius: 8px; padding: 8px 10px; background: color-mix(in srgb, var(--cal) 12%, #fff); box-shadow: inset 4px 0 0 var(--cal); transition: background-color .15s ease-out, transform .12s ease-out; }
-button.tc-item.tc-ev:hover { background: color-mix(in srgb, var(--cal) 20%, #fff); }
-button.tc-item.tc-ev:active { transform: scale(.99); }
+@media (hover: hover) and (pointer: fine) {
+  button.tc-item.tc-ev:hover { background: color-mix(in srgb, var(--cal) 20%, #fff); }
+}
+button.tc-item.tc-ev:active { transform: none; }
 button.tc-item.tc-ev .tc-when { padding-left: 4px; color: color-mix(in srgb, var(--cal) 55%, #374151); font-weight: 600; }
 button.tc-item.tc-ev.is-done .tc-title { text-decoration: line-through; opacity: .6; }
 .today-card .tc-nudges { margin-top: 0; }
@@ -799,7 +837,9 @@ html.dark .tc-overdue { border-left-color: #ef4444; }
 html.dark .tc-overdue h3 { color: #fca5a5; }
 html.dark .tc-heads .tc-warn li + li { border-top-color: #243047; }
 html.dark button.tc-item.tc-ev { background: color-mix(in srgb, var(--cal) 18%, #16213a); }
-html.dark button.tc-item.tc-ev:hover { background: color-mix(in srgb, var(--cal) 28%, #16213a); }
+@media (hover: hover) and (pointer: fine) {
+  html.dark button.tc-item.tc-ev:hover { background: color-mix(in srgb, var(--cal) 28%, #16213a); }
+}
 html.dark button.tc-item.tc-ev .tc-when { color: color-mix(in srgb, var(--cal) 45%, #e5e7eb); }
 @media (prefers-reduced-motion: reduce) { button.tc-item.tc-ev { transition: none; } }
 
@@ -828,9 +868,13 @@ html.dark button.tc-item.tc-ev .overdue-badge { background: #3b1219; color: #fca
 /* ===== Fix pass 2026-10-24 (Scott): dark List text, to-do text inside its bar, Today header ===== */
 /* 1) Dark mode List view: tint rows from the dark panel, not white, so light text stays readable */
 html.dark .fc-list tr.sandy-tint > td { background: color-mix(in srgb, var(--cal) 20%, #111a2b); color: #f1f5f9; }
-html.dark .fc-list tr.sandy-tint:hover > td { background: color-mix(in srgb, var(--cal) 30%, #111a2b); }
+@media (hover: hover) and (pointer: fine) {
+  html.dark .fc-list tr.sandy-tint:hover > td { background: color-mix(in srgb, var(--cal) 30%, #111a2b); }
+}
 html.dark .fc-list tr.sandy-tint.sandy-ongoing > td { background: color-mix(in srgb, var(--cal) 34%, #111a2b); }
-html.dark .fc-list tr.sandy-tint.sandy-ongoing:hover > td { background: color-mix(in srgb, var(--cal) 40%, #111a2b); }
+@media (hover: hover) and (pointer: fine) {
+  html.dark .fc-list tr.sandy-tint.sandy-ongoing:hover > td { background: color-mix(in srgb, var(--cal) 40%, #111a2b); }
+}
 html.dark .fc-list .fc-list-event-time { color: #cbd5e1; }
 html.dark .fc-list .fc-list-event-title, html.dark .fc-list .fc-list-event-title a { color: #f8fafc; }
 html.dark .fc-list tr.sandy-ongoing > td { background: #172554; }
@@ -1608,3 +1652,12 @@ html.dark .tc-grocery .gr-add { background: #15803d; }
 .tc-weather .wx-line { line-height: 1.35; }
 .tc-weather .wx-buf { display: block; margin-top: 2px; font-size: 12px; color: #6b7280; }
 html.dark .tc-weather .wx-buf { color: #94a3b8; }
+
+
+/* Touch / coarse pointer: FullCalendar list-event hover must not stick during a finger-drag scroll */
+@media (hover: none), (pointer: coarse) {
+  .fc { --fc-list-event-hover-bg-color: transparent; }
+  .brief-item:hover, button.tc-item.tc-ev:hover, .sr-item:hover { background: inherit; }
+  .brief-item:hover { background: #fff; }
+  html.dark .brief-item:hover { background: var(--panel, #111a2b); }
+}
