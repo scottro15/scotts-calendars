@@ -1134,7 +1134,7 @@ alter table public.inbox_items add column if not exists priority smallint check 
 alter table public.profiles add column if not exists si_long_day boolean not null default true;
 create table if not exists public.si_nudge_sends (
   owner_id    uuid not null references auth.users(id) on delete cascade,
-  kind        text not null check (kind in ('long_day')),
+  kind        text not null check (kind in ('long_day', 'clash', 'weekly_review', 'grocery', 'weather')),
   target_date date not null,
   sent_at     timestamptz not null default now(),
   primary key (owner_id, kind, target_date)
@@ -1145,3 +1145,7 @@ grant all on public.si_nudge_sends to service_role;
 
 -- ---------------------------------------------------------------- 2026-10-26 SI #4 free-gap coach (migration-2026-10-26-si-free-gap.sql)
 alter table public.profiles add column if not exists si_free_gap boolean not null default true;
+
+-- ---------------------------------------------------------------- 2026-10-26 SI #5 clash check (migration-2026-10-26-si-clash.sql)
+alter table public.profiles add column if not exists si_clash boolean not null default true;
+-- si_nudge_sends.kind widened to ('long_day','clash','weekly_review','grocery','weather') — see migration

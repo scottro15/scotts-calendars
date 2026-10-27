@@ -164,8 +164,16 @@
       h += '</div>';
     }
     h += '</div>';
-    // Heads Up: Sandy Intelligence leave-by lines (leaveby.js, filled in async) + tight gaps / overlaps
-    h += `<section class="tc-sec tc-card tc-heads"${d.gaps.length ? '' : ' hidden'}><h3>Heads Up</h3><ul class="tc-warn tc-leave" id="tcLeave" aria-live="polite" hidden></ul>${d.gaps.length ? `<ul class="tc-warn">${d.gaps.map(g => g.kind === 'overlap'
+    // Heads Up: leave-by (async) + SI #5 clash check + tight gaps / overlaps
+    let clashHtml = '';
+    if (window.SandyClash) {
+      try {
+        const cd = await SandyClash.data(a, d.now);
+        if (cd) clashHtml = SandyClash.html(cd);
+      } catch (e) { console.warn('clash:', e); }
+    }
+    const showHeads = !!(d.gaps.length || clashHtml);
+    h += `<section class="tc-sec tc-card tc-heads"${showHeads ? '' : ' hidden'}><h3>Heads Up</h3><ul class="tc-warn tc-leave" id="tcLeave" aria-live="polite" hidden></ul>${clashHtml}${d.gaps.length ? `<ul class="tc-warn">${d.gaps.map(g => g.kind === 'overlap'
       ? `<li>⚠️ <b>${esc(g.p.ev.title)}</b> overlaps <b>${esc(g.n.ev.title)}</b> (${esc(t12(g.n.o.start))})</li>`
       : `<li>⏱️ Tight: <b>${esc(g.p.ev.title)}</b> ends ${esc(t12(g.p.o.end))}, <b>${esc(g.n.ev.title)}</b> starts ${g.min ? `${g.min} min later` : 'right after'}</li>`).join('')}</ul>` : ''}</section>`;
     // Sandy Intelligence: away-game travel plan (travel.js): departure, return, weather for Maryville away / neutral games
@@ -702,6 +710,10 @@
       const p = await SandyFreeGap.getPrefs();
       $('siFreeGap').checked = p.enabled;
     }
+    if ($('siClash') && window.SandyClash) {
+      const p = await SandyClash.getPrefs();
+      $('siClash').checked = p.enabled;
+    }
     if (msg && !msg.dataset.keep) { msg.className = 'small home-msg'; msg.textContent = ''; }
   }
   async function siSwitch(e) {
@@ -714,6 +726,9 @@
       } else if (t.id === 'siFreeGap' && window.SandyFreeGap) {
         await SandyFreeGap.setPrefs({ enabled: t.checked });
         toast(t.checked ? 'Free-gap coach on' : 'Free-gap coach off');
+      } else if (t.id === 'siClash' && window.SandyClash) {
+        await SandyClash.setPrefs({ enabled: t.checked });
+        toast(t.checked ? 'Clash check on' : 'Clash check off');
       } else return;
       if (tab === 'today') renderToday();
     } catch (ex) { t.checked = !t.checked; if (msg) { msg.textContent = ex.message || String(ex); msg.classList.add('bad'); msg.dataset.keep = '1'; } }
@@ -745,6 +760,30 @@
     $('todayCard').addEventListener('click', e => {
       if (e.target.closest('.lb-loc-yes, .lb-loc-no')) { SandyLeave.answerAsk(!!e.target.closest('.lb-loc-yes')).catch(() => {}); return; }
       if (e.target.closest('.lb-sethome')) { go('profile'); const s = $('homeSection'); if (s) { s.scrollIntoView({ block: 'center' }); setTimeout(() => $('homeAddr').focus(), 300); } return; }
+      const cl = e.target.closest('.cl-add');
+      if (cl && window.SandyClash) {
+        e.preventDefault();
+        cl.disabled = true;
+        SandyClash.addCover(cl.dataset.dutyId, cl.dataset.dutyKey, cl.dataset.otherId, cl.dataset.otherKey).then(r => {
+          const t = $('toast');
+          const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+          t.innerHTML = `${esc(r.msg)} <button type="button" class="toast-undo">Undo</button>`;
+          t.hidden = false;
+          clearTimeout(window.__clToast);
+          const undoBtn = t.querySelector('.toast-undo');
+          const hide = () => { t.hidden = true; t.textContent = ''; };
+          undoBtn.addEventListener('click', async () => {
+            undoBtn.disabled = true;
+            try { await r.undo(); toast('Undone'); if (tab === 'today') renderToday(); if (tab === 'todo') renderTodo(); }
+            catch (err) { toast(err.message || 'Could not undo'); }
+          }, { once: true });
+          window.__clToast = setTimeout(hide, 6000);
+          if (tab === 'today') renderToday();
+          if (tab === 'todo') renderTodo();
+          window.dispatchEvent(new Event('sandy:refresh'));
+        }).catch(err => { toast(err.message || String(err)); cl.disabled = false; });
+        return;
+      }
       const fg = e.target.closest('.fg-todo');
       if (fg && window.SandyFreeGap) {
         e.preventDefault();
@@ -793,7 +832,7 @@
     $('homeForm').addEventListener('submit', e => { e.preventDefault(); saveHome($('homeAddr').value); });
     $('homeClear').addEventListener('click', () => saveHome(''));
     ['leaveAlerts', 'leaveEarly', 'leaveUseLoc'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', leaveSwitch); });
-    ['siLongDay', 'siFreeGap'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', siSwitch); });
+    ['siLongDay', 'siFreeGap', 'siClash'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', siSwitch); });
     if ($('timeFormat')) $('timeFormat').addEventListener('change', e => {
       if (!window.SandyTime) return; SandyTime.set(e.target.value);
       toast(e.target.value === 'auto' ? `Times follow your phone (${SandyTime.label()})` : `Times show as ${e.target.value}-hour`);

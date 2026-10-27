@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <title>SANDY — the scheduling app</title>
-  <link rel="stylesheet" href="styles.css?v=20261026-si4">
+  <link rel="stylesheet" href="styles.css?v=20261026-si5">
   <!-- FullCalendar v6 is vendored locally (vendor/) so the app works offline and on GitHub Pages. -->
   <script src="vendor/fullcalendar.min.js"></script>
   <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
@@ -61,7 +61,7 @@
         <div id="todayBody"></div>
         <div id="todayNudges" class="tc-nudges" aria-label="Sandy Intelligence prep nudges">
           <div class="tc-nudge-head">✨ Sandy Intelligence <span class="tc-soon">more coming</span></div>
-          <p class="muted small">Leave-by times show in Heads Up for events with a location, from home or from where you are. Get a push when it’s time to leave: Profile → Leave-by alerts. Free gaps get to-do suggestions you can tap to schedule. After 5 PM, a Long-day card appears when tomorrow spans 10+ hours (or 8+ scheduled). After 6 PM, a Tomorrow card shows your first event, when to leave and what to prep. Before a Maryville or Jennings practice, Practice prep shows your notes from the last one. Away and neutral Maryville games get a travel plan: when to leave, when you’ll be back, and the weather.</p>
+          <p class="muted small">Leave-by times show in Heads Up for events with a location, from home or from where you are. Get a push when it’s time to leave: Profile → Leave-by alerts. Free gaps get to-do suggestions you can tap to schedule. Heads Up flags clashes with shifts or practices. After 5 PM, a Long-day card appears when tomorrow spans 10+ hours (or 8+ scheduled). After 6 PM, a Tomorrow card shows your first event, when to leave and what to prep. Before a Maryville or Jennings practice, Practice prep shows your notes from the last one. Away and neutral Maryville games get a travel plan: when to leave, when you’ll be back, and the weather.</p>
         </div>
       </section>
       <!-- Briefing: preview of the selected period (respects the calendar toggles) -->
@@ -205,6 +205,7 @@
         <p class="muted small si-intro">Free, rule-based nudges from your calendar. No AI calls.</p>
         <label class="pf-row"><span><span class="pf-lbl">Long-day nudge</span><small class="pf-note">Evening before a 10+ hour span or 8+ scheduled hours: pack lunch and snacks. In-app from 5 PM; push at 8 PM when notifications are on.</small></span><span class="switch"><input type="checkbox" id="siLongDay" role="switch" checked><span></span></span></label>
         <label class="pf-row"><span><span class="pf-lbl">Free-gap to-do coach</span><small class="pf-note">Suggests open to-dos that fit free gaps on Today (and tomorrow after 5 PM). Tap to schedule into the gap; Undo if you change your mind.</small></span><span class="switch"><input type="checkbox" id="siFreeGap" role="switch" checked><span></span></span></label>
+        <label class="pf-row"><span><span class="pf-lbl">Clash check</span><small class="pf-note">Flags personal or client events that overlap a Life Time shift, MSC session, or Maryville / HSSU / Jennings practice or game over the next 7 days. One-tap “Who’s covering?” to-do in Heads Up.</small></span><span class="switch"><input type="checkbox" id="siClash" role="switch" checked><span></span></span></label>
         <p id="siMsg" class="small home-msg" role="status" aria-live="polite"></p>
       </section>
           <section id="calSection" class="pf-card">
@@ -393,28 +394,29 @@
     <button type="button" data-tab="profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.2-4 4-5.8 7.5-5.8s6.3 1.8 7.5 5.8"/></svg><span>Profile</span></button>
   </nav>
   <script src="config.js"></script>
-  <script src="storage.js?v=20261026-si4"></script>
+  <script src="storage.js?v=20261026-si5"></script>
   <script src="places.js"></script>
-  <script src="motion.js?v=20261026-si4"></script>
-  <script src="account.js?v=20261026-si4"></script>
-  <script src="launch.js?v=20261026-si4"></script>
-  <script src="push.js?v=20261026-si4"></script>
-  <script src="timefmt.js?v=20261026-si4"></script>
-  <script src="smartparse.js?v=20261026-si4"></script>
-  <script src="leaveby.js?v=20261026-si4"></script>
-  <script src="tomorrow.js?v=20261026-si4"></script>
-  <script src="longday.js?v=20261026-si4"></script>
-  <script src="freegap.js?v=20261026-si4"></script>
-  <script src="practice.js?v=20261026-si4"></script>
-  <script src="travel.js?v=20261026-si4"></script>
-  <script src="collapse.js?v=20261026-si4"></script>
-  <script src="nav.js?v=20261026-si4"></script>
-  <script src="navbar.js?v=20261026-si4"></script>
-  <script src="quicksheet.js?v=20261026-si4"></script>
-  <script src="games.js?v=20261026-si4"></script>
-  <script src="welcome.js?v=20261026-si4"></script>
-  <script src="tour.js?v=20261026-si4"></script>
-  <script src="app.js?v=20261026-si4"></script>
-  <script src="ai.js?v=20261026-si4"></script>
+  <script src="motion.js?v=20261026-si5"></script>
+  <script src="account.js?v=20261026-si5"></script>
+  <script src="launch.js?v=20261026-si5"></script>
+  <script src="push.js?v=20261026-si5"></script>
+  <script src="timefmt.js?v=20261026-si5"></script>
+  <script src="smartparse.js?v=20261026-si5"></script>
+  <script src="leaveby.js?v=20261026-si5"></script>
+  <script src="tomorrow.js?v=20261026-si5"></script>
+  <script src="longday.js?v=20261026-si5"></script>
+  <script src="freegap.js?v=20261026-si5"></script>
+  <script src="clash.js?v=20261026-si5"></script>
+  <script src="practice.js?v=20261026-si5"></script>
+  <script src="travel.js?v=20261026-si5"></script>
+  <script src="collapse.js?v=20261026-si5"></script>
+  <script src="nav.js?v=20261026-si5"></script>
+  <script src="navbar.js?v=20261026-si5"></script>
+  <script src="quicksheet.js?v=20261026-si5"></script>
+  <script src="games.js?v=20261026-si5"></script>
+  <script src="welcome.js?v=20261026-si5"></script>
+  <script src="tour.js?v=20261026-si5"></script>
+  <script src="app.js?v=20261026-si5"></script>
+  <script src="ai.js?v=20261026-si5"></script>
 </body>
 </html>
