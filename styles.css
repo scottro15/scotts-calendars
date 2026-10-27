@@ -1793,3 +1793,118 @@ html.dark .tc-weather .wx-buf { color: #94a3b8; }
   .cat-pick { max-width: min(32vw, 92px); font-size: 11.5px; }
   .quick-add select { max-width: min(38vw, 100px); }
 }
+
+/* ===== t132u Today Option C: soft sub-tiles (8px gap) ===== */
+/* Heads Up / clash / weather / leave / gap lists: each li is a soft tile */
+.tc-heads {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tc-heads > h3 { margin-bottom: 0 !important; }
+.tc-heads .tc-warn,
+.tc-heads .tc-leave,
+.tc-heads .tc-clash,
+.tc-heads .tc-weather {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+/* kill old hairline separators — tiles replace them */
+.tc-heads .tc-warn li + li,
+.tc-heads .tc-leave:not([hidden]) + .tc-warn li:first-child {
+  border-top: 0 !important;
+}
+.tc-heads .tc-warn li,
+.tc-heads .tc-leave li,
+.tc-heads .tc-clash li,
+.tc-heads .tc-weather li {
+  list-style: none;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  font-size: 14px;
+  line-height: 1.35;
+}
+html.dark .tc-heads .tc-warn li,
+html.dark .tc-heads .tc-leave li,
+html.dark .tc-heads .tc-clash li,
+html.dark .tc-heads .tc-weather li {
+  background: color-mix(in srgb, #0b1220 45%, #16213a);
+  border-color: #243047;
+}
+/* leave-by grid still works inside the tile */
+.tc-heads .tc-leave li.lb-row {
+  display: grid;
+  grid-template-columns: 1.5em 1fr;
+  column-gap: 2px;
+  row-gap: 2px;
+  align-items: baseline;
+  padding: 10px 12px;
+}
+
+/* On Today + Overdue: soft tiles with 8px gap, left color bar retained */
+.tc-on .tc-list,
+.tc-overdue .tc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tc-on .tc-list > li,
+.tc-overdue .tc-list > li {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tc-on button.tc-item.tc-ev,
+.tc-overdue button.tc-item.tc-ev {
+  border-radius: 10px;
+  padding: 10px 12px;
+  /* lighter fill so the tile + left bar carry the accent, not a heavy wash */
+  background: #fff;
+  border: 1px solid #eef2f7;
+  box-shadow: inset 3px 0 0 var(--cal);
+}
+@media (hover: hover) and (pointer: fine) {
+  .tc-on button.tc-item.tc-ev:hover,
+  .tc-overdue button.tc-item.tc-ev:hover {
+    background: color-mix(in srgb, var(--cal) 8%, #fff);
+  }
+}
+html.dark .tc-on button.tc-item.tc-ev,
+html.dark .tc-overdue button.tc-item.tc-ev {
+  background: color-mix(in srgb, #0b1220 35%, #16213a);
+  border-color: #243047;
+  box-shadow: inset 3px 0 0 var(--cal);
+}
+@media (hover: hover) and (pointer: fine) {
+  html.dark .tc-on button.tc-item.tc-ev:hover,
+  html.dark .tc-overdue button.tc-item.tc-ev:hover {
+    background: color-mix(in srgb, var(--cal) 14%, #16213a);
+  }
+}
+/* enter animation for new tiles (respect reduced-motion) */
+@keyframes tc-tile-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.tc-heads .tc-warn li,
+.tc-heads .tc-leave li,
+.tc-on button.tc-item.tc-ev,
+.tc-overdue button.tc-item.tc-ev {
+  animation: tc-tile-in .22s ease-out;
+}
+html.reduce-motion .tc-heads .tc-warn li,
+html.reduce-motion .tc-heads .tc-leave li,
+html.reduce-motion .tc-on button.tc-item.tc-ev,
+html.reduce-motion .tc-overdue button.tc-item.tc-ev { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .tc-heads .tc-warn li,
+  .tc-heads .tc-leave li,
+  .tc-on button.tc-item.tc-ev,
+  .tc-overdue button.tc-item.tc-ev { animation: none; }
+}
