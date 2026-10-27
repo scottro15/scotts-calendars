@@ -1009,7 +1009,7 @@
     customWrap.hidden = true;
   }
   fCal.addEventListener('change', () => fillCategories(fCal.value, kind() === 'task' ? 'Task / to-do' : null));
-  fCat.addEventListener('change', () => { customWrap.hidden = fCat.value !== CUSTOM; if (!customWrap.hidden) f('customCategory').focus(); });
+  fCat.addEventListener('change', () => { customWrap.hidden = fCat.value !== CUSTOM; if (!customWrap.hidden) f('custom-category').focus(); });
   const kind = () => form.querySelector('input[name=kind]:checked').value;
   // Fields that only make sense for the whole series (changing them disables "This event only").
   const SERIES_FIELDS = ['calendar', 'kind', 'freq', 'interval', 'until', 'wd'];
@@ -1088,7 +1088,7 @@
     }, prefill);
     document.getElementById('dialogTitle').textContent = ev ? (d.kind === 'task' ? 'Edit task' : 'Edit event') : (d.kind === 'task' ? 'New task' : 'New event');
     form.querySelector(`input[name=kind][value=${d.kind || 'event'}]`).checked = true;
-    f('title').value = d.title || '';
+    f('event-title').value = d.title || '';
     fCal.value = d.calendar;
     fillCategories(d.calendar, d.category || (d.kind === 'task' && (d.calendar === 'lifetime' || !PRESETS[d.calendar]) ? 'Task / to-do' : null));
     f('allDay').checked = !!d.allDay;
@@ -1108,7 +1108,7 @@
     form.querySelectorAll('input[name=wd]').forEach(cb => cb.checked = wds.includes(cb.value));
     f('scope').value = d.scope || 'day';
     f('done').checked = ev ? isDone(ev, occKey) : false;
-    f('location').value = d.location || ''; f('notes').value = d.notes || '';
+    f('location').value = d.location || ''; f('event-notes').value = d.notes || '';
     if (window.SandyGames) SandyGames.editor(document.getElementById('gameDir'), ev ? d : null);
     renderReminders(d.reminders || []);
     document.getElementById('notesLabel').textContent = recurring ? 'Notes (every occurrence)' : 'Notes';
@@ -1121,7 +1121,7 @@
     editing.snap = formSnap(); editing.seriesSnap = seriesSnap();
     if (locAC) { locAC.reset(); Places.warm(); } // lazy-load Google Places only once the form opens
     dlg.showModal();
-    if (!ev) f('title').focus();
+    if (!ev) f('event-title').focus();
   }
 
   // ---------- Checklist: '- [ ] item' lines in Notes become checkboxes, ticked per occurrence date ----------
@@ -1145,7 +1145,7 @@
     renderChecklist();
   }
   function renderChecklist() {
-    const items = ckCtx ? parseChecklist(f('notes').value) : [];
+    const items = ckCtx ? parseChecklist(f('event-notes').value) : [];
     ckBox.hidden = !items.length; if (!items.length) return;
     const on = new Set(ckCtx.checked), ok = Store.checks.available;
     ckList.innerHTML = '';
@@ -1169,7 +1169,7 @@
     try { await Store.checks.set(c.eventId, c.date, c.checked); ckStatus.textContent = 'Saved'; setTimeout(() => { if (ckCtx === c) { ckStatus.textContent = ''; renderChecklist(); } }, 900); }
     catch (err) { c.checked = prev; ckStatus.textContent = 'Not saved'; renderChecklist(); fail(err); }
   }
-  f('notes').addEventListener('input', () => { if (ckCtx) renderChecklist(); });
+  f('event-notes').addEventListener('input', () => { if (ckCtx) renderChecklist(); });
 
   // ---------- Today's Note (day-specific note; separate storage, never edits the event) ----------
   const dayBox = document.getElementById('dayNoteBox'), dayTa = document.getElementById('dayNote'), dayStatus = document.getElementById('dayNoteStatus');
@@ -1218,10 +1218,10 @@
 
   /** Read the form into a plain object of fields (no id / recurrence bookkeeping). */
   async function readForm(calId) {
-    const v = { kind: kind(), title: f('title').value.trim(), calendar: calId };
+    const v = { kind: kind(), title: f('event-title').value.trim(), calendar: calId };
     let cat = fCat.value;
     if (cat === CUSTOM) {
-      cat = f('customCategory').value.trim() || 'Other';
+      cat = f('custom-category').value.trim() || 'Other';
       if (!CAL[calId].categories.includes(cat) && !(customCats[calId] || []).includes(cat)) { await Store.addCategory(calId, cat); await loadCats(); }
     }
     v.category = cat;
@@ -1235,7 +1235,7 @@
       if (parseLocal(v.end) <= parseLocal(v.start)) { const x = new Date(parseLocal(v.start).getTime() + 3600000); v.end = `${ymd(x)}T${hm(x)}`; }
     }
     v.location = f('location').value.trim();
-    v.notes = f('notes').value.trim();
+    v.notes = f('event-notes').value.trim();
     if (v.kind === 'task') v.scope = f('scope').value;
     v.reminders = readReminders();
     return v;
@@ -1287,7 +1287,7 @@
       let scope = 'all';
       if (existing && editing.recurring && editing.occKey) {
         const seriesChanged = seriesSnap() !== editing.seriesSnap;
-        scope = await askScope({ mode: 'save', occKey: editing.occKey, title: f('title').value.trim() || existing.title,
+        scope = await askScope({ mode: 'save', occKey: editing.occKey, title: f('event-title').value.trim() || existing.title,
           oneDisabledReason: seriesChanged ? 'You changed the calendar, type or repeat rule, which can only apply to the whole series.' : '' });
         if (!scope) return; // Cancel: stay in the editor, nothing saved
       }

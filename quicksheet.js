@@ -36,8 +36,8 @@
     sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-modal', 'true'); sh.setAttribute('aria-label', 'Quick add');
     sh.innerHTML = `<div class="qs-grab" aria-hidden="true"></div>
       <form id="qsForm" autocomplete="off" novalidate>
-        <div class="qa-field qs-field"><div id="qsHl" class="qa-hl qs-hl" aria-hidden="true"></div><textarea id="qsText" class="qs-title" rows="1" maxlength="2000" placeholder="Task name" aria-label="Task name" autocapitalize="sentences" spellcheck="false" enterkeyhint="send"></textarea></div>
-        <input id="qsDesc" class="qs-desc" maxlength="2000" placeholder="Description" aria-label="Description" autocapitalize="sentences" enterkeyhint="send">
+        <div class="qa-field qs-field"><div id="qsHl" class="qa-hl qs-hl" aria-hidden="true"></div><textarea id="qsText" name="task-title" class="qs-title" rows="1" maxlength="2000" placeholder="Task name" aria-label="Task name" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" enterkeyhint="send"></textarea></div>
+        <input id="qsDesc" name="task-description" class="qs-desc" maxlength="2000" placeholder="Description" aria-label="Description" autocomplete="off" autocapitalize="sentences" autocorrect="on" spellcheck="true" enterkeyhint="send">
         <div class="qs-chips" role="group" aria-label="Task options">
           <label class="qs-chip" id="qsDateChip">${ICON.cal}<span id="qsDateLbl">Date</span><select id="qsDate" aria-label="Date"></select></label>
           <input type="date" id="qsDatePick" class="qs-pick" tabindex="-1" aria-label="Pick a date">

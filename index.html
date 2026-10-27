@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <title>SANDY — the scheduling app</title>
-  <link rel="stylesheet" href="styles.css?v=20261027-todo-edit">
+  <link rel="stylesheet" href="styles.css?v=20261027-inputs">
   <!-- FullCalendar v6 is vendored locally (vendor/) so the app works offline and on GitHub Pages. -->
   <script src="vendor/fullcalendar.min.js"></script>
   <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
@@ -95,7 +95,7 @@
     <section id="page-todo" class="tab-page" aria-labelledby="todoH" hidden>
       <div class="page-head"><h1 id="todoH">To-Do</h1><span id="todoCount" class="muted small"></span></div>
       <form id="quickAdd" class="quick-add" autocomplete="off">
-        <div class="qa-field"><div id="qaHl" class="qa-hl" aria-hidden="true"></div><input id="qaText" maxlength="2000" autocapitalize="sentences" spellcheck="false" placeholder="Jot a to-do or note…" aria-label="Jot a to-do or note" enterkeyhint="done"></div>
+        <div class="qa-field"><div id="qaHl" class="qa-hl" aria-hidden="true"></div><input id="qaText" name="task-jot" maxlength="2000" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" placeholder="Jot a to-do or note…" aria-label="Jot a to-do or note" enterkeyhint="done"></div>
         <div class="qa-opts">
           <select id="qaKind" aria-label="Type"><option value="todo">To-do</option><option value="note">Note</option></select>
           <select id="qaCat" aria-label="Category"><option value="">No category</option></select>
@@ -150,7 +150,7 @@
               <summary>Filters <span id="reviewFilterSummary" class="muted small"></span></summary>
               <fieldset><legend>Calendars</legend><div id="reviewCals"></div></fieldset>
               <label class="review-field">Event <select id="reviewEvent"><option value="">All events</option></select></label>
-              <label class="review-field">Search <input type="search" id="reviewSearch" placeholder="Words in the note"></label>
+              <label class="review-field">Search <input type="search" id="reviewSearch" name="review-search" placeholder="Words in the note" autocomplete="off" spellcheck="false"></label>
               <button type="button" id="reviewClear" class="link-btn">Clear filters</button>
             </details>
             <div id="reviewList" class="review-list"></div>
@@ -253,13 +253,13 @@
         <label><input type="radio" name="kind" value="task"> Task / to-do</label>
       </div>
 
-      <label>Title <input name="title" required placeholder="e.g. Film study – Maryville"></label>
+      <label>Title <input id="event-title" name="event-title" required placeholder="e.g. Film study – Maryville" autocomplete="off" autocapitalize="sentences" spellcheck="true"></label>
 
       <div class="row">
         <label>Calendar <select name="calendar" id="fCalendar"></select></label>
         <label>Category <select name="category" id="fCategory"></select></label>
       </div>
-      <label id="customCatWrap" hidden>Custom category <input name="customCategory" placeholder="Type a category"></label>
+      <label id="customCatWrap" hidden>Custom category <input id="custom-category" name="custom-category" placeholder="Type a category" autocomplete="off" autocapitalize="sentences" spellcheck="true"></label>
 
       <div id="taskFields" hidden>
         <div class="row">
@@ -321,7 +321,7 @@
         <button type="button" id="remAdd" class="btn-link rem-add">+ Add reminder</button>
         <p id="remHint" class="muted small" hidden>All-day: counted back from <span data-sandy-time="09:00">9:00 AM</span> on the day.</p>
       </fieldset>
-      <label><span id="notesLabel">Notes</span> <textarea name="notes" rows="3"></textarea></label>
+      <label><span id="notesLabel">Notes</span> <textarea id="event-notes" name="event-notes" rows="3" autocomplete="off" autocapitalize="sentences" spellcheck="true"></textarea></label>
 
       <section id="checklistBox" class="checklist-box" aria-labelledby="checklistTitle" hidden>
         <div class="checklist-head"><h3 id="checklistTitle">Checklist</h3><span id="checklistDate" class="muted small"></span>
@@ -339,7 +339,7 @@
           </div>
           <span id="dayNoteStatus" class="day-note-status muted small" role="status" aria-live="polite"></span>
         </div>
-        <textarea id="dayNote" rows="7" aria-labelledby="dayNoteTitle dayNoteDate" placeholder="Only shows on this date, e.g. how practice went, who was out, what to fix next time"></textarea>
+        <textarea id="dayNote" name="day-note" rows="7" autocomplete="off" autocapitalize="sentences" spellcheck="true" aria-labelledby="dayNoteTitle dayNoteDate" placeholder="Only shows on this date, e.g. how practice went, who was out, what to fix next time"></textarea>
         <p id="dayNoteNotion" class="day-note-notion small" hidden></p>
         <p id="dayNoteHelp" class="muted small">Saves automatically. Other dates of this event won't show it. Clear the text to delete it.</p>
       </section>
@@ -403,33 +403,33 @@
     <button type="button" data-tab="profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.2-4 4-5.8 7.5-5.8s6.3 1.8 7.5 5.8"/></svg><span>Profile</span></button>
   </nav>
   <script src="config.js"></script>
-  <script src="storage.js?v=20261027-todo-edit"></script>
+  <script src="storage.js?v=20261027-inputs"></script>
   <script src="places.js"></script>
-  <script src="motion.js?v=20261027-todo-edit"></script>
-  <script src="account.js?v=20261027-todo-edit"></script>
-  <script src="launch.js?v=20261027-todo-edit"></script>
-  <script src="push.js?v=20261027-todo-edit"></script>
-  <script src="update.js?v=20261027-todo-edit"></script>
-  <script src="timefmt.js?v=20261027-todo-edit"></script>
-  <script src="smartparse.js?v=20261027-todo-edit"></script>
-  <script src="leaveby.js?v=20261027-todo-edit"></script>
-  <script src="tomorrow.js?v=20261027-todo-edit"></script>
-  <script src="longday.js?v=20261027-todo-edit"></script>
-  <script src="freegap.js?v=20261027-todo-edit"></script>
-  <script src="clash.js?v=20261027-todo-edit"></script>
-  <script src="weekly.js?v=20261027-todo-edit"></script>
-  <script src="grocery.js?v=20261027-todo-edit"></script>
-  <script src="weather.js?v=20261027-todo-edit"></script>
-  <script src="practice.js?v=20261027-todo-edit"></script>
-  <script src="travel.js?v=20261027-todo-edit"></script>
-  <script src="collapse.js?v=20261027-todo-edit"></script>
-  <script src="nav.js?v=20261027-todo-edit"></script>
-  <script src="navbar.js?v=20261027-todo-edit"></script>
-  <script src="quicksheet.js?v=20261027-todo-edit"></script>
-  <script src="games.js?v=20261027-todo-edit"></script>
-  <script src="welcome.js?v=20261027-todo-edit"></script>
-  <script src="tour.js?v=20261027-todo-edit"></script>
-  <script src="app.js?v=20261027-todo-edit"></script>
-  <script src="ai.js?v=20261027-todo-edit"></script>
+  <script src="motion.js?v=20261027-inputs"></script>
+  <script src="account.js?v=20261027-inputs"></script>
+  <script src="launch.js?v=20261027-inputs"></script>
+  <script src="push.js?v=20261027-inputs"></script>
+  <script src="update.js?v=20261027-inputs"></script>
+  <script src="timefmt.js?v=20261027-inputs"></script>
+  <script src="smartparse.js?v=20261027-inputs"></script>
+  <script src="leaveby.js?v=20261027-inputs"></script>
+  <script src="tomorrow.js?v=20261027-inputs"></script>
+  <script src="longday.js?v=20261027-inputs"></script>
+  <script src="freegap.js?v=20261027-inputs"></script>
+  <script src="clash.js?v=20261027-inputs"></script>
+  <script src="weekly.js?v=20261027-inputs"></script>
+  <script src="grocery.js?v=20261027-inputs"></script>
+  <script src="weather.js?v=20261027-inputs"></script>
+  <script src="practice.js?v=20261027-inputs"></script>
+  <script src="travel.js?v=20261027-inputs"></script>
+  <script src="collapse.js?v=20261027-inputs"></script>
+  <script src="nav.js?v=20261027-inputs"></script>
+  <script src="navbar.js?v=20261027-inputs"></script>
+  <script src="quicksheet.js?v=20261027-inputs"></script>
+  <script src="games.js?v=20261027-inputs"></script>
+  <script src="welcome.js?v=20261027-inputs"></script>
+  <script src="tour.js?v=20261027-inputs"></script>
+  <script src="app.js?v=20261027-inputs"></script>
+  <script src="ai.js?v=20261027-inputs"></script>
 </body>
 </html>

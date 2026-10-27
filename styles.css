@@ -333,9 +333,13 @@ dialog .checklist-items label:hover { background: #e0f2fe; }
 #calendar .fc-list-sticky .fc-list-day .fc-list-day-cushion { background: #f3f4f6; }
 #calendar .fc-list-sticky .fc-list-day.sandy-today-first .fc-list-day-cushion { background: #dbeafe; }
 
-/* Phones: no iOS auto-zoom. Safari zooms into any field under 16px when it gets focus. */
+/* Phones: no iOS auto-zoom. Safari zooms into any field under 16px when it gets focus.
+   !important beats later component rules (.qs-desc 15px, .quick-add select 13px, etc.). */
 @media (max-width: 800px), (pointer: coarse) {
-  input, select, textarea, dialog input, dialog select, dialog textarea { font-size: 16px; }
+  input:not([type=checkbox]):not([type=radio]):not([type=color]):not([type=range]):not([type=file]):not([type=hidden]):not([type=button]):not([type=submit]):not([type=reset]),
+  select, textarea,
+  dialog input:not([type=checkbox]):not([type=radio]):not([type=color]):not([type=range]):not([type=file]):not([type=hidden]),
+  dialog select, dialog textarea { font-size: 16px !important; }
   dialog { max-width: calc(100vw - 16px); box-sizing: border-box; }
   dialog form { box-sizing: border-box; max-width: 100%; }
 }
@@ -1471,7 +1475,7 @@ html.dark .qs-sheet { background: var(--qs-bg); box-shadow: 0 -8px 30px rgba(0, 
 .qs-sheet .qs-field #qsText::selection { background: rgba(37, 99, 235, .25); }
 .qs-sheet .qs-hl { color: var(--text); white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; overflow: hidden; }
 .qs-sheet .qs-desc, html.dark .qs-sheet .qs-desc, .qs-sheet .qs-field #qsText, html.dark .qs-sheet .qs-field #qsText { background: transparent; border: 0; box-shadow: none; border-radius: 0; }
-.qs-desc { border: 0; outline: 0; background: transparent; font: inherit; font-size: 15px; line-height: 22px; padding: 2px 0 8px; color: var(--text); width: 100%; }
+.qs-desc { border: 0; outline: 0; background: transparent; font: inherit; font-size: 16px; line-height: 22px; padding: 2px 0 8px; color: var(--text); width: 100%; }
 .qs-desc::placeholder { color: var(--qs-ph); }
 .qs-chips { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 12px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .qs-chips::-webkit-scrollbar { display: none; }

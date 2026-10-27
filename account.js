@@ -53,7 +53,7 @@
         const n = rows().length;
         const row = document.createElement('div'); row.className = 'onb-cal';
         row.innerHTML = `<input type="color" value="${PALETTE[n % PALETTE.length]}" aria-label="Calendar color">
-          <input class="onb-name" maxlength="80" placeholder="Calendar name" value="${esc(name)}" aria-label="Calendar name">
+          <input class="onb-name" name="calendar-name" maxlength="80" placeholder="Calendar name" value="${esc(name)}" aria-label="Calendar name" autocomplete="off" autocapitalize="words" spellcheck="true">
           <button type="button" class="icon-btn onb-del" aria-label="Remove calendar">✕</button>`;
         row.querySelector('.onb-del').onclick = () => { if (rows().length > 1) { row.remove(); sync(); } };
         list.appendChild(row); sync();

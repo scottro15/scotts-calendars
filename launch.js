@@ -86,7 +86,7 @@
       <h2>Invites</h2>
       <p class="muted small">SANDY is invite-only. Adding an email lets that person sign in at the site with an 8-digit code we email them; nobody else can create an account. No email is sent unless you tick the box. Copy, text, or share the note below — it includes their name and the invite link.</p>
       <div class="inv-add">
-        <input id="invEmail" type="email" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="friend@example.com" aria-label="Email to invite">
+        <input id="invEmail" type="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="friend@example.com" aria-label="Email to invite">
         <input id="invName" type="text" autocomplete="given-name" autocapitalize="words" spellcheck="false" maxlength="80" placeholder="First name (optional)" aria-label="First name">
         <button id="invGo" class="primary" type="submit">Invite</button>
       </div>

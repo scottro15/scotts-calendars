@@ -35,7 +35,7 @@
           <div class="ai-hist" id="aiHistPanel" hidden role="region" aria-label="Chat history"></div>
         </div>
         <form class="ai-input" id="aiForm" autocomplete="off">
-          <textarea id="aiText" rows="1" placeholder="Ask or tell me… e.g. “Add film with Nick tomorrow 4pm”" enterkeyhint="send"></textarea>
+          <textarea id="aiText" name="ai-prompt" rows="1" placeholder="Ask or tell me… e.g. “Add film with Nick tomorrow 4pm”" autocomplete="off" autocapitalize="sentences" spellcheck="true" enterkeyhint="send"></textarea>
           <button type="button" id="aiMic" class="ai-mic" aria-label="Speak" hidden>🎤</button>
           <button type="submit" id="aiSend" class="primary">Send</button>
         </form>

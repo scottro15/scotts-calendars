@@ -351,7 +351,7 @@
     if (!it) return;
     const cats = Cats.cache || [];
     const d = dialog('inbox-dlg', `<form method="dialog"><h2>${it.kind === 'note' ? 'Note' : 'To-do'}</h2>
-      <label>Text<textarea id="ibBody" rows="4" maxlength="2000">${esc(it.body)}</textarea></label>
+      <label>Text<textarea id="ibBody" name="task-body" rows="4" maxlength="2000" autocomplete="off" autocapitalize="sentences" spellcheck="true">${esc(it.body)}</textarea></label>
       <div class="row2"><label>Type<select id="ibKind"><option value="todo">To-do</option><option value="note">Note</option></select></label>
       <label>Calendar<select id="ibCal"><option value="">Inbox (none)</option>${A().calendars().map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></label></div>
       <label>Category<select id="ibCat"><option value="">No category</option>${cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></label>
@@ -521,11 +521,11 @@
     const COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280'];
     const d = dialog('cats-dlg', `<form method="dialog"><h2>To-do categories</h2>
       <ul id="catRows" class="cat-rows"></ul>
-      <div class="cat-new"><input id="catName" maxlength="40" placeholder="New category, e.g. Errands"><input type="color" id="catColor" value="${COLORS[cats.length % COLORS.length]}" aria-label="Color"><button id="catAdd" type="button" class="primary">Add</button></div>
+      <div class="cat-new"><input id="catName" name="category-name" maxlength="40" placeholder="New category, e.g. Errands" autocomplete="off" autocapitalize="sentences" spellcheck="true"><input type="color" id="catColor" value="${COLORS[cats.length % COLORS.length]}" aria-label="Color"><button id="catAdd" type="button" class="primary">Add</button></div>
       <p class="onb-err" role="alert"></p>
       <div class="dialog-actions"><span class="spacer"></span><button value="done">Done</button></div></form>`);
     const err = d.querySelector('.onb-err');
-    const paint = () => { d.querySelector('#catRows').innerHTML = cats.length ? cats.map(c => `<li class="msg-up" data-id="${esc(c.id)}"><input type="color" value="${esc(c.color)}" aria-label="Color"><input class="cn" value="${esc(c.name)}" maxlength="40" aria-label="Name"><button type="button" class="icon-btn del" aria-label="Delete ${esc(c.name)}">✕</button></li>`).join('') : '<li class="muted small">No categories yet.</li>'; };
+    const paint = () => { d.querySelector('#catRows').innerHTML = cats.length ? cats.map(c => `<li class="msg-up" data-id="${esc(c.id)}"><input type="color" value="${esc(c.color)}" aria-label="Color"><input class="cn" name="category-name" value="${esc(c.name)}" maxlength="40" aria-label="Category name" autocomplete="off" autocapitalize="sentences" spellcheck="true"><button type="button" class="icon-btn del" aria-label="Delete ${esc(c.name)}">✕</button></li>`).join('') : '<li class="muted small">No categories yet.</li>'; };
     paint();
     d.querySelector('#catAdd').onclick = async () => {
       const name = d.querySelector('#catName').value.trim(); if (!name) return;
