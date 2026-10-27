@@ -1564,14 +1564,15 @@ html.dark .wl-sheet { box-shadow: 0 -10px 40px rgba(0, 0, 0, .55); border-top: 1
 
 /* ===== Guided tour (Scott 2026-10-26, tour.js) ===== */
 body.tour-open { overflow: hidden; }
-.tour-root { position: fixed; inset: 0; z-index: 160; background: rgba(15, 23, 42, .55); opacity: 0; transition: opacity .25s ease; pointer-events: none; }
+/* Transparent root — dimming comes ONLY from .tour-hole's box-shadow so the spotlight target stays readable. */
+.tour-root { position: fixed; inset: 0; z-index: 160; background: transparent; opacity: 0; transition: opacity .25s ease; pointer-events: none; }
 .tour-root.open { opacity: 1; }
-html.dark .tour-root { background: rgba(0, 0, 0, .65); }
 .tour-hole { position: fixed; z-index: 161; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(15, 23, 42, .55), 0 0 0 3px #38bdf8; pointer-events: none; transition: top .22s ease, left .22s ease, width .22s ease, height .22s ease; display: none; }
 html.dark .tour-hole { box-shadow: 0 0 0 9999px rgba(0, 0, 0, .65), 0 0 0 3px #38bdf8; }
-.tour-tip { position: fixed; left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 162; max-width: 420px; margin: 0 auto;
+/* Tip position is set in JS (above/below target, always clear of bottom nav + safe area). */
+.tour-tip { position: fixed; left: 12px; right: 12px; bottom: calc(var(--nav-h, 60px) + env(safe-area-inset-bottom) + var(--nav-lift, 10px) + 20px); z-index: 162; max-width: 420px; margin: 0 auto;
   background: var(--panel, #fff); color: var(--text); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px 12px;
-  box-shadow: 0 12px 40px rgba(15, 23, 42, .25); transform: translateY(16px); opacity: 0; transition: transform .25s ease, opacity .25s ease; }
+  box-shadow: 0 12px 40px rgba(15, 23, 42, .25); transform: translateY(16px); opacity: 0; transition: transform .25s ease, opacity .25s ease, top .22s ease, bottom .22s ease; }
 .tour-tip.open { transform: translateY(0); opacity: 1; }
 .tour-tip.leaving, .tour-root.leaving, .tour-hole.leaving { opacity: 0; transition: opacity .22s ease; }
 .tour-tip.no-anim, .tour-root.no-anim { transition: none; }
@@ -1588,7 +1589,7 @@ html.dark .tour-hole { box-shadow: 0 0 0 9999px rgba(0, 0, 0, .65), 0 0 0 3px #3
 .tour-offer-back { position: fixed; inset: 0; z-index: 155; background: rgba(15, 23, 42, .45); opacity: 0; transition: opacity .22s ease; }
 .tour-offer-back.open { opacity: 1; }
 html.dark .tour-offer-back { background: rgba(0, 0, 0, .6); }
-.tour-offer { position: fixed; left: 16px; right: 16px; bottom: max(20px, env(safe-area-inset-bottom)); z-index: 156; max-width: 400px; margin: 0 auto;
+.tour-offer { position: fixed; left: 16px; right: 16px; bottom: calc(var(--nav-h, 60px) + env(safe-area-inset-bottom) + var(--nav-lift, 10px) + 20px); z-index: 156; max-width: 400px; margin: 0 auto;
   background: var(--panel, #fff); color: var(--text); border: 1px solid var(--line); border-radius: 16px; padding: 18px 18px 14px;
   box-shadow: 0 12px 40px rgba(15, 23, 42, .28); transform: translateY(20px); opacity: 0; transition: transform .25s ease, opacity .25s ease; }
 .tour-offer.open { transform: translateY(0); opacity: 1; }

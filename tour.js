@@ -241,17 +241,101 @@
     } catch (e) {}
   }
 
+  function navClearance() {
+    const nav = document.getElementById('bottomNav');
+    const fab = document.getElementById('todoFab');
+    const cs = getComputedStyle(document.documentElement);
+    const navH = parseFloat(cs.getPropertyValue('--nav-h')) || 60;
+    const lift = parseFloat(cs.getPropertyValue('--nav-lift')) || 10;
+    // Prefer measuring the floating nav; fall back to CSS vars + cushion for FAB / update banner.
+    let clear = navH + lift + 24;
+    if (nav) {
+      const nr = nav.getBoundingClientRect();
+      if (nr.height) clear = Math.max(clear, window.innerHeight - nr.top + 12);
+    }
+    // Only reserve FAB space when the tour is NOT currently spotlighting the FAB itself.
+    const targetingFab = !!(state && state.hole && state.hole.dataset && state.hole.dataset.target === 'fab');
+    if (!targetingFab && fab && !fab.hidden && getComputedStyle(fab).display !== 'none') {
+      const fr = fab.getBoundingClientRect();
+      if (fr.height > 0 && fr.bottom > 0) clear = Math.max(clear, window.innerHeight - fr.top + 10);
+    }
+    const banner = document.getElementById('updateBanner');
+    if (banner && !banner.hidden && (banner.classList.contains('is-in') || banner.classList.contains('show'))) {
+      const br = banner.getBoundingClientRect();
+      if (br.height) clear = Math.max(clear, window.innerHeight - br.top + 8);
+    }
+    return clear;
+  }
+
+  function placeTip(targetRect) {
+    const tip = state.tip;
+    const pad = 10;
+    const safeTop = 10;
+    const safeBottom = navClearance();
+    const tipH = tip.offsetHeight || 180;
+    const vh = window.innerHeight;
+    tip.style.left = '12px';
+    tip.style.right = '12px';
+    tip.style.marginLeft = 'auto';
+    tip.style.marginRight = 'auto';
+
+    if (!targetRect) {
+      tip.style.top = 'auto';
+      tip.style.bottom = safeBottom + 'px';
+      tip.dataset.place = 'bottom';
+      return;
+    }
+    const spaceBelow = vh - targetRect.bottom - safeBottom;
+    const spaceAbove = targetRect.top - safeTop;
+    const need = tipH + pad;
+    let place = 'below';
+    if (spaceBelow < need && spaceAbove > spaceBelow) place = 'above';
+    if (spaceBelow < need && spaceAbove < need) {
+      // Neither fits cleanly — pin above the nav so the tip never covers it or the FAB.
+      tip.style.top = 'auto';
+      tip.style.bottom = safeBottom + 'px';
+      tip.dataset.place = 'bottom';
+      return;
+    }
+    if (place === 'below') {
+      const top = Math.min(targetRect.bottom + pad, vh - tipH - safeBottom);
+      tip.style.top = Math.max(safeTop, top) + 'px';
+      tip.style.bottom = 'auto';
+      tip.dataset.place = 'below';
+    } else {
+      const bottom = Math.max(safeBottom, vh - (targetRect.top - pad));
+      tip.style.top = 'auto';
+      tip.style.bottom = bottom + 'px';
+      tip.dataset.place = 'above';
+    }
+  }
+
   function placeSpotlight(el) {
     const hole = state.hole;
-    if (!el) { hole.style.display = 'none'; return; }
+    if (!el) {
+      hole.style.display = 'none';
+      placeTip(null);
+      return;
+    }
+    try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {}
     const r = el.getBoundingClientRect();
     const pad = 8;
+    // Cap hole height so a huge target (e.g. #todayCard) does not swallow the tip / nav.
+    const maxH = Math.max(120, window.innerHeight - navClearance() - 200);
+    const h = Math.min(maxH, r.height + pad * 2, window.innerHeight - 16);
     hole.style.display = 'block';
+    hole.dataset.target = (el.id === 'todoFab' || el.classList.contains('todo-fab')) ? 'fab' : '';
     hole.style.top = Math.max(4, r.top - pad) + 'px';
     hole.style.left = Math.max(4, r.left - pad) + 'px';
     hole.style.width = Math.min(window.innerWidth - 8, r.width + pad * 2) + 'px';
-    hole.style.height = Math.min(window.innerHeight - 8, r.height + pad * 2) + 'px';
-    try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {}
+    hole.style.height = h + 'px';
+    const holeRect = {
+      top: Math.max(4, r.top - pad),
+      bottom: Math.max(4, r.top - pad) + h,
+      left: Math.max(4, r.left - pad),
+      right: Math.max(4, r.left - pad) + Math.min(window.innerWidth - 8, r.width + pad * 2),
+    };
+    placeTip(holeRect);
   }
 
   function renderTip() {
@@ -291,9 +375,13 @@
     markDone(user);
     document.removeEventListener('keydown', onKey, true);
     window.removeEventListener('resize', onResize);
+    if (onResize && onResize._scroll) window.removeEventListener('scroll', onResize, true);
     root.classList.remove('open'); tip.classList.add('leaving'); hole.classList.add('leaving');
     const doneFn = () => {
-      root.remove(); tip.remove(); hole.remove();
+      try { root.remove(); } catch (e) {}
+      try { tip.remove(); } catch (e) {}
+      try { hole.remove(); } catch (e) {}
+      document.querySelectorAll('.tour-offer-back, .tour-offer, #tourRoot, .tour-hole, .tour-tip').forEach(n => { try { n.remove(); } catch (e) {} });
       document.body.classList.remove('tour-open');
       uninstallSample(patches);
       if (window.SandyNav) try { SandyNav.go('home'); } catch (e) {}
@@ -321,9 +409,11 @@
     document.body.append(root, hole, tip);
     document.body.classList.add('tour-open');
     const onResize = () => { if (state) placeSpotlight(STEPS[state.i].target && STEPS[state.i].target()); };
+    onResize._scroll = true;
     state = { user, i: 0, root, hole, tip, patches, onResize };
     document.addEventListener('keydown', onKey, true);
     window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onResize, true);
     if (reduce()) { root.classList.add('open', 'no-anim'); tip.classList.add('open', 'no-anim'); }
     else { void tip.offsetWidth; requestAnimationFrame(() => { root.classList.add('open'); tip.classList.add('open'); }); }
     go(0);
