@@ -173,6 +173,9 @@
     if (window.SandyTravel) { try { tv = await SandyTravel.render(null, a, d.now); if (tv) h += tv.html; } catch (e) { console.warn('travel plan:', e); tv = null; } }
     // Sandy Intelligence: practice prep (practice.js): last practice's notes before a Maryville / Jennings practice
     if (window.SandyPractice) { try { h += SandyPractice.html(await SandyPractice.data(a, d.now), d.now, d.today); } catch (e) { console.warn('practice prep:', e); } }
+    // Sandy Intelligence #2: long-day nudge (longday.js) — from 5 PM when tomorrow is long
+    let ld = null;
+    if (window.SandyLongDay) { try { ld = await SandyLongDay.data(a, d.now); if (ld) h += SandyLongDay.html(ld); } catch (e) { console.warn('long-day:', e); ld = null; } }
     // Sandy Intelligence: evening preview of tomorrow (tomorrow.js)
     let tm = null;
     if (window.SandyTomorrow && SandyTomorrow.isEvening(d.now)) { try { tm = await SandyTomorrow.data(a, d.now); h += SandyTomorrow.html(tm); } catch (e) { console.warn('tomorrow:', e); tm = null; } }
@@ -658,6 +661,7 @@
     if (!profileOnce) { profileOnce = true; showAvatar(await avatarUrl()); }
     if (window.SandyLeave) SandyLeave.getHome().then(h => { const i = $('homeAddr'); if (i && document.activeElement !== i) i.value = h ? h.address : ''; }).catch(() => {});
     paintLeaveAlerts();
+    paintSiPrefs();
   }
   // Leave-by alerts switches (Profile → Home). Alerts are per account; "use my location" is per device.
   async function paintLeaveAlerts() {
@@ -683,6 +687,26 @@
       } else if (t.id === 'leaveEarly') { await SandyLeave.setAlertPrefs({ early: t.checked }); toast(t.checked ? '10-minute heads-up on' : '10-minute heads-up off'); }
     } catch (ex) { t.checked = !t.checked; msg.textContent = ex.message || String(ex); msg.classList.add('bad'); msg.dataset.keep = '1'; }
     finally { t.disabled = false; await paintLeaveAlerts(); }
+  }
+
+  // Sandy Intelligence toggles (Profile → Sandy Intelligence). Long-day first; later features add here.
+  async function paintSiPrefs() {
+    if (!window.SandyLongDay || !$('siLongDay')) return;
+    const p = await SandyLongDay.getPrefs();
+    const el = $('siLongDay'), msg = $('siMsg');
+    el.checked = p.enabled;
+    if (!msg.dataset.keep) { msg.className = 'small home-msg'; msg.textContent = ''; }
+  }
+  async function siSwitch(e) {
+    const t = e.target, msg = $('siMsg'); msg.className = 'small home-msg'; delete msg.dataset.keep;
+    if (t.id !== 'siLongDay' || !window.SandyLongDay) return;
+    try {
+      t.disabled = true;
+      await SandyLongDay.setPrefs({ enabled: t.checked });
+      toast(t.checked ? 'Long-day nudge on' : 'Long-day nudge off');
+      if (tab === 'today') renderToday();
+    } catch (ex) { t.checked = !t.checked; msg.textContent = ex.message || String(ex); msg.classList.add('bad'); msg.dataset.keep = '1'; }
+    finally { t.disabled = false; await paintSiPrefs(); }
   }
 
 
@@ -732,6 +756,7 @@
     $('homeForm').addEventListener('submit', e => { e.preventDefault(); saveHome($('homeAddr').value); });
     $('homeClear').addEventListener('click', () => saveHome(''));
     ['leaveAlerts', 'leaveEarly', 'leaveUseLoc'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', leaveSwitch); });
+    ['siLongDay'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', siSwitch); });
     if ($('timeFormat')) $('timeFormat').addEventListener('change', e => {
       if (!window.SandyTime) return; SandyTime.set(e.target.value);
       toast(e.target.value === 'auto' ? `Times follow your phone (${SandyTime.label()})` : `Times show as ${e.target.value}-hour`);

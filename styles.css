@@ -1159,6 +1159,24 @@ html.dark input:-webkit-autofill, html.dark input:-webkit-autofill:hover, html.d
 html.dark .pf-note { color: #cbd5e1; }
 
 /* ---------- Sandy Intelligence: Tomorrow preview (evenings, tomorrow.js) ---------- */
+
+/* ---- Sandy Intelligence #2: Long-day nudge ---- */
+.tc-longday { border-left: 4px solid #f59e0b; animation: ld-in .28s ease-out; }
+.tc-longday .ld-date { text-transform: none; letter-spacing: 0; font-weight: 600; }
+.tc-longday .ld-msg { margin: 0 0 6px; font-size: 14px; line-height: 1.4; }
+.tc-longday .ld-meta { margin: 0; }
+@keyframes ld-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+html.reduce-motion .tc-longday { animation: none; }
+html.dark .tc-longday { border-left-color: #fbbf24; }
+html:not(.dark) .tc-longday .muted { color: #4b5563; }
+html.dark .tc-longday .muted { color: #cbd5e1; }
+.si-intro { margin: -4px 0 8px; }
+#siSection .pf-row { align-items: flex-start; }
+#siSection .pf-note { white-space: normal; }
+
 .tc-tomorrow { border-left: 4px solid #6366f1; }
 .tc-tomorrow .tm-date { text-transform: none; letter-spacing: 0; font-weight: 600; }
 .tc-tomorrow .tm-stats { margin: 0 0 8px; }

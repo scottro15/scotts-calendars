@@ -1129,3 +1129,16 @@ commit;
 -- ---------------------------------------------------------------- 2026-10-25 fab: to-do priority (migration-2026-10-25-priority.sql)
 alter table public.events      add column if not exists priority smallint check (priority is null or priority between 1 and 3);
 alter table public.inbox_items add column if not exists priority smallint check (priority is null or priority between 1 and 3);
+
+-- ---------------------------------------------------------------- 2026-10-26 SI #2 long-day nudge (migration-2026-10-26-si-long-day.sql)
+alter table public.profiles add column if not exists si_long_day boolean not null default true;
+create table if not exists public.si_nudge_sends (
+  owner_id    uuid not null references auth.users(id) on delete cascade,
+  kind        text not null check (kind in ('long_day')),
+  target_date date not null,
+  sent_at     timestamptz not null default now(),
+  primary key (owner_id, kind, target_date)
+);
+alter table public.si_nudge_sends enable row level security;
+revoke all on public.si_nudge_sends from anon, authenticated;
+grant all on public.si_nudge_sends to service_role;

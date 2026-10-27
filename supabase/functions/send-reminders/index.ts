@@ -244,6 +244,120 @@ export async function serverDrive(home, address, f = fetch, env = {}) {
   } catch (_) { return { ok: false }; }
 }
 
+// ------------------------------------------------------------------ long-day nudge (Sandy Intelligence feature #2)
+// FREE, rule-based. Evening before a long day (PUSH_HOUR local), push once (si_nudge_sends dedupe).
+// Long day = timed events tomorrow (ignore all-day, tasks, Christian Dake reference titles) where
+// first→last span ≥ SPAN_HOURS OR merged scheduled duration ≥ SCHEDULED_HOURS.
+export const LONG_DAY_SPAN_HOURS = 10;
+export const LONG_DAY_SCHEDULED_HOURS = 8;
+export const LONG_DAY_MEAL_GAP_MIN = 30;
+export const LONG_DAY_PUSH_HOUR = 20;
+export const LONG_DAY_WINDOW_MIN = 15; // catch-up: still send up to 15 min after 8:00
+const REF_RE = /christian\s+dake/i;
+const isRefTitle = (t) => REF_RE.test(String(t || ''));
+const minsBetween = (a, b) => Math.round((b - a) / 60000);
+function mergedMinutes(intervals) {
+  if (!intervals.length) return 0;
+  const xs = intervals.slice().sort((a, b) => a[0] - b[0]);
+  let total = 0, cur0 = xs[0][0], cur1 = xs[0][1];
+  for (let i = 1; i < xs.length; i++) {
+    const [s, e] = xs[i];
+    if (s <= cur1) { if (e > cur1) cur1 = e; }
+    else { total += minsBetween(cur0, cur1); cur0 = s; cur1 = e; }
+  }
+  return total + minsBetween(cur0, cur1);
+}
+function bestMealGap(sorted) {
+  const gaps = [];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i].end, b = sorted[i + 1].start, m = minsBetween(a, b);
+    if (m >= LONG_DAY_MEAL_GAP_MIN) gaps.push({ start: a, end: b, min: m });
+  }
+  if (!gaps.length) return null;
+  const lunch = gaps.filter(g => {
+    const midH = (g.start.getUTCHours() * 60 + g.start.getUTCMinutes() + g.min / 2) / 60;
+    return midH >= 11 && midH <= 14.5;
+  });
+  const pool = lunch.length ? lunch : gaps;
+  return pool.reduce((a, b) => (b.min >= a.min ? b : a));
+}
+/** timed: [{start,end,title}] wall-clock. Returns {isLong, spanMin, scheduledMin, first, last, gap, reason}. */
+export function analyzeLongDay(timed) {
+  const xs = (timed || []).filter(x => x && x.start && x.end && x.end > x.start && !isRefTitle(x.title))
+    .slice().sort((a, b) => a.start - b.start || a.end - b.end);
+  if (!xs.length) return { isLong: false, spanMin: 0, scheduledMin: 0, first: null, last: null, gap: null, reason: null, count: 0 };
+  const first = xs[0], last = xs.reduce((a, b) => (b.end >= a.end ? b : a));
+  const spanMin = Math.max(0, minsBetween(first.start, last.end));
+  const scheduledMin = mergedMinutes(xs.map(t => [t.start, t.end]));
+  const gap = bestMealGap(xs);
+  let reason = null;
+  if (spanMin >= LONG_DAY_SPAN_HOURS * 60) reason = 'span';
+  else if (scheduledMin >= LONG_DAY_SCHEDULED_HOURS * 60) reason = 'scheduled';
+  return { isLong: !!reason, spanMin, scheduledMin, first, last, gap, reason, count: xs.length };
+}
+export function longDayMessage(info) {
+  if (!info || !info.isLong) return '';
+  const shortBreak = !info.gap || info.gap.min < 60;
+  let s = `Long day tomorrow: ${t12(info.first.start)} to ${t12(info.last.end)}`;
+  if (shortBreak) s += ', with only a short break';
+  s += '. Pack lunch and snacks tonight.';
+  if (info.gap) {
+    const midH = (info.gap.start.getUTCHours() * 60 + info.gap.start.getUTCMinutes() + info.gap.min / 2) / 60;
+    const label = midH >= 11 && midH <= 14.5 ? 'best lunch window' : 'longest open window';
+    s += ` Your ${label} is ${t12(info.gap.start)}–${t12(info.gap.end)}.`;
+  }
+  return s;
+}
+/** Duration of a DB event row in ms (end_at − start_at). Fallback 60 min. */
+function rowDurationMs(row) {
+  try {
+    const s = parseLocal(String(row.start_at).replace(' ', 'T').slice(0, 16));
+    const e = row.end_at ? parseLocal(String(row.end_at).replace(' ', 'T').slice(0, 16)) : null;
+    if (e && e > s) return e - s;
+  } catch (_) {}
+  return 60 * 60000;
+}
+/** Build timed occurrences for owner on targetYmd (wall date string). */
+export function timedOnDay(rows, ownerId, targetYmd) {
+  const day = parseLocal(targetYmd);
+  const end = addDays(day, 1);
+  const out = [];
+  for (const row of rows) {
+    if (row.owner_id !== ownerId || row.all_day || row.is_task || isRefTitle(row.title)) continue;
+    const dur = rowDurationMs(row);
+    for (const s of occurrenceStarts(row, day, end)) out.push({ start: s, end: new Date(s.getTime() + dur), title: row.title || '' });
+  }
+  return out;
+}
+/** profiles: [{user_id,time_zone}]; events: rows with end_at; sent: Set of `${owner}|${targetYmd}`; now ms.
+ *  Returns [{owner_id, target, info, fireAt, payload}] due in the PUSH_HOUR window. */
+export function dueLongDayNudges(profiles, events, sent, now = Date.now()) {
+  const out = [];
+  for (const p of profiles) {
+    const tz = p.time_zone || 'America/Chicago';
+    const wall = utcToWall(now, tz);
+    const h = wall.getUTCHours(), mi = wall.getUTCMinutes();
+    const minutesPast = h * 60 + mi;
+    const pushAt = LONG_DAY_PUSH_HOUR * 60;
+    if (minutesPast < pushAt || minutesPast > pushAt + LONG_DAY_WINDOW_MIN) continue;
+    const today = startOfDay(wall);
+    const target = ymd(addDays(today, 1));
+    if (sent.has(`${p.user_id}|${target}`)) continue;
+    const info = analyzeLongDay(timedOnDay(events, p.user_id, target));
+    if (!info.isLong) continue;
+    const body = longDayMessage(info);
+    const fireAt = wallToUtc(W(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), LONG_DAY_PUSH_HOUR, 0), tz);
+    out.push({ owner_id: p.user_id, target, info, fireAt, payload: {
+      title: '🥪 Long day tomorrow',
+      body: body.slice(0, 200),
+      tag: `longday:${target}`,
+      url: './?tab=today',
+      ts: fireAt
+    }});
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------ HTTP handler
 const json = (b, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { 'content-type': 'application/json' } });
 export async function handle(req, env, f = fetch, now = Date.now()) {
@@ -264,7 +378,10 @@ export async function handle(req, env, f = fetch, now = Date.now()) {
   // leave-by alerts: who has them on (columns/table may not exist yet -> skipped)
   const lr = await rest('profiles?select=user_id,time_zone,leave_alerts_early,home_lat,home_lon&leave_alerts=is.true');
   const leaveProfiles = lr.ok ? await lr.json() : [];
-  const owners = [...new Set([...rows.map(r => r.owner_id), ...leaveProfiles.map(p => p.user_id)])];
+  // long-day nudge: who has it on (column may not exist yet -> skipped)
+  const ldr = await rest('profiles?select=user_id,time_zone&si_long_day=is.true');
+  const longDayProfiles = ldr.ok ? await ldr.json() : [];
+  const owners = [...new Set([...rows.map(r => r.owner_id), ...leaveProfiles.map(p => p.user_id), ...longDayProfiles.map(p => p.user_id)])];
   if (!owners.length) return json({ due: 0, sent: 0 });
   const inList = `(${owners.join(',')})`;
   const [pr, sr] = await Promise.all([rest(`profiles?select=user_id,time_zone&user_id=in.${inList}`), rest(`push_subscriptions?select=id,owner_id,endpoint,p256dh,auth&owner_id=in.${inList}`)]);
@@ -328,7 +445,24 @@ export async function handle(req, env, f = fetch, now = Date.now()) {
       if (new Date(now).getUTCMinutes() === 7) await rest(`leave_plans?occurrence_date=lt.${yday}`, { method: 'DELETE' });
     }
   }
-  return json({ due: due.length, sent, failed, gone, leave_due: leaveDue, planned });
+  let longDayDue = 0;
+  if (longDayProfiles.length) {
+    const lIn = `(${longDayProfiles.map(p => p.user_id).join(',')})`;
+    // tomorrow in each zone may differ near midnight; fetch a 3-day window of timed events
+    const evr2 = await rest(`events?select=${COLS},end_at&owner_id=in.${lIn}&all_day=is.false&is_task=is.false&limit=20000`);
+    const sentR = await rest(`si_nudge_sends?select=owner_id,target_date&kind=eq.long_day&owner_id=in.${lIn}&target_date=gte.${ymd(addDays(utcToWall(now, 'UTC'), -1))}`);
+    if (evr2.ok) {
+      const evs2 = await evr2.json();
+      const already = new Set((sentR.ok ? await sentR.json() : []).map(r => `${r.owner_id}|${String(r.target_date).slice(0, 10)}`));
+      const ld = dueLongDayNudges(longDayProfiles, evs2, already, now); longDayDue = ld.length;
+      for (const a of ld) {
+        const c = await rest('si_nudge_sends', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
+          body: JSON.stringify({ owner_id: a.owner_id, kind: 'long_day', target_date: a.target }) });
+        if (c.ok && (await c.json()).length > 0) await deliver(a.owner_id, a.payload);
+      }
+    }
+  }
+  return json({ due: due.length, sent, failed, gone, leave_due: leaveDue, planned, long_day_due: longDayDue });
 }
 
 const D = globalThis.Deno;
