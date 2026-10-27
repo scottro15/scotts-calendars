@@ -176,6 +176,8 @@
     // Sandy Intelligence #2: long-day nudge (longday.js) — from 5 PM when tomorrow is long
     let ld = null;
     if (window.SandyLongDay) { try { ld = await SandyLongDay.data(a, d.now); if (ld) h += SandyLongDay.html(ld); } catch (e) { console.warn('long-day:', e); ld = null; } }
+    // Sandy Intelligence #4: free-gap to-do coach (freegap.js)
+    if (window.SandyFreeGap) { try { const fg = await SandyFreeGap.data(a, d.now); if (fg) h += SandyFreeGap.html(fg); } catch (e) { console.warn('free-gap:', e); } }
     // Sandy Intelligence: evening preview of tomorrow (tomorrow.js)
     let tm = null;
     if (window.SandyTomorrow && SandyTomorrow.isEvening(d.now)) { try { tm = await SandyTomorrow.data(a, d.now); h += SandyTomorrow.html(tm); } catch (e) { console.warn('tomorrow:', e); tm = null; } }
@@ -691,21 +693,30 @@
 
   // Sandy Intelligence toggles (Profile → Sandy Intelligence). Long-day first; later features add here.
   async function paintSiPrefs() {
-    if (!window.SandyLongDay || !$('siLongDay')) return;
-    const p = await SandyLongDay.getPrefs();
-    const el = $('siLongDay'), msg = $('siMsg');
-    el.checked = p.enabled;
-    if (!msg.dataset.keep) { msg.className = 'small home-msg'; msg.textContent = ''; }
+    const msg = $('siMsg');
+    if ($('siLongDay') && window.SandyLongDay) {
+      const p = await SandyLongDay.getPrefs();
+      $('siLongDay').checked = p.enabled;
+    }
+    if ($('siFreeGap') && window.SandyFreeGap) {
+      const p = await SandyFreeGap.getPrefs();
+      $('siFreeGap').checked = p.enabled;
+    }
+    if (msg && !msg.dataset.keep) { msg.className = 'small home-msg'; msg.textContent = ''; }
   }
   async function siSwitch(e) {
-    const t = e.target, msg = $('siMsg'); msg.className = 'small home-msg'; delete msg.dataset.keep;
-    if (t.id !== 'siLongDay' || !window.SandyLongDay) return;
+    const t = e.target, msg = $('siMsg'); if (msg) { msg.className = 'small home-msg'; delete msg.dataset.keep; }
     try {
       t.disabled = true;
-      await SandyLongDay.setPrefs({ enabled: t.checked });
-      toast(t.checked ? 'Long-day nudge on' : 'Long-day nudge off');
+      if (t.id === 'siLongDay' && window.SandyLongDay) {
+        await SandyLongDay.setPrefs({ enabled: t.checked });
+        toast(t.checked ? 'Long-day nudge on' : 'Long-day nudge off');
+      } else if (t.id === 'siFreeGap' && window.SandyFreeGap) {
+        await SandyFreeGap.setPrefs({ enabled: t.checked });
+        toast(t.checked ? 'Free-gap coach on' : 'Free-gap coach off');
+      } else return;
       if (tab === 'today') renderToday();
-    } catch (ex) { t.checked = !t.checked; msg.textContent = ex.message || String(ex); msg.classList.add('bad'); msg.dataset.keep = '1'; }
+    } catch (ex) { t.checked = !t.checked; if (msg) { msg.textContent = ex.message || String(ex); msg.classList.add('bad'); msg.dataset.keep = '1'; } }
     finally { t.disabled = false; await paintSiPrefs(); }
   }
 
@@ -734,6 +745,32 @@
     $('todayCard').addEventListener('click', e => {
       if (e.target.closest('.lb-loc-yes, .lb-loc-no')) { SandyLeave.answerAsk(!!e.target.closest('.lb-loc-yes')).catch(() => {}); return; }
       if (e.target.closest('.lb-sethome')) { go('profile'); const s = $('homeSection'); if (s) { s.scrollIntoView({ block: 'center' }); setTimeout(() => $('homeAddr').focus(), 300); } return; }
+      const fg = e.target.closest('.fg-todo');
+      if (fg && window.SandyFreeGap) {
+        e.preventDefault();
+        const key = fg.dataset.fgKey, gs = fg.dataset.gapStart, mins = +fg.dataset.minutes;
+        fg.disabled = true;
+        SandyFreeGap.schedule(key, gs, mins).then(r => {
+          const t = $('toast');
+          const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+          t.innerHTML = `${esc(r.msg)} <button type="button" class="toast-undo">Undo</button>`;
+          t.hidden = false;
+          clearTimeout(window.__fgToast);
+          const undoBtn = t.querySelector('.toast-undo');
+          const hide = () => { t.hidden = true; t.textContent = ''; };
+          const onUndo = async () => {
+            undoBtn.disabled = true;
+            try { await r.undo(); toast('Undone'); if (tab === 'today') renderToday(); if (tab === 'todo') renderTodo(); }
+            catch (err) { toast(err.message || 'Could not undo'); }
+          };
+          undoBtn.addEventListener('click', onUndo, { once: true });
+          window.__fgToast = setTimeout(hide, 6000);
+          if (tab === 'today') renderToday();
+          if (tab === 'todo') renderTodo();
+          window.dispatchEvent(new Event('sandy:refresh'));
+        }).catch(err => { toast(err.message || String(err)); fg.disabled = false; });
+        return;
+      }
       const b = e.target.closest('.tc-item'); if (b) A().openEditor(b.dataset.id, b.dataset.key); });
     // Search
     let st = 0; $('searchBox').addEventListener('input', () => { clearTimeout(st); st = setTimeout(renderSearch, 120); });
@@ -756,7 +793,7 @@
     $('homeForm').addEventListener('submit', e => { e.preventDefault(); saveHome($('homeAddr').value); });
     $('homeClear').addEventListener('click', () => saveHome(''));
     ['leaveAlerts', 'leaveEarly', 'leaveUseLoc'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', leaveSwitch); });
-    ['siLongDay'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', siSwitch); });
+    ['siLongDay', 'siFreeGap'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', siSwitch); });
     if ($('timeFormat')) $('timeFormat').addEventListener('change', e => {
       if (!window.SandyTime) return; SandyTime.set(e.target.value);
       toast(e.target.value === 'auto' ? `Times follow your phone (${SandyTime.label()})` : `Times show as ${e.target.value}-hour`);

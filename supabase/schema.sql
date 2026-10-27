@@ -1142,3 +1142,6 @@ create table if not exists public.si_nudge_sends (
 alter table public.si_nudge_sends enable row level security;
 revoke all on public.si_nudge_sends from anon, authenticated;
 grant all on public.si_nudge_sends to service_role;
+
+-- ---------------------------------------------------------------- 2026-10-26 SI #4 free-gap coach (migration-2026-10-26-si-free-gap.sql)
+alter table public.profiles add column if not exists si_free_gap boolean not null default true;

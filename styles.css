@@ -1160,6 +1160,37 @@ html.dark .pf-note { color: #cbd5e1; }
 
 /* ---------- Sandy Intelligence: Tomorrow preview (evenings, tomorrow.js) ---------- */
 
+
+/* ---- Sandy Intelligence #4: Free-gap to-do coach ---- */
+.tc-freegap { border-left: 4px solid #22c55e; animation: fg-in .28s ease-out; }
+@keyframes fg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+html.reduce-motion .tc-freegap { animation: none; }
+.fg-list { list-style: none; margin: 0; padding: 0; }
+.fg-row { padding: 8px 0; font-size: 14px; line-height: 1.4; }
+.fg-row + .fg-row { border-top: 1px solid #f1f5f9; }
+.fg-when { font-weight: 600; color: #374151; }
+.fg-knock { color: #4b5563; }
+.fg-todo {
+  display: inline; border: 0; background: none; padding: 0; margin: 0;
+  font: inherit; color: var(--accent, #4f46e5); font-weight: 600;
+  text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}
+.fg-todo:hover, .fg-todo:focus-visible { color: #4338ca; outline: none; }
+.fg-todo:disabled { opacity: .5; cursor: default; }
+.fg-pri { font-weight: 700; color: #b45309; text-decoration: none; }
+.fg-od { font-weight: 600; color: #dc2626; font-size: 12px; text-decoration: none; }
+.fg-sep { color: #9ca3af; }
+.toast-undo {
+  margin-left: 10px; border: 0; background: rgba(255,255,255,.2); color: inherit;
+  font: inherit; font-weight: 700; padding: 2px 10px; border-radius: 999px; cursor: pointer;
+}
+html.dark .tc-freegap { border-left-color: #4ade80; }
+html.dark .fg-row + .fg-row { border-top-color: #243047; }
+html.dark .fg-when { color: #e2e8f0; }
+html.dark .fg-knock { color: #cbd5e1; }
+html.dark .fg-todo { color: #a5b4fc; }
+html.dark .fg-pri { color: #fbbf24; }
+
 /* ---- Sandy Intelligence #2: Long-day nudge ---- */
 .tc-longday { border-left: 4px solid #f59e0b; animation: ld-in .28s ease-out; }
 .tc-longday .ld-date { text-transform: none; letter-spacing: 0; font-weight: 600; }
