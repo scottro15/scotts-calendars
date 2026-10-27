@@ -1908,3 +1908,21 @@ html.reduce-motion .tc-overdue button.tc-item.tc-ev { animation: none; }
   .tc-on button.tc-item.tc-ev,
   .tc-overdue button.tc-item.tc-ev { animation: none; }
 }
+
+/* Heads Up: Show N more / Show less */
+.hu-more-btn {
+  display: block; width: 100%; margin-top: 4px; border: 0; background: none;
+  color: #4f46e5; font-weight: 700; font-size: 13px; padding: 8px 4px; text-align: left; cursor: pointer;
+}
+html.dark .hu-more-btn { color: #a5b4fc; }
+.hu-more-btn:hover, .hu-more-btn:focus-visible { text-decoration: underline; outline: none; }
+.tc-heads li.hu-extra { }
+@keyframes hu-extra-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.tc-heads li.hu-extra-in { animation: hu-extra-in .22s ease-out; }
+html.reduce-motion .tc-heads li.hu-extra-in { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .tc-heads li.hu-extra-in { animation: none; }
+}

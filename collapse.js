@@ -57,7 +57,7 @@
     setCount(sec);
   }
   /** Run after Today renders: turns each .tc-card header into a toggle and re-applies the saved state. */
-  function apply(root) {
+  function applyCollapse(root) {
     root = root || document.getElementById('todayBody'); if (!root) return;
     const state = read();
     root.querySelectorAll('section.tc-card').forEach(sec => enhance(sec, state));
@@ -67,5 +67,87 @@
       root.__tcObs.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-leave', 'hidden'] });
     }
   }
-  window.SandyCollapse = { apply, read, key: userKey, summary };
+
+  /* Heads Up: show top 3 alerts; "Show N more" / "Show less" with smooth expand. */
+  const HU_LS = 'sandy.headsExpanded.v1';
+  const huKey = () => { try { const u = A() && A().user && A().user(); return u && u.id ? HU_LS + '.' + u.id : HU_LS; } catch (e) { return HU_LS; } };
+  const huRead = () => { try { return localStorage.getItem(huKey()) === '1'; } catch (e) { return false; } };
+  const huWrite = v => { try { if (v) localStorage.setItem(huKey(), '1'); else localStorage.removeItem(huKey()); } catch (e) {} };
+
+  function headsItems(sec) {
+    return [...sec.querySelectorAll('.tc-leave li, .tc-clash li, .tc-weather li, .tc-warn:not(.tc-leave):not(.tc-clash):not(.tc-weather) li')];
+  }
+  function applyHeadsMore(sec) {
+    if (!sec || !sec.classList.contains('tc-heads')) return;
+    const items = headsItems(sec);
+    let btn = sec.querySelector('.hu-more-btn');
+    items.forEach(li => { li.classList.remove('hu-extra', 'hu-extra-in'); if (li.dataset.huHide === '1') { li.hidden = false; delete li.dataset.huHide; } });
+    if (items.length <= 3) {
+      if (btn) btn.remove();
+      sec.classList.remove('hu-expanded');
+      return;
+    }
+    const expanded = huRead();
+    sec.classList.toggle('hu-expanded', expanded);
+    items.forEach((li, i) => {
+      if (i < 3) return;
+      li.classList.add('hu-extra');
+      if (!expanded) { li.hidden = true; li.dataset.huHide = '1'; }
+      else { li.hidden = false; li.classList.add('hu-extra-in'); }
+    });
+    const n = items.length - 3;
+    const body = sec.querySelector('.tc-body-in') || sec.querySelector('.tc-body') || sec;
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'hu-more-btn';
+      body.appendChild(btn);
+      btn.addEventListener('click', () => {
+        const open = !sec.classList.contains('hu-expanded');
+        sec.classList.toggle('hu-expanded', open);
+        huWrite(open);
+        const list = headsItems(sec);
+        list.forEach((li, i) => {
+          if (i < 3) return;
+          li.classList.add('hu-extra');
+          if (open) {
+            li.hidden = false; delete li.dataset.huHide;
+            li.classList.remove('hu-extra-in'); void li.offsetWidth; li.classList.add('hu-extra-in');
+          } else {
+            li.hidden = true; li.dataset.huHide = '1'; li.classList.remove('hu-extra-in');
+          }
+        });
+        const left = Math.max(0, list.length - 3);
+        btn.textContent = open ? 'Show less' : ('Show ' + left + ' more');
+        btn.setAttribute('aria-expanded', String(open));
+      });
+    } else if (btn.parentElement !== body) {
+      body.appendChild(btn);
+    }
+    btn.textContent = expanded ? 'Show less' : ('Show ' + n + ' more');
+    btn.setAttribute('aria-expanded', String(expanded));
+  }
+
+  function apply(root) {
+    applyCollapse(root);
+    root = root || document.getElementById('todayBody'); if (!root) return;
+    const heads = root.querySelector('.tc-heads');
+    if (heads) applyHeadsMore(heads);
+    if (!root.__huObs) {
+      let tmr = null, busy = false;
+      root.__huObs = new MutationObserver(() => {
+        if (busy) return;
+        clearTimeout(tmr);
+        tmr = setTimeout(() => {
+          const h = root.querySelector('.tc-heads');
+          if (!h) return;
+          busy = true;
+          try { applyHeadsMore(h); } finally { busy = false; }
+        }, 120);
+      });
+      root.__huObs.observe(root, { childList: true, subtree: true });
+    }
+  }
+
+  window.SandyCollapse = { apply, read, key: userKey, summary, applyHeadsMore };
 })();
