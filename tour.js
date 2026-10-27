@@ -310,6 +310,20 @@
     }
   }
 
+
+  function clearTourTab() {
+    document.querySelectorAll('#bottomNav button.tour-tab-on').forEach(b => b.classList.remove('tour-tab-on'));
+    document.body.classList.remove('tour-nav-up');
+  }
+
+  function setTourTab(tab) {
+    clearTourTab();
+    if (!tab) return;
+    document.body.classList.add('tour-nav-up');
+    const btn = document.querySelector('#bottomNav button[data-tab="' + tab + '"]');
+    if (btn) btn.classList.add('tour-tab-on');
+  }
+
   function placeSpotlight(el) {
     const hole = state.hole;
     if (!el) {
@@ -362,6 +376,7 @@
     state.i = Math.max(0, Math.min(STEPS.length - 1, i));
     const step = STEPS[state.i];
     if (step.prepare) await step.prepare();
+    setTourTab(step.tab || null);
     renderTip();
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     placeSpotlight(step.target && step.target());
@@ -376,12 +391,14 @@
     document.removeEventListener('keydown', onKey, true);
     window.removeEventListener('resize', onResize);
     if (onResize && onResize._scroll) window.removeEventListener('scroll', onResize, true);
+    clearTourTab();
     root.classList.remove('open'); tip.classList.add('leaving'); hole.classList.add('leaving');
     const doneFn = () => {
       try { root.remove(); } catch (e) {}
       try { tip.remove(); } catch (e) {}
       try { hole.remove(); } catch (e) {}
       document.querySelectorAll('.tour-offer-back, .tour-offer, #tourRoot, .tour-hole, .tour-tip').forEach(n => { try { n.remove(); } catch (e) {} });
+      clearTourTab();
       document.body.classList.remove('tour-open');
       uninstallSample(patches);
       if (window.SandyNav) try { SandyNav.go('home'); } catch (e) {}

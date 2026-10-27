@@ -1603,6 +1603,62 @@ html.dark .tour-offer-back { background: rgba(0, 0, 0, .6); }
   .tour-root, .tour-tip, .tour-hole, .tour-offer, .tour-offer-back { transition: none !important; }
 }
 
+/* Tour: lift bottom nav above the dim backdrop and pulse the step's tab */
+body.tour-nav-up .bottom-nav, body.tour-open.tour-nav-up .bottom-nav {
+  z-index: 163; /* above .tour-hole (161); tip stays 164 via override below so tip remains clickable */
+}
+body.tour-nav-up .tour-tip, body.tour-open .tour-tip { z-index: 164; }
+@keyframes tour-tab-pulse {
+  0%, 100% { background: rgba(37, 99, 235, .18); box-shadow: 0 0 0 0 rgba(37, 99, 235, .45); }
+  50% { background: rgba(37, 99, 235, .38); box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+}
+html.dark {
+  --tour-tab-pulse-a: rgba(96, 165, 250, .22);
+  --tour-tab-pulse-b: rgba(96, 165, 250, .42);
+  --tour-tab-pulse-glow: rgba(96, 165, 250, .5);
+}
+@keyframes tour-tab-pulse-dark {
+  0%, 100% { background: rgba(96, 165, 250, .22); box-shadow: 0 0 0 0 rgba(96, 165, 250, .5); }
+  50% { background: rgba(96, 165, 250, .44); box-shadow: 0 0 0 10px rgba(96, 165, 250, 0); }
+}
+.bottom-nav button.tour-tab-on {
+  color: var(--nav-on, #1e40af) !important;
+  position: relative;
+  z-index: 2;
+}
+html.dark .bottom-nav button.tour-tab-on { color: var(--nav-on, #bfdbfe) !important; }
+.bottom-nav button.tour-tab-on > span { font-weight: 800; }
+.bottom-nav button.tour-tab-on svg { stroke-width: 2.4; }
+.bottom-nav button.tour-tab-on::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 4px;
+  width: 58px; height: 52px;
+  transform: translateX(-50%);
+  border-radius: 18px;
+  background: rgba(37, 99, 235, .22);
+  box-shadow: 0 0 0 0 rgba(37, 99, 235, .4);
+  pointer-events: none;
+  z-index: -1;
+  animation: tour-tab-pulse 1.7s ease-in-out infinite;
+}
+html.dark .bottom-nav button.tour-tab-on::after {
+  background: rgba(96, 165, 250, .28);
+  animation-name: tour-tab-pulse-dark;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav button.tour-tab-on::after {
+    animation: none !important;
+    background: rgba(37, 99, 235, .3);
+    box-shadow: 0 0 14px 2px rgba(37, 99, 235, .4);
+  }
+  html.dark .bottom-nav button.tour-tab-on::after {
+    background: rgba(96, 165, 250, .34);
+    box-shadow: 0 0 14px 2px rgba(96, 165, 250, .45);
+  }
+}
+
+
 
 /* ---- Sandy Intelligence #5: Clash check (Heads Up rows) ---- */
 .tc-clash .cl-row { line-height: 1.35; }
