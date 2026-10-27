@@ -87,7 +87,7 @@
     {
       id: 'today',
       title: 'Today',
-      body: 'Today pulls everything together: Heads Up for conflicts and leave times, On Today, Overdue to-dos, and an evening Tomorrow preview.',
+      body: 'Today pulls everything together: Heads Up for conflicts and leave times, Suggestions for Sandy Intelligence tips, On Today, and Overdue to-dos.',
       tab: 'today',
       target: () => document.getElementById('todayCard') || document.getElementById('todayBody'),
       prepare: async () => { if (window.SandyNav) SandyNav.go('today'); await new Promise(r => setTimeout(r, 200)); },

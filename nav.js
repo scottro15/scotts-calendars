@@ -183,17 +183,20 @@
     h += `<section class="tc-sec tc-card tc-heads"${showHeads ? '' : ' hidden'}><h3>Heads Up</h3><ul class="tc-warn tc-leave" id="tcLeave" aria-live="polite" hidden></ul>${clashHtml}${wxHtml}${d.gaps.length ? `<ul class="tc-warn">${d.gaps.map(g => g.kind === 'overlap'
       ? `<li>⚠️ <b>${esc(g.p.ev.title)}</b> overlaps <b>${esc(g.n.ev.title)}</b> (${esc(t12(g.n.o.start))})</li>`
       : `<li>⏱️ Tight: <b>${esc(g.p.ev.title)}</b> ends ${esc(t12(g.p.o.end))}, <b>${esc(g.n.ev.title)}</b> starts ${g.min ? `${g.min} min later` : 'right after'}</li>`).join('')}</ul>` : ''}</section>`;
-    // Sandy Intelligence: away-game travel plan (travel.js): departure, return, weather for Maryville away / neutral games
+    // Sandy Intelligence nudges → one Suggestions card (dismissible tiles). Weekly stays its own card.
+    const sug = window.SandySuggestions;
+    let sugTiles = '';
     let tv = null;
-    if (window.SandyTravel) { try { tv = await SandyTravel.render(null, a, d.now); if (tv) h += tv.html; } catch (e) { console.warn('travel plan:', e); tv = null; } }
-    // Sandy Intelligence: practice prep (practice.js): last practice's notes before a Maryville / Jennings practice
-    if (window.SandyPractice) { try { h += SandyPractice.html(await SandyPractice.data(a, d.now), d.now, d.today); } catch (e) { console.warn('practice prep:', e); } }
-    // Sandy Intelligence #2: long-day nudge (longday.js) — from 5 PM when tomorrow is long
+    if (window.SandyTravel) { try { tv = await SandyTravel.render(null, a, d.now); if (tv && tv.html) sugTiles += sug ? sug.wrap(tv.html, 'travel') : tv.html; } catch (e) { console.warn('travel plan:', e); tv = null; } }
+    if (window.SandyPractice) { try { const ph = SandyPractice.html(await SandyPractice.data(a, d.now), d.now, d.today); if (ph) sugTiles += sug ? sug.wrap(ph, 'practice') : ph; } catch (e) { console.warn('practice prep:', e); } }
     let ld = null;
-    if (window.SandyLongDay) { try { ld = await SandyLongDay.data(a, d.now); if (ld) h += SandyLongDay.html(ld); } catch (e) { console.warn('long-day:', e); ld = null; } }
-    // Sandy Intelligence #4: free-gap to-do coach (freegap.js)
-    if (window.SandyFreeGap) { try { const fg = await SandyFreeGap.data(a, d.now); if (fg) h += SandyFreeGap.html(fg); } catch (e) { console.warn('free-gap:', e); } }
-    // Sandy Intelligence #6: Sunday weekly review (weekly.js)
+    if (window.SandyLongDay) { try { ld = await SandyLongDay.data(a, d.now); if (ld) { const lh = SandyLongDay.html(ld); sugTiles += sug ? sug.wrap(lh, 'longday') : lh; } } catch (e) { console.warn('long-day:', e); ld = null; } }
+    if (window.SandyFreeGap) { try { const fg = await SandyFreeGap.data(a, d.now); if (fg) { const fh = SandyFreeGap.html(fg); if (fh) sugTiles += sug ? sug.wrap(fh, 'freegap') : fh; } } catch (e) { console.warn('free-gap:', e); } }
+    if (window.SandyGrocery) { try { const gr = await SandyGrocery.data(a, d.now); if (gr) { const gh = SandyGrocery.html(gr); if (gh) sugTiles += sug ? sug.wrap(gh, 'grocery') : gh; } } catch (e) { console.warn('grocery:', e); } }
+    let tm = null;
+    if (window.SandyTomorrow && SandyTomorrow.isEvening(d.now)) { try { tm = await SandyTomorrow.data(a, d.now); const th = SandyTomorrow.html(tm); if (th) sugTiles += sug ? sug.wrap(th, 'tomorrow') : th; } catch (e) { console.warn('tomorrow:', e); tm = null; } }
+    if (sugTiles) h += sug ? sug.shell(sugTiles) : sugTiles;
+    // Sandy Intelligence #6: Sunday weekly review (weekly.js) — own card (collapsed in a later step)
     let wkFocus = false;
     if (window.SandyWeekly) {
       try {
@@ -203,11 +206,6 @@
         if (wk) { h += SandyWeekly.html(wk); wkFocus = force || new URLSearchParams(location.search).get('si') === 'weekly'; }
       } catch (e) { console.warn('weekly:', e); }
     }
-    // Sandy Intelligence #7: grocery nudge (grocery.js)
-    if (window.SandyGrocery) { try { const gr = await SandyGrocery.data(a, d.now); if (gr) h += SandyGrocery.html(gr); } catch (e) { console.warn('grocery:', e); } }
-    // Sandy Intelligence: evening preview of tomorrow (tomorrow.js)
-    let tm = null;
-    if (window.SandyTomorrow && SandyTomorrow.isEvening(d.now)) { try { tm = await SandyTomorrow.data(a, d.now); h += SandyTomorrow.html(tm); } catch (e) { console.warn('tomorrow:', e); tm = null; } }
     h += `<section class="tc-sec tc-card tc-on"><h3>On Today</h3>${d.items.length ? `<ul class="tc-list">${d.items.map(x => row(x)).join('')}</ul>` : '<p class="muted small">Nothing on the calendar today.</p>'}</section>`;
     if (d.overdue.length) h += `<section class="tc-sec tc-card tc-overdue"><h3>Overdue To-Dos</h3><ul class="tc-list">${d.overdue.map(x => row(x, `<span class="overdue-badge">Overdue ${esc(a.overdueText(d.now - (x.ev.allDay ? a.startOfDay(x.o.start) : (x.o.end || x.o.start))))}</span>`)).join('')}</ul></section>`;
     $('todayBody').innerHTML = h;
@@ -879,6 +877,7 @@
     $('todoNewDated').addEventListener('click', () => { const a = A(); const t = a.ymd(a.nowWall()); a.openEditor(null, null, { kind: 'task', allDay: true, start: t, end: t, calendar: todoUI.filter !== 'all' && todoUI.filter !== 'inbox' && a.cal(todoUI.filter) ? todoUI.filter : a.firstVisibleCal() }); });
     // Today card taps
     $('todayCard').addEventListener('click', e => {
+      if (window.SandySuggestions && SandySuggestions.onClick(e)) return;
       if (e.target.closest('.lb-loc-yes, .lb-loc-no')) { SandyLeave.answerAsk(!!e.target.closest('.lb-loc-yes')).catch(() => {}); return; }
       if (e.target.closest('.lb-sethome')) { go('profile'); const s = $('homeSection'); if (s) { s.scrollIntoView({ block: 'center' }); setTimeout(() => $('homeAddr').focus(), 300); } return; }
       const cl = e.target.closest('.cl-add');

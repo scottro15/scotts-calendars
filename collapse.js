@@ -21,6 +21,7 @@
     ['tc-longday', () => 'longday', () => ''],
     ['tc-weekly', () => 'weekly', s => { const r = s.querySelector('.wk-range'); return r ? r.textContent.trim() : ''; }],
     ['tc-grocery', () => 'grocery', () => ''],
+    ['tc-suggestions', () => 'suggestions', s => { const n = s.querySelectorAll('.sug-tile').length; return n ? n + ' tip' + (n === 1 ? '' : 's') : ''; }],
   ];
   const n = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`;
   TYPES.push(['tc-nudges', () => 'si-intro', () => '']);
