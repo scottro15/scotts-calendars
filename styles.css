@@ -1603,3 +1603,8 @@ html.dark .tc-weekly .wk-bad { color: #f87171; }
 .tc-grocery .gr-snooze, .tc-grocery .gr-settings { font-size: 13px; }
 html.dark .tc-grocery { border-left-color: #4ade80; }
 html.dark .tc-grocery .gr-add { background: #15803d; }
+
+/* ---- Sandy Intelligence #8: Weather on Heads Up ---- */
+.tc-weather .wx-line { line-height: 1.35; }
+.tc-weather .wx-buf { display: block; margin-top: 2px; font-size: 12px; color: #6b7280; }
+html.dark .tc-weather .wx-buf { color: #94a3b8; }

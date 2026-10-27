@@ -1155,3 +1155,6 @@ alter table public.profiles add column if not exists si_weekly_review boolean no
 
 -- Sandy Intelligence #7 grocery nudge (migration-2026-10-26-si-grocery.sql)
 alter table public.profiles add column if not exists si_grocery boolean not null default true;
+
+-- Sandy Intelligence #8 weather Heads Up (column added with si_grocery; no separate migration file)
+alter table public.profiles add column if not exists si_weather boolean not null default true;

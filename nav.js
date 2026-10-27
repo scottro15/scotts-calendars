@@ -172,8 +172,15 @@
         if (cd) clashHtml = SandyClash.html(cd);
       } catch (e) { console.warn('clash:', e); }
     }
-    const showHeads = !!(d.gaps.length || clashHtml);
-    h += `<section class="tc-sec tc-card tc-heads"${showHeads ? '' : ' hidden'}><h3>Heads Up</h3><ul class="tc-warn tc-leave" id="tcLeave" aria-live="polite" hidden></ul>${clashHtml}${d.gaps.length ? `<ul class="tc-warn">${d.gaps.map(g => g.kind === 'overlap'
+    let wxHtml = '';
+    if (window.SandyWeather) {
+      try {
+        const wd = await SandyWeather.data(a, d.now);
+        if (wd) wxHtml = SandyWeather.html(wd);
+      } catch (e) { console.warn('weather:', e); }
+    }
+    const showHeads = !!(d.gaps.length || clashHtml || wxHtml);
+    h += `<section class="tc-sec tc-card tc-heads"${showHeads ? '' : ' hidden'}><h3>Heads Up</h3><ul class="tc-warn tc-leave" id="tcLeave" aria-live="polite" hidden></ul>${clashHtml}${wxHtml}${d.gaps.length ? `<ul class="tc-warn">${d.gaps.map(g => g.kind === 'overlap'
       ? `<li>⚠️ <b>${esc(g.p.ev.title)}</b> overlaps <b>${esc(g.n.ev.title)}</b> (${esc(t12(g.n.o.start))})</li>`
       : `<li>⏱️ Tight: <b>${esc(g.p.ev.title)}</b> ends ${esc(t12(g.p.o.end))}, <b>${esc(g.n.ev.title)}</b> starts ${g.min ? `${g.min} min later` : 'right after'}</li>`).join('')}</ul>` : ''}</section>`;
     // Sandy Intelligence: away-game travel plan (travel.js): departure, return, weather for Maryville away / neutral games
@@ -735,6 +742,10 @@
       const p = await SandyGrocery.getPrefs();
       $('siGrocery').checked = p.enabled;
     }
+    if ($('siWeather') && window.SandyWeather) {
+      const p = await SandyWeather.getPrefs();
+      $('siWeather').checked = p.enabled;
+    }
     if (msg && !msg.dataset.keep) { msg.className = 'small home-msg'; msg.textContent = ''; }
   }
   async function siSwitch(e) {
@@ -756,6 +767,9 @@
       } else if (t.id === 'siGrocery' && window.SandyGrocery) {
         await SandyGrocery.setPrefs({ enabled: t.checked });
         toast(t.checked ? 'Grocery nudge on' : 'Grocery nudge off');
+      } else if (t.id === 'siWeather' && window.SandyWeather) {
+        await SandyWeather.setPrefs({ enabled: t.checked });
+        toast(t.checked ? 'Weather Heads Up on' : 'Weather Heads Up off');
       } else return;
       if (tab === 'today') renderToday();
     } catch (ex) { t.checked = !t.checked; if (msg) { msg.textContent = ex.message || String(ex); msg.classList.add('bad'); msg.dataset.keep = '1'; } }
@@ -899,7 +913,7 @@
     $('homeForm').addEventListener('submit', e => { e.preventDefault(); saveHome($('homeAddr').value); });
     $('homeClear').addEventListener('click', () => saveHome(''));
     ['leaveAlerts', 'leaveEarly', 'leaveUseLoc'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', leaveSwitch); });
-    ['siLongDay', 'siFreeGap', 'siClash', 'siWeeklyReview', 'siGrocery'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', siSwitch); });
+    ['siLongDay', 'siFreeGap', 'siClash', 'siWeeklyReview', 'siGrocery', 'siWeather'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', siSwitch); });
     const wkOpen = $('siWeeklyOpen');
     if (wkOpen) wkOpen.addEventListener('click', () => {
       if (!window.SandyWeekly || !A()) return;
