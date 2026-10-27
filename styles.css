@@ -1985,6 +1985,7 @@ html.reduce-motion .sug-tile.sug-leaving { transition: none; }
 }
 .tc-stat-link b { color: #0f172a; font-weight: 800; }
 html.dark .tc-stat-link b { color: #f8fafc; }
+html.dark #todayBody .tc-stat-link, html.dark #todayBody button.tc-link, html.dark #todayBody .hu-more-btn { background: transparent; box-shadow: none; } /* flat inline links (html.dark button paints a panel) */
 .tc-stat-sep { opacity: .45; }
 .tc-stat-od, .tc-stat-od b { color: #b91c1c !important; }
 html.dark .tc-stat-od, html.dark .tc-stat-od b { color: #fca5a5 !important; }
