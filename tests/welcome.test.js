@@ -36,6 +36,7 @@ async function context(b, { dark, id, email, video, reduced }) {
     colorScheme: dark ? 'dark' : 'light', reducedMotion: reduced ? 'reduce' : 'no-preference', ...(video ? { recordVideo: { dir: video, size: { width: 390, height: 844 } } } : {}) });
   await ctx.route('**/config.js', r => r.fulfill({ contentType: 'application/javascript', body: cfg }));
   if (dark) await ctx.addInitScript(() => { localStorage.setItem('sandy.theme', 'dark'); }); // read by the inline <head> theme script
+  await ctx.addInitScript(() => { try { localStorage.setItem('sandy.tour.off', '1'); } catch (e) {} }); // guided tour: covered by tests/tour.test.js
   const calls = { otp: 0 };
   await ctx.route('**/auth/v1/**', r => {
     const u = r.request().url();

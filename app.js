@@ -1389,7 +1389,8 @@
     if (window.SandyAccount) window.SandyAccount.mountAccount({ store: Store, user, mount: document.getElementById('dataSection') });
     if (window.SandyPush) window.SandyPush.mount({ store: Store, user });
     if (window.SandyLaunch) window.SandyLaunch.mount({ store: Store, user, timeZone: () => TZ, setTZ: z => { if (setTZ(z)) { calendar.render(); refresh(); } } });
-    if (window.SandyWelcome) { window.SandyWelcome.mountRow({ user }); window.SandyWelcome.maybeShow({ user }); } // one-time beta welcome (welcome.js)
+    if (window.SandyWelcome) { window.SandyWelcome.mountRow({ user }); window.SandyWelcome.maybeShow({ user, onClose: () => window.SandyTour && SandyTour.maybeOffer({ user }) }); }
+    if (window.SandyTour) { window.SandyTour.mountRow({ user }); window.SandyTour.cleanupIfStale(); if (!window.SandyWelcome || !SandyWelcome.shouldShow(user)) window.SandyTour.maybeOffer({ user }); }
     document.getElementById('syncNowBtn').addEventListener('click', () => reloadFromServer(true));
     const local = await Store.localDataForMigration();
     if (local) {
@@ -1564,7 +1565,7 @@
   function scheduleRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 250); }
   async function refresh() { renderToggles(await Store.list()); calendar.refetchEvents(); renderTasks(); renderBriefing(); renderReview(); window.dispatchEvent(new Event('sandy:refresh')); }
   refresh();
-  window.__app = { reviewState: () => ({ scope: rv.scope, ref: ymd(rv.ref), cals: [...rv.cals], event: rv.event, q: rv.q }), reviewRange, noteKeyFor, calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList, openEditor, moveEvent, detachOccurrence, refresh, isRecurring, isDone, toast, calendars: () => CALENDARS, timeZone: () => TZ, setTZ,
+  window.__app = { reviewState: () => ({ scope: rv.scope, ref: ymd(rv.ref), cals: [...rv.cals], event: rv.event, q: rv.q }), reviewRange, noteKeyFor, calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList, openEditor, moveEvent, detachOccurrence, refresh, isRecurring, isDone, toast, calendars: () => CALENDARS, useCalendars, timeZone: () => TZ, setTZ,
     setDone, overdueText, fmtDay, startOfDay, addDays, isClientKey, occurrenceStart, saveSettings, renderTasks, renderBriefing, firstVisibleCal,
     settings: () => settings, cal: id => CAL[id], VIEWS, user: () => signedInUser }; // handy for debugging / tests
 

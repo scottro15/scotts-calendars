@@ -71,9 +71,9 @@
     setTimeout(() => { try { root.querySelector('.wl-go').focus({ preventScroll: true }); } catch (e) {} }, 60);
     return root;
   }
-  function maybeShow({ user, delay = 700 } = {}) {
+  function maybeShow({ user, delay = 700, onClose } = {}) {
     if (!shouldShow(user)) return false;
-    setTimeout(() => { if (!document.querySelector('.onb')) show({ user }); }, delay);
+    setTimeout(() => { if (!document.querySelector('.onb')) show({ user, onClose }); }, delay);
     return true;
   }
   // Profile → Account: "Welcome guide" row (reopens the note anytime)
