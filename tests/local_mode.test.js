@@ -55,7 +55,7 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
     assert(await p.locator('#calendar .fc-event:has-text("Life Time shift")').count() === before, 'occurrence back in series');
 
     // ---- custom category goes to Store.categories
-    await p.click('#addBtn'); await p.fill('#eventForm input[name=title]', 'SLU practice');
+    await p.click('#addBtn:visible, #railNew:visible'); await p.fill('#eventForm input[name=title]', 'SLU practice');
     await p.selectOption('#fCalendar', 'mam'); await p.selectOption('#fCategory', '__custom__');
     await p.fill('input[name=customCategory]', 'Team practice – SLU'); await p.click('#eventForm button[type=submit]'); await p.waitForTimeout(300);
     const cats = await p.evaluate(() => Store.categories());

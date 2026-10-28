@@ -62,7 +62,7 @@ async function open(b, { jwt, email, localEvents } = {}) {
   assert(cal('find', 'Example').count === 0, 'examples were not migrated');
 
   // 4. app writes -> bot reads
-  await p.click('#addBtn'); await p.fill('#eventForm input[name=title]', 'App-made meeting');
+  await p.click('#addBtn:visible, #railNew:visible'); await p.fill('#eventForm input[name=title]', 'App-made meeting');
   await p.selectOption('#fCalendar', 'lifetime'); await p.fill('input[name=startDate]', '2026-10-22');
   await p.fill('input[name=startTime]', '10:00'); await p.fill('input[name=endDate]', '2026-10-22'); await p.fill('input[name=endTime]', '11:00');
   await p.click('#eventForm button[type=submit]'); await p.waitForTimeout(600);
@@ -94,7 +94,7 @@ async function open(b, { jwt, email, localEvents } = {}) {
   assert(await p.locator('.fc-event:has-text("App-made meeting")').count() === 0, 'bot delete visible after Refresh now');
 
   // 8. custom category round trip
-  await p.click('#addBtn'); await p.fill('#eventForm input[name=title]', 'SLU');
+  await p.click('#addBtn:visible, #railNew:visible'); await p.fill('#eventForm input[name=title]', 'SLU');
   await p.selectOption('#fCalendar', 'mam'); await p.selectOption('#fCategory', '__custom__'); await p.fill('input[name=customCategory]', 'Team practice – SLU');
   await p.click('#eventForm button[type=submit]'); await p.waitForTimeout(600);
   assert(cal('categories', '--calendar', 'mam').mam.custom.includes('Team practice – SLU'), 'custom category stored in categories table');

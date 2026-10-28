@@ -27,7 +27,7 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); console.log('o
   await p.locator('.fc-list tr.sandy-todo-glow').first().scrollIntoViewIfNeeded();
   await p.screenshot({ path: SHOTS + '20_todo_glow_list_mobile.png' });
   // editor
-  await p.click('#addBtn'); await p.waitForTimeout(500);
+  await p.click('#addBtn:visible, #railNew:visible'); await p.waitForTimeout(500);
   const z = await p.evaluate(() => { const d = document.querySelector('dialog[open]'); const r = d.getBoundingClientRect();
     const small = [...d.querySelectorAll('input:not([type=checkbox]):not([type=radio]), select, textarea')].filter(e => e.offsetParent && parseFloat(getComputedStyle(e).fontSize) < 16).map(e => e.name || e.id);
     return { small, left: r.left, right: r.right, w: innerWidth, sw: document.documentElement.scrollWidth, vp: document.querySelector('meta[name=viewport]').content }; });

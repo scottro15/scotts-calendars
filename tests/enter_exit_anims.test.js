@@ -24,12 +24,12 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
     assert(!(await p.$eval('#aiSheet', e => e.hidden)), `${N} reopen during exit works (no dead tap)`);
     await p.tap('.ai-x'); await p.waitForTimeout(350);
     // editor exit + reopen during exit
-    await p.tap('#addBtn'); await p.waitForTimeout(80);
+    await p.tap('#addBtn:visible, #railNew:visible'); await p.waitForTimeout(80);
     assert(red ? (await anim('#eventDialog') === 'none' || (await p.$eval('#eventDialog', d => parseFloat(getComputedStyle(d).animationDuration) * 1000)) <= 1) : await anim('#eventDialog') === 'aiUp' && (await p.$eval('#eventDialog', d => parseFloat(getComputedStyle(d).animationDuration) * 1000)) <= (red ? 1 : 450), `${N} editor enter animation`);
     if (!red && SHOTS) { await p.waitForTimeout(120); await p.screenshot({ path: `${SHOTS}/32_editor_enter_mid_mobile.png` }); }
     await p.waitForTimeout(400); await p.keyboard.press('Escape');
     if (!red) assert(await anim('#eventDialog') === 'aiDown', `${N} editor exit animation`);
-    await p.waitForTimeout(40); await p.tap('#addBtn'); await p.waitForTimeout(500);
+    await p.waitForTimeout(40); await p.tap('#addBtn:visible, #railNew:visible'); await p.waitForTimeout(500);
     assert(await p.$eval('#eventDialog', d => d.open && !d.classList.contains('closing')), `${N} editor reopens mid-exit`);
     await p.keyboard.press('Escape'); await p.waitForTimeout(400); assert(!(await p.$eval('#eventDialog', d => d.open)), `${N} editor closed`);
     // scope prompt enter (generic dialog style)

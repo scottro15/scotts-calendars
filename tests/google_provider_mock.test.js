@@ -29,7 +29,7 @@ const MOCK = `(() => {
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.goto(BASE + '?view=timeGridWeek'); await p.waitForSelector('.fc-event'); await p.waitForTimeout(300);
   assert(scriptUrls.length === 0, 'Google script NOT loaded on page load');
-  await p.click('#addBtn'); await p.waitForTimeout(300);
+  await p.click('#addBtn:visible, #railNew:visible'); await p.waitForTimeout(300);
   assert(scriptUrls.length === 1 && /key=TEST_KEY/.test(scriptUrls[0]) && /libraries=places/.test(scriptUrls[0]), 'Google script loaded lazily when the form opens');
   const loc = p.locator('#fLocation');
   await loc.click(); await loc.pressSequentially('Maryville University gym', { delay: 30 });

@@ -366,9 +366,9 @@ const AUDITOR = `(() => {
   await p.evaluate(() => { document.getElementById('authGate').hidden = true; document.getElementById('authForm').hidden = false; document.getElementById('authCodeForm').hidden = true; });
 
   // ---- Event editor: new, existing with day note + checklist, away game
-  await home(); await p.click('#addBtn'); await settle(); await audit('editor-new', '#eventDialog'); await closeDialogs();
+  await home(); await p.click('#addBtn:visible, #railNew:visible'); await settle(); await audit('editor-new', '#eventDialog'); await closeDialogs();
   // Location suggestions open (2026-10-25): typing, then a highlighted (keyboard-active) suggestion
-  await p.click('#addBtn'); await settle(); await p.click('#fLocation'); await p.type('#fLocation', 'Maryville', { delay: 30 });
+  await p.click('#addBtn:visible, #railNew:visible'); await settle(); await p.click('#fLocation'); await p.type('#fLocation', 'Maryville', { delay: 30 });
   await p.waitForSelector('#fLocationList li', { timeout: 8000 }); await settle(400);
   await p.evaluate(() => document.getElementById('fLocation').scrollIntoView({ block: 'center' })); await p.mouse.move(2, 2); await settle(200);
   const popBg = await p.evaluate(() => getComputedStyle(document.querySelector('.loc-field .ac-pop')).backgroundColor);

@@ -3,12 +3,15 @@
    tablet.css is linked with media="(min-width: 768px)".
      html.lay-tablet  ≥ 768px  (iPad / Android tablet portrait and up)
      html.lay-wide    ≥ 1024px (landscape / large)
-     html.lay-rail    left sidebar rail replaces the floating capsule (default on wide; portrait opt-in)
-   Nav preference: localStorage 'sandy.tabletNav' = 'auto' | 'rail' | 'capsule' (or ?nav=rail|capsule). */
+     html.lay-rail    left sidebar rail replaces the floating capsule (default at 768px+, portrait too)
+   Nav preference: localStorage 'sandy.tabletNav' = 'auto' (sidebar) | 'capsule' (floating bar); legacy 'rail' = auto (or ?nav=rail|capsule). */
 (function () {
   'use strict';
   const html = document.documentElement;
   const mqT = window.matchMedia('(min-width: 768px)'), mqW = window.matchMedia('(min-width: 1024px)');
+  // Today splits into two columns only when each column gets enough room (iPad 820+); the 768–809px band
+  // (iPad mini, Android tablets in portrait) keeps the phone's single column, centred.
+  const mq2 = window.matchMedia('(min-width: 810px)');
   const KEY = 'sandy.tabletNav';
   const LEFT = ['tc-summary', 'tc-heads', 'tc-weekly'];
   const RIGHT = ['tc-on', 'tc-overdue', 'tc-suggestions'];
@@ -46,7 +49,7 @@
     const body = $('todayBody'); if (!body || busy) return;
     busy = true;
     try {
-      const on = html.classList.contains('lay-tablet');
+      const on = html.classList.contains('lay-tablet') && mq2.matches;
       let L = body.querySelector(':scope > .tt-col-l'), R = body.querySelector(':scope > .tt-col-r');
       if (!on) { // unwrap (rotated / resized down to phone width)
         if (L || R) { for (const col of [L, R]) if (col) { while (col.firstChild) body.insertBefore(col.firstChild, col); col.remove(); } }
@@ -115,16 +118,16 @@
     if (!row && on) {
       row = document.createElement('label'); row.id = 'ttNavRow'; row.className = 'pf-row pf-stack tt-nav-row';
       row.innerHTML = '<span><span class="pf-lbl">Tablet navigation</span><small class="pf-note">Sidebar or floating bar on iPad / tablets</small></span>' +
-        '<select id="ttNav" aria-label="Tablet navigation"><option value="auto">Auto (sidebar in landscape)</option><option value="rail">Sidebar always</option><option value="capsule">Floating bar always</option></select>';
+        '<select id="ttNav" aria-label="Tablet navigation"><option value="auto">Sidebar (default)</option><option value="capsule">Floating bar</option></select>';
       sec.appendChild(row);
       row.querySelector('select').addEventListener('change', e => window.SandyTablet.setNav(e.target.value));
     }
-    if (row) { row.hidden = !on; const s = row.querySelector('select'); if (s) s.value = navPref(); }
+    if (row) { row.hidden = !on; const s = row.querySelector('select'); if (s) s.value = navPref() === 'capsule' ? 'capsule' : 'auto'; }
   }
 
   function apply() {
     const t = mqT.matches, w = mqW.matches, pref = navPref();
-    const rail = t && (w ? pref !== 'capsule' : pref === 'rail');
+    const rail = t && pref !== 'capsule'; // 1A: sidebar in portrait and landscape unless the user picks the floating bar
     html.classList.toggle('lay-tablet', t);
     html.classList.toggle('lay-wide', w);
     html.classList.toggle('lay-rail', rail);
@@ -134,13 +137,14 @@
     { const hd = document.querySelector('#qsSheet .qs-pane-head'); if (hd) hd.hidden = !t; }
     navSetting(t);
     if (!t) markRow(null);
+    html.classList.toggle('qs-pane-open', t && document.body.classList.contains('qs-open') && document.body.classList.contains('tab-todo'));
     try { window.dispatchEvent(new Event('resize')); } catch (_) {} // let navbar.js re-place its pill / FullCalendar re-measure
   }
 
   function init() {
     watchToday(); wireTodo(); apply();
     const on = mq => mq.addEventListener ? mq.addEventListener('change', apply) : mq.addListener(apply);
-    on(mqT); on(mqW);
+    on(mqT); on(mqW); on(mq2);
   }
   window.SandyTablet = {
     apply,

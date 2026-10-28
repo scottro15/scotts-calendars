@@ -20,7 +20,7 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); console.log('o
     assert(googleCalls === 0, `${tag} no Google script loaded without a key`);
 
     // ---- new event: type, see suggestions, pick with mouse/tap
-    await p.click('#addBtn'); await p.waitForSelector('#eventDialog[open]');
+    await p.click('#addBtn:visible, #railNew:visible'); await p.waitForSelector('#eventDialog[open]');
     await p.fill('#eventForm input[name=title]', 'AC test event');
     const loc = p.locator('#fLocation');
     assert(await loc.getAttribute('role') === 'combobox' && await loc.getAttribute('aria-expanded') === 'false', `${tag} location input is an ARIA combobox`);

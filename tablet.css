@@ -129,10 +129,9 @@ html.lay-tablet body:not(.tab-todo) .qs-grab { display: none; }
 
 /* ---------- reduced motion ---------- */
 html.reduce-motion.lay-tablet #page-todo, html.reduce-motion.lay-tablet .qs-sheet, html.reduce-motion.lay-tablet .bottom-nav button { transition: none !important; }
-html.reduce-motion.lay-tablet dialog.anim-in, html.reduce-motion.lay-tablet dialog.closing { animation: none !important; }
+html.reduce-motion.lay-tablet dialog.anim-in, html.reduce-motion.lay-tablet dialog.closing { animation-duration: 1ms !important; }
 @media (prefers-reduced-motion: reduce) {
   html.lay-tablet #page-todo, html.lay-tablet .qs-sheet, html.lay-tablet .bottom-nav button { transition: none !important; }
-  html.lay-tablet dialog.anim-in, html.lay-tablet dialog.closing { animation: none !important; }
 }
 
 /* ---------- 768–800px band (Android tablets in portrait) still matches the old ≤800 phone rules: undo the cramped bits ---------- */
@@ -150,3 +149,18 @@ html.lay-tablet.qs-pane-open .qa-opts select { flex: 1 1 0; min-width: 0; }
 html.lay-tablet:not(.lay-rail) body.tab-todo .qs-sheet { bottom: calc(var(--nav-h) + var(--nav-lift, 10px) + env(safe-area-inset-bottom) + 14px) !important; border-bottom: 1px solid var(--qs-line, var(--line)); border-bottom-left-radius: 16px; }
 /* dark: Today's inline links (stats line, Now/Next, Show more) are text links, not filled buttons */
 html.lay-tablet.dark #todayBody .tc-stat-link, html.lay-tablet.dark #todayBody .tc-link, html.lay-tablet.dark #todayBody .hu-more-btn { background: transparent; }
+
+/* ---------- t137u polish ---------- */
+/* keyboard: the details pane and the centred quick sheet ride above the on-screen keyboard (quicksheet.js sets --kb
+   from visualViewport), so Save / Delete never sit under it on iPad or Android tablets */
+html.lay-rail body.tab-todo .qs-sheet, html.lay-rail.dark body.tab-todo .qs-sheet { bottom: var(--kb, 0px) !important; }
+html.lay-tablet:not(.lay-rail) body.tab-todo .qs-sheet.kb, html.lay-tablet.dark:not(.lay-rail) body.tab-todo .qs-sheet.kb { bottom: calc(var(--kb, 0px) + 8px) !important; }
+html.lay-tablet body.tab-todo .qs-sheet.kb { border-bottom: 1px solid var(--qs-line, var(--line)); border-bottom-left-radius: 16px; padding-bottom: 12px; }
+html.lay-tablet body:not(.tab-todo) .qs-sheet.kb.open, html.lay-tablet.dark body:not(.tab-todo) .qs-sheet.kb.open { top: auto; bottom: calc(var(--kb, 0px) + 16px) !important; transform: translate(-50%, 0); max-height: calc(100% - var(--kb, 0px) - var(--topbar-h, 56px) - 24px); overflow-y: auto; }
+/* Android install card + update banner sit in the content column when the sidebar is on */
+html.lay-rail .install-card, html.lay-rail body.tab-todo .install-card { left: calc(50% + var(--rail-w) / 2); bottom: calc(env(safe-area-inset-bottom) + 24px); }
+html.lay-rail body.tab-todo .install-card { bottom: calc(env(safe-area-inset-bottom) + 96px); }
+/* safe areas: landscape notch / rounded corners on the right edge of full-width pages */
+html.lay-tablet .tab-page { padding-right: max(28px, env(safe-area-inset-right)); }
+/* 768–809px: Today stays one column (phone order), centred */
+html.lay-tablet #todayBody:not(.tt-grid) { max-width: 680px; margin: 0 auto; }

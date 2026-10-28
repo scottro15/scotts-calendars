@@ -13,17 +13,17 @@ const assert = (c, m) => { if (!c) { throw new Error('FAIL: ' + m); } console.lo
     const red = rm === 'reduce';
     assert(await p.evaluate(() => document.documentElement.classList.contains('reduce-motion')) === red, `${N} reduce-motion class matches preference`);
     // event editor open
-    await p.click('#addBtn');
-    const st = await p.evaluate(() => { const d = document.getElementById('eventDialog'); const cs = getComputedStyle(d); return { cls: d.classList.contains('anim-in'), name: cs.animationName, dur: parseFloat(cs.animationDuration) * 1000 }; });
-    assert(st.cls && st.name === 'aiUp', `${N} editor gets anim-in / aiUp slide-up`);
-    assert(red ? st.dur <= 1 : st.dur >= 250 && st.dur <= 450, `${N} editor open duration ${st.dur}ms`);
+    await p.click('#addBtn:visible, #railNew:visible');
+    const st = await p.evaluate(() => { const d = document.getElementById('eventDialog'); const cs = getComputedStyle(d); return { tab: document.documentElement.classList.contains('lay-tablet'), cls: d.classList.contains('anim-in'), name: cs.animationName, dur: parseFloat(cs.animationDuration) * 1000 }; });
+    assert(st.cls && st.name === (st.tab ? 'tt-pop-in' : 'aiUp'), `${N} editor gets anim-in / ${st.tab ? 'tt-pop-in (tablet centred)' : 'aiUp slide-up'}`);
+    assert(red ? st.dur <= 1 : st.dur >= (st.tab ? 200 : 250) && st.dur <= 450, `${N} editor open duration ${st.dur}ms`);
     // Escape: animated close (still open briefly unless reduced), then closed
     await p.waitForTimeout(300); await p.keyboard.press('Escape');
     const mid = await p.evaluate(() => { const d = document.getElementById('eventDialog'); return { open: d.open, closing: d.classList.contains('closing') }; });
     assert(red ? !mid.open : mid.open && mid.closing, `${N} Escape ${red ? 'closes instantly' : 'plays exit before closing'}`);
     await p.waitForTimeout(300);
     assert(!(await p.evaluate(() => document.getElementById('eventDialog').open)), `${N} editor closed after exit`);
-    assert(await p.evaluate(() => document.activeElement && document.activeElement.id === 'addBtn'), `${N} focus returns to + New`);
+    assert(await p.evaluate(() => document.activeElement && ['addBtn','railNew'].includes(document.activeElement.id)), `${N} focus returns to + New`);
     // month picker pop
     await p.click('.fc-toolbar-title');
     assert(await p.evaluate(() => getComputedStyle(document.getElementById('monthPicker')).animationName) === 'pop-in', `${N} picker uses pop-in`);
