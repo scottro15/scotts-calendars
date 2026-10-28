@@ -13,15 +13,47 @@
   const optedOut = () => { try { return localStorage.getItem('sandy.welcome.off') === '1'; } catch (e) { return false; } }; // test hook
   function shouldShow(user) { return !!(user && user.id) && !isOwnerAccount(user) && !dismissed(user) && !optedOut(); }
 
-  const BODY = `
+  // Which install steps to show (t143u): iPhone keeps Safari's Share steps; Android gets Chrome / Samsung
+  // Internet / Mi Browser steps; desktop and anything unknown sees both. Samsung Internet and Chrome on big
+  // tablets may send a desktop "X11; Linux" UA, so a touch Linux (not ChromeOS) counts as Android too.
+  function platform(ua, touch, plat) {
+    ua = ua == null ? (navigator.userAgent || '') : ua;
+    touch = touch == null ? (navigator.maxTouchPoints || 0) : touch;
+    plat = plat == null ? (navigator.platform || '') : plat;
+    if (/iP(hone|ad|od)/.test(ua) || (plat === 'MacIntel' && touch > 1)) return 'ios';
+    if (/SamsungBrowser/i.test(ua)) return 'samsung';
+    if (/MiuiBrowser|XiaoMi\//i.test(ua)) return 'mi';
+    if (/Android/i.test(ua) || (/Linux/.test(ua) && !/CrOS/.test(ua) && touch > 0 && coarse())) return 'android';
+    return 'other';
+  }
+  const coarse = () => { try { return !window.matchMedia || matchMedia('(pointer: coarse)').matches; } catch (e) { return true; } };
+  const installed = () => { try { return !!((window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone); } catch (e) { return false; } };
+  const IOS_STEPS = `<li>Open SANDY in Safari and tap <b>Share</b>, then <b>Add to Home Screen</b>.</li>
+      <li>Open SANDY from your Home Screen icon, not from Safari.</li>`;
+  const CHROME_STEPS = `<li>Open SANDY in <b>Chrome</b> and tap <b>Install</b> on the <b>Install SANDY</b> card (or Chrome's own <b>Install app</b> pop-up). Don't see it? Tap <b>⋮</b> at the top right, then <b>Add to Home screen</b> → <b>Install</b> (some phones say <b>Install app</b>).</li>
+      <li>Open SANDY from its Home screen icon, not from Chrome.</li>`;
+  const SAMSUNG_STEPS = `<li>In <b>Samsung Internet</b>, tap the <b>install icon</b> in the address bar if you see it (or <b>Install</b> on the <b>Install SANDY</b> card). Otherwise tap <b>☰</b> (bottom right), then <b>Add page to</b> → <b>Home screen</b>.</li>
+      <li>Open SANDY from its Home screen icon, not from Samsung Internet.</li>`;
+  const MI_STEPS = `<li>Open SANDY in <b>Chrome</b> to install it, because Mi Browser can't install apps like SANDY. Copy the link, open it in Chrome, then tap <b>Install</b>, or tap <b>⋮</b> → <b>Add to Home screen</b> → <b>Install</b>.</li>
+      <li>Open SANDY from its Home screen icon, not from the browser.</li>`;
+  function installSteps(pf) {
+    if (installed()) return `<li>You're already using the SANDY app from your Home Screen. That's the best way to run it.</li>`;
+    if (pf === 'ios') return IOS_STEPS;
+    if (pf === 'samsung') return SAMSUNG_STEPS;
+    if (pf === 'mi') return MI_STEPS;
+    if (pf === 'android') return CHROME_STEPS;
+    return `<li><b>iPhone:</b> open SANDY in Safari, tap <b>Share</b>, then <b>Add to Home Screen</b>.<br><b>Android:</b> open SANDY in Chrome and tap <b>Install</b>, or tap <b>⋮</b> → <b>Add to Home screen</b> (Samsung Internet: <b>☰</b> → <b>Add page to</b> → <b>Home screen</b>).</li>
+      <li>Open SANDY from your Home Screen icon, not from the browser.</li>`;
+  }
+  const body = pf => `
     <p>This is a beta, so there will be bugs. Please report any issues you run into, and send me your feedback and suggestions too.</p>
     <h3 class="wl-h">Getting Started <span class="wl-key">(this part is key)</span></h3>
-    <ol class="wl-steps">
-      <li>Open SANDY in Safari and tap <b>Share</b>, then <b>Add to Home Screen</b>.</li>
-      <li>Open SANDY from your Home Screen icon, not from Safari.</li>
+    <ol class="wl-steps" data-platform="${pf}">
+      ${installSteps(pf)}
       <li>Enter your email, then type the 8-digit code we send you into SANDY.</li>
       <li>Add your calendars and a few events, then swipe left and right to move through your days.</li>
     </ol>
+    <div class="wl-install-now" hidden><button type="button" class="primary wl-install-btn">Install SANDY now</button></div>
     <h3 class="wl-h">Features</h3>
     <ul class="wl-feats">
       <li><b>Sandy Intelligence (SI):</b> your built-in AI assistant. Tap <b>AI</b> to ask about your schedule, plan your day, or have it add things for you. It also keeps your past chats, and more AI features are coming soon.</li>
@@ -44,7 +76,7 @@
     root.innerHTML = `<div class="wl-grab" aria-hidden="true"></div>
       <div class="wl-head"><span class="wl-wave" aria-hidden="true">👋</span><h2 id="wlTitle">Welcome to SANDY, and thank you for taking the time to test it.</h2>
         <button type="button" class="icon-btn wl-x" aria-label="Close welcome">✕</button></div>
-      <div class="wl-body" tabindex="-1">${BODY}</div>
+      <div class="wl-body" tabindex="-1">${body(platform())}</div>
       <div class="wl-foot"><button type="button" class="primary wl-go">Let's go</button></div>`;
     document.body.append(back, root); document.body.classList.add('wl-open');
     const close = () => {
@@ -64,6 +96,12 @@
       }
     };
     document.addEventListener('keydown', onKey, true);
+    // Ties in with the Install SANDY card: when the browser can install right now, offer it here too.
+    const inst = root.querySelector('.wl-install-now');
+    if (inst && window.SandyInstall && SandyInstall.available && !installed()) {
+      inst.hidden = false;
+      inst.querySelector('button').onclick = () => { close(); setTimeout(() => SandyInstall.prompt(), reduce() ? 0 : 330); };
+    }
     root.querySelector('.wl-go').onclick = close; root.querySelector('.wl-x').onclick = close; back.onclick = close;
     cur = { root, close };
     if (reduce()) { root.classList.add('open', 'no-anim'); back.classList.add('open'); }
@@ -86,5 +124,5 @@
     else sec.insertBefore(row, sec.querySelector('#acctDelete'));
     row.querySelector('#welcomeBtn').onclick = () => show({ user });
   }
-  window.SandyWelcome = { show, maybeShow, shouldShow, mountRow, close: () => cur && cur.close(), key: KEY };
+  window.SandyWelcome = { show, maybeShow, shouldShow, mountRow, platform, close: () => cur && cur.close(), key: KEY };
 })();

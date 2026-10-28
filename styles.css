@@ -2069,3 +2069,6 @@ html.dark .install-card-go { background: #f8fafc; color: #0f172a; }
 html.dark .install-card-x { background: transparent; box-shadow: none; }
 html.reduce-motion .install-card { transition: none; }
 @media (prefers-reduced-motion: reduce) { .install-card { transition: none; } }
+/* Welcome: "Install SANDY now" (Android, when the browser can install right away), t143u */
+.wl-install-now { margin: 4px 0 10px; }
+.wl-install-now .wl-install-btn { width: 100%; padding: 10px 14px; border-radius: 12px; font-weight: 700; }

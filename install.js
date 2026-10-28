@@ -64,5 +64,5 @@
   });
   window.addEventListener('appinstalled', () => { remember('installed'); deferred = null; hide(); });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch); else watch();
-  window.SandyInstall = { show, hide, get available() { return !!deferred; } };
+  window.SandyInstall = { show, hide, prompt: install, get available() { return !!deferred; } };
 })();

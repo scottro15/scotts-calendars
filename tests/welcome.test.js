@@ -32,7 +32,8 @@ const VERBATIM = [
   '— Scott, Minds Above Matters',
 ];
 async function context(b, { dark, id, email, video, reduced }) {
-  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, timezoneId: 'America/Chicago',
+  // iPhone UA: this test checks the iPhone (Safari) install steps; Android / Samsung / desktop variants: tests/welcome_platform.test.js
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, timezoneId: 'America/Chicago', userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
     colorScheme: dark ? 'dark' : 'light', reducedMotion: reduced ? 'reduce' : 'no-preference', ...(video ? { recordVideo: { dir: video, size: { width: 390, height: 844 } } } : {}) });
   await ctx.route('**/config.js', r => r.fulfill({ contentType: 'application/javascript', body: cfg }));
   if (dark) await ctx.addInitScript(() => { localStorage.setItem('sandy.theme', 'dark'); }); // read by the inline <head> theme script
