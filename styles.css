@@ -593,6 +593,11 @@ html.dark .inv-actions a.btn-link { border-color: var(--line); }
   margin: 6px -18px -18px; padding: 10px 18px max(12px, env(safe-area-inset-bottom));
   border-top: 1px solid #e5e7eb; box-shadow: 0 -6px 14px rgba(17,24,39,.06);
 }
+/* Save problems show right above Save (a toast would sit behind the open editor), 2026-10-28 */
+#eventDialog .dialog-actions { flex-wrap: wrap; }
+#eventDialog .ev-err { flex: 1 0 100%; order: -1; margin: 0 0 2px; padding: 8px 10px; border-radius: 8px; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; font-size: 14px; line-height: 1.35; }
+#eventDialog .ev-err[hidden] { display: none; }
+#eventDialog button.primary[disabled] { opacity: .7; }
 
 /* ===================== 2026-10-24: bottom navigation + tab pages ===================== */
 :root { --nav-h: 60px; --accent: #2563eb; --chip: #f3f4f6; }
@@ -1114,6 +1119,7 @@ html.dark .inv-row, html.dark .fb-item { border-top-color: var(--line); }
 html.dark .inv-row.st-accepted .inv-status { color: #4ade80; }
 html.dark .inv-row.st-revoked .inv-status { color: #f87171; }
 /* Event editor in dark: sticky Save/Cancel footer was a white bar; reminders box border was bright white */
+html.dark #eventDialog .ev-err { background: rgba(248,113,113,.12); color: #fca5a5; border-color: rgba(248,113,113,.35); }
 html.dark #eventDialog .dialog-actions { background: var(--panel); border-top-color: var(--line); box-shadow: 0 -6px 14px rgba(0, 0, 0, .35); }
 html.dark .rem-box { border-color: #334155; }
 html.dark .rem-add { color: #93c5fd; }

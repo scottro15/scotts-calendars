@@ -1083,6 +1083,7 @@
 
   async function openEditor(id, occKey, prefill = {}) {
     form.reset();
+    { const er = document.getElementById('eventErr'); if (er) { er.hidden = true; er.textContent = ''; } }
     const ev = id ? await Store.get(id) : null;
     const recurring = !!(ev && isRecurring(ev));
     editing = { id, occKey, recurring, exception: !!(ev && ev.seriesId), originalDate: ev && ev.originalDate };
@@ -1281,8 +1282,24 @@
   f('allDay').addEventListener('change', syncRem);
 
   document.getElementById('cancelBtn').addEventListener('click', () => dlg.close());
+  // Save problems must never be silent: the toast sits behind the open (top-layer) editor,
+  // so errors also show inline right above Save. Hidden invalid fields get named too.
+  const evErr = document.getElementById('eventErr');
+  const showEvErr = msg => { if (!evErr) return; evErr.textContent = msg; evErr.hidden = false; };
+  const clearEvErr = () => { if (evErr) { evErr.hidden = true; evErr.textContent = ''; } };
+  form.addEventListener('invalid', e => {
+    const el = e.target; const lab = el.closest('label, .field, fieldset');
+    const tn = lab && [...lab.childNodes].find(n => (n.nodeType === 3 && n.textContent.trim()) || /^(SPAN|LEGEND)$/.test(n.nodeName));
+    const name = ((tn && tn.textContent) || el.getAttribute('aria-label') || el.name || 'a field').trim().replace(/\s*\(optional\)$/i, '').slice(0, 40);
+    showEvErr(`Not saved yet: check ${name.replace(/[:*]$/, '')} (${el.validationMessage || 'invalid value'}).`);
+  }, true);
+  form.addEventListener('input', () => { if (evErr && !evErr.hidden && !saving) clearEvErr(); });
+  let saving = false;
   form.addEventListener('submit', async e => {
     e.preventDefault();
+    if (saving) return; // a second tap while the first save is still in flight
+    const saveBtn = form.querySelector('button[type=submit].primary');
+    saving = true; clearEvErr(); if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
     try {
       const existing = editing.id ? await Store.get(editing.id) : null;
       await flushDayNote();
@@ -1327,7 +1344,8 @@
       await Store.save(ev);
       dlg.close(); toast(scope === 'all' && editing.recurring ? 'Saved all events in the series' : 'Saved'); refresh();
       afterReminders(v.reminders);
-    } catch (err) { fail(err); }
+    } catch (err) { fail(err); showEvErr('Could not save: ' + (err && err.message ? err.message : err) + '. Your changes are still here, so tap Save to try again.'); }
+    finally { saving = false; if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; } }
   });
 
   document.getElementById('deleteBtn').addEventListener('click', async () => {
@@ -1356,7 +1374,20 @@
   });
 
   // ---------- Buttons ----------
-  document.getElementById('addBtn').addEventListener('click', () => openEditor(null, null, {}));
+  // + New starts on the day Home is showing (swiped to tomorrow → tomorrow), not always today.
+  // Android testers navigated to tomorrow, tapped + New and saved, and the event landed on today (2026-10-28).
+  function newEventDay() {
+    const today = ymd(nowWall());
+    try {
+      const b = document.body.classList;
+      if (b.contains('tab-home') || ![...b].some(c => c.startsWith('tab-'))) {
+        const v = calendar.view, s = ymd(v.currentStart), e = ymd(v.currentEnd); // end is exclusive
+        if (!(today >= s && today < e)) return s;
+      }
+    } catch (_) {}
+    return today;
+  }
+  document.getElementById('addBtn').addEventListener('click', () => { const d = newEventDay(); openEditor(null, null, { start: `${d}T09:00`, end: `${d}T10:00` }); });
   document.getElementById('addTaskBtn').addEventListener('click', () => {
     const scope = settings.taskScope;
     openEditor(null, null, { kind: 'task', calendar: taskCal(), category: 'Task / to-do', allDay: true, start: ymd(nowWall()), end: ymd(nowWall()), scope });
