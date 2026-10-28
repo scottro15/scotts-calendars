@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <script>try { if (localStorage.getItem('sandy.theme') === 'dark') document.documentElement.classList.add('dark'); } catch (_) {}</script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Samsung Internet / Chrome "dark mode for websites" must not force-darken SANDY: it has its own dark theme (html.dark sets color-scheme: dark) -->
+  <meta name="color-scheme" content="only light">
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#111827">
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1220">
   <meta name="referrer" content="strict-origin-when-cross-origin">
