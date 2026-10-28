@@ -2032,3 +2032,32 @@ body.today-simple .tc-longday,
 body.today-simple .tc-freegap,
 body.today-simple .tc-grocery,
 body.today-simple .tc-tomorrow { display: none !important; }
+
+/* ===== t135u Android install card (same slot as the update banner; never shown together) ===== */
+.install-card {
+  position: fixed; z-index: 69; left: 50%;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--nav-lift, 10px) + 14px);
+  width: min(400px, calc(100% - 24px)); box-sizing: border-box;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 6px 10px 10px; border-radius: 16px;
+  background: #fff; color: #0f172a; border: 1px solid #e5e7eb;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, .18);
+  font: 400 13px/1.25 system-ui, -apple-system, sans-serif;
+  opacity: 0; transform: translateX(-50%) translateY(12px);
+  transition: opacity .2s ease, transform .2s ease;
+}
+.install-card[hidden] { display: none; }
+.install-card.is-in { opacity: 1; transform: translateX(-50%) translateY(0); }
+.install-card-ic { width: 40px; height: 40px; border-radius: 10px; flex: none; }
+.install-card-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.install-card-txt b { font-weight: 700; font-size: 14px; }
+.install-card-txt span { color: #64748b; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.install-card-go { flex: none; border: 0; border-radius: 999px; padding: 8px 14px; background: #111827; color: #fff; font: 600 13px/1 system-ui, sans-serif; cursor: pointer; }
+.install-card-x { flex: none; width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent; color: #64748b; font: 700 18px/1 system-ui, sans-serif; cursor: pointer; padding: 0; }
+body.tab-todo .install-card { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--nav-lift, 10px) + 84px); }
+html.dark .install-card { background: #1e293b; color: #f1f5f9; border-color: #334155; box-shadow: 0 10px 28px rgba(0, 0, 0, .45); }
+html.dark .install-card-txt span, html.dark .install-card-x { color: #94a3b8; }
+html.dark .install-card-go { background: #f8fafc; color: #0f172a; }
+html.dark .install-card-x { background: transparent; box-shadow: none; }
+html.reduce-motion .install-card { transition: none; }
+@media (prefers-reduced-motion: reduce) { .install-card { transition: none; } }
