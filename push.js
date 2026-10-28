@@ -167,4 +167,6 @@
 
   function toast(m) { if (window.__app && window.__app.toast) window.__app.toast(m); }
   window.SandyPush = { mount, enable, disable, state, nudge, showInstall };
+  // t135u: register the worker on every load (not only when Profile mounts) so the offline page works.
+  if ('serviceWorker' in navigator) window.addEventListener('load', () => setTimeout(() => { try { registration().catch(() => {}); } catch (_) {} }, 1500));
 })();

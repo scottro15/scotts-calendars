@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <title>SANDY · Offline</title>
+  <script>try { if (localStorage.getItem('sandy.theme') === 'dark') document.documentElement.classList.add('dark'); } catch (_) {}</script>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; background: #f8fafc; color: #0f172a; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    header { background: #111827; color: #fff; padding: calc(env(safe-area-inset-top) + 14px) 18px 14px; font-weight: 800; font-size: 20px; letter-spacing: .02em; }
+    main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px 20px calc(env(safe-area-inset-bottom) + 24px); }
+    .card { width: min(380px, 100%); background: #fff; border: 1px solid #e5e7eb; border-radius: 20px; padding: 28px 22px; text-align: center; box-shadow: 0 10px 30px rgba(15, 23, 42, .08); animation: in .22s ease both; }
+    .card img { width: 64px; height: 64px; border-radius: 16px; }
+    h1 { font-size: 20px; margin: 14px 0 6px; }
+    p { margin: 0 0 18px; color: #475569; }
+    button { border: 0; border-radius: 999px; padding: 12px 22px; background: #111827; color: #fff; font: 600 15px/1 inherit; font-family: inherit; cursor: pointer; }
+    .note { margin: 14px 0 0; font-size: 12.5px; color: #64748b; }
+    html.dark body { background: #0b1220; color: #f1f5f9; }
+    html.dark header { background: #0b1220; border-bottom: 1px solid #1e293b; }
+    html.dark .card { background: #111a2e; border-color: #1e293b; box-shadow: none; }
+    html.dark p { color: #cbd5e1; } html.dark .note { color: #94a3b8; }
+    html.dark button { background: #f8fafc; color: #0f172a; }
+    @keyframes in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) { .card { animation: none; } }
+  </style>
+</head>
+<body>
+  <header>SANDY</header>
+  <main>
+    <div class="card" role="status" aria-live="polite">
+      <img src="icons/icon-192.png" alt="">
+      <h1>You're offline</h1>
+      <p>SANDY needs a connection to load your calendars and to-dos. Nothing you saved is lost.</p>
+      <button type="button" id="retry">Try again</button>
+      <p class="note" id="note">This page reloads by itself when you're back online.</p>
+    </div>
+  </main>
+  <script>
+    const go = () => location.reload();
+    document.getElementById('retry').addEventListener('click', go);
+    window.addEventListener('online', go);
+  </script>
+</body>
+</html>

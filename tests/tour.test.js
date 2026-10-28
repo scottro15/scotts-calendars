@@ -204,6 +204,7 @@ async function signIn(p, email) {
     await p.waitForSelector('#tourOffer', { state: 'detached', timeout: 3000 });
     assert(await p.evaluate(() => !!localStorage.getItem('sandy.tour.v1:later-id')), 'Maybe later marks done');
     assert(await p.$('#tourRoot') === null, 'Maybe later does not start tour');
+    await p.waitForTimeout(300); // let backnav.js unwind the offer's history entry before reloading
     await p.reload(); await p.waitForTimeout(1000);
     assert(await p.$('#tourOffer') === null, 'offer not shown again after Maybe later');
     await ctx.close();
