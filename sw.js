@@ -1,13 +1,65 @@
-/* SANDY service worker: shows reminder notifications (Web Push). No offline caching.
+/* SANDY service worker: reminder notifications (Web Push) + an offline fallback.
    New installs wait until the page posts {type:'SKIP_WAITING'} (update banner tap, or
-   first-visit auto-activate in push.js) so a deploy never silently swaps the running page. */
-self.addEventListener('install', () => {
-  /* stay in waiting until SKIP_WAITING — do not call skipWaiting() here */
+   first-visit auto-activate in push.js) so a deploy never silently swaps the running page.
+   Caching (t135u): precache the app shell + offline.html; pages are NETWORK-FIRST (updates land
+   immediately, the offline page only shows when the network fails); same-origin static files are
+   network-first with the last good copy as fallback. Never touched: other origins (Supabase API,
+   auth, storage, CDNs), version.json (update check), sw.js, non-GET requests. */
+const CACHE = 'sandy-shell-v1';
+const SHELL = ['./', 'index.html', 'offline.html', 'styles.css', 'manifest.webmanifest',
+  'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
+  'vendor/fullcalendar.min.js', 'vendor/supabase.min.js',
+  'storage.js', 'motion.js', 'push.js', 'update.js', 'nav.js', 'navbar.js', 'app.js', 'quicksheet.js', 'ai.js', 'backnav.js', 'install.js'];
+
+self.addEventListener('install', e => {
+  /* stay in waiting until SKIP_WAITING — do not call skipWaiting() here.
+     Precache best-effort: a missing file must never fail the install (that would block updates). */
+  e.waitUntil(caches.open(CACHE).then(c => Promise.allSettled(SHELL.map(u =>
+    fetch(new Request(u, { cache: 'reload' })).then(r => { if (r.ok) return c.put(new URL(u, self.registration.scope).href, r); })))));
 });
 self.addEventListener('message', e => {
   if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+self.addEventListener('activate', e => e.waitUntil((async () => {
+  const keys = await caches.keys();
+  await Promise.all(keys.filter(k => k.startsWith('sandy-') && k !== CACHE).map(k => caches.delete(k)));
+  try { if (self.registration.navigationPreload) await self.registration.navigationPreload.enable(); } catch (_) {}
+  await self.clients.claim();
+})()));
+
+const SKIP = /\/(version\.json|sw\.js|config\.js)$/;
+self.addEventListener('fetch', e => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin || !req.url.startsWith(self.registration.scope)) return; // Supabase & CDNs: untouched
+  if (SKIP.test(url.pathname) || url.pathname.endsWith('.json')) return;
+  if (req.mode === 'navigate') {
+    e.respondWith((async () => {
+      try {
+        const pre = e.preloadResponse ? await e.preloadResponse : null;
+        return pre || await fetch(req);
+      } catch (_) {
+        const c = await caches.open(CACHE);
+        return (await c.match(new URL('offline.html', self.registration.scope).href)) || Response.error();
+      }
+    })());
+    return;
+  }
+  if (!/\.(js|css|png|svg|webmanifest|ico|woff2?)$/.test(url.pathname)) return;
+  e.respondWith((async () => {
+    const key = url.origin + url.pathname; // one copy per file, whatever the ?v= tag
+    try {
+      const r = await fetch(req);
+      if (r && r.ok && r.type === 'basic') { const copy = r.clone(); caches.open(CACHE).then(c => c.put(key, copy)).catch(() => {}); }
+      return r;
+    } catch (err) {
+      const hit = await caches.match(key);
+      if (hit) return hit;
+      throw err;
+    }
+  })());
+});
 
 self.addEventListener('push', e => {
   let d = {};
