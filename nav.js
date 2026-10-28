@@ -27,7 +27,7 @@
   function setDark(on) {
     document.documentElement.classList.toggle('dark', on);
     try { localStorage.setItem('sandy.theme', on ? 'dark' : 'light'); } catch (_) {}
-    const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = on ? '#0b1220' : '#111827';
+    document.querySelectorAll('meta[name=theme-color]').forEach(m => { m.content = on ? '#0b1220' : '#111827'; }); // in-app theme wins over the system media defaults
     const t = $('darkToggle'); if (t) t.checked = on;
   }
 
@@ -1070,6 +1070,10 @@
     }
     const first = TABS.includes(qt) ? qt : (t0 && t0 !== 'home' && TABS.includes(t0) ? t0 : null);
     if (first && !new URLSearchParams(location.search).get('review')) go(first);
+    if (new URLSearchParams(location.search).get('new') === 'event') { // home-screen shortcut "New event"
+      try { const u = new URL(location.href); u.searchParams.delete('new'); history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch (_) {}
+      setTimeout(() => { const b = $('addBtn'); if (b) b.click(); }, 300);
+    }
     refreshBadge(); avatarUrl().then(showAvatar).catch(() => {});
   }
   document.addEventListener('DOMContentLoaded', () => {
