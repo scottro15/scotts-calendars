@@ -689,6 +689,7 @@ button.tc-item:not(.tc-link) { display: flex; align-items: center; gap: 8px; wid
 .td-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
 /* Todoist inbox hierarchy: title ~15–16px normal, description smaller muted, meta under that */
 .td-title { display: block; border: 0; background: none; padding: 0; text-align: left; width: 100%; color: var(--text); font-size: 15.5px; font-weight: 400; line-height: 1.35; overflow-wrap: anywhere; letter-spacing: -.01em; }
+html.dark .td-title { background: none; } /* beat "html.dark button" panel fill (showed as a box on selected/tinted rows) */
 .td-desc { margin: 0; padding: 0; font-size: 13px; font-weight: 400; line-height: 1.35; color: var(--muted, #6b7280); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 .todo-row.done .td-title, .todo-row.done .td-desc { text-decoration: line-through; color: var(--muted); }
 .todo-row.checking { opacity: .5; }
