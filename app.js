@@ -586,12 +586,16 @@
       ordered.forEach(r => r.classList.add('sandy-today'));
       ordered[0].classList.add('sandy-today-first'); ordered[ordered.length - 1].classList.add('sandy-today-last');
       const cold = coldListUntil && Date.now() < coldListUntil;
-      if (listScrollPending || cold) {
+      // Only on the Home tab: #page-home is shared with Today, and a cold open / view change that lands on
+      // Today (or a tab restored on reload) must not be scrolled down to List View's today header.
+      const onHome = !document.body.classList.contains('tab-today') && !document.getElementById('page-home').hidden;
+      if ((listScrollPending || cold) && !onHome) { listScrollPending = false; coldListUntil = 0; }
+      else if (listScrollPending || cold) {
         listScrollPending = false; syncStickyOffsets();
         const cs = getComputedStyle(document.documentElement);
         const off = (parseFloat(cs.getPropertyValue('--topbar-h')) || 0) + (parseFloat(cs.getPropertyValue('--fc-toolbar-h')) || 0);
         const y = header.getBoundingClientRect().top + window.scrollY - off;
-        if (Math.abs(y - window.scrollY) > 4 && y > 0) setTimeout(() => window.scrollTo({ top: y, behavior: cold ? 'auto' : 'smooth' }), 60);
+        if (Math.abs(y - window.scrollY) > 4 && y > 0) setTimeout(() => { if (document.body.classList.contains('tab-today') || document.getElementById('page-home').hidden) return; window.scrollTo({ top: y, behavior: cold ? 'auto' : 'smooth' }); }, 60); // re-check: the user may have switched to Today meanwhile
       }
     } finally { listDecorating = false; }
   }

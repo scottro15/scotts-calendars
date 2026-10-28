@@ -22,6 +22,10 @@
   const t12 = d => (window.SandyTime ? SandyTime.fmt(d) : d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }));
   const toast = m => A() && A().toast(m);
   let tab = 'home', homeState = null, ready = false;
+  // Every tab opens at its top. The browser must not restore an old window scroll on reload / back-forward
+  // (it put Today halfway down on a cold start); List View's own "scroll to today" on Home is done by app.js.
+  try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (_) {}
+  const toTop = () => { window.scrollTo(0, 0); const se = document.scrollingElement; if (se) se.scrollTop = 0; };
 
   // ------------------------------------------------------------------ theme (set early by the inline <head> script)
   function setDark(on) {
@@ -95,7 +99,9 @@
       page.classList.remove('tab-in', 'from-left', 'from-right'); void page.offsetWidth;
       page.classList.add('tab-in', TABS.indexOf(t) < TABS.indexOf(prev) ? 'from-left' : 'from-right');
     }
-    if (pageOf(prev) !== page) window.scrollTo(0, 0);
+    // Home and Today share #page-home, so "same page element" must not keep the scroll: opening any tab
+    // (Today especially: Up next / Heads up / Suggestions live at its top) starts at the top.
+    toTop();
     try { sessionStorage.setItem('sandy.tab', t); } catch (_) {}
     if (t === 'today') enterToday();
     if (t === 'home' || t === 'today') { const c = A() && A().calendar; if (c) requestAnimationFrame(() => c.updateSize()); }
@@ -1047,6 +1053,9 @@
     const day = document.querySelector('#bottomNav .nav-day'); if (day) day.textContent = String(new Date().getDate());
   }
   // Called once the app is ready (window.__app exists)
+  // Coming back to the app (background → foreground, bfcache restore) on Today: show its top again.
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && tab === 'today') toTop(); });
+  window.addEventListener('pageshow', e => { if (e.persisted && tab === 'today') toTop(); });
   function start() {
     if (ready) return; ready = true;
     const a = A();
