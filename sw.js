@@ -71,6 +71,14 @@ self.addEventListener('push', e => {
   }));
 });
 
+// The browser rotated or expired this device's push subscription: get a new one with the same key.
+// The app re-saves it to the server the next time it opens (push.js resync); the old one 410s and is removed.
+self.addEventListener('pushsubscriptionchange', e => {
+  const opts = e.oldSubscription && e.oldSubscription.options;
+  if (!opts || !opts.applicationServerKey) return;
+  e.waitUntil(self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: opts.applicationServerKey }).catch(() => {}));
+});
+
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   // Only open URLs under this app's scope (ignore absolute third-party links in the push payload).
