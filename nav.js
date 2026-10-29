@@ -795,7 +795,7 @@
     ea.checked = p.early; ea.disabled = !al.checked;
     ul.checked = SandyLeave.useLoc();
     if (!msg.dataset.keep) { msg.className = 'small home-msg'; msg.textContent = !signedIn ? 'Sign in to get leave-by alerts on your phone.' : ''; }
-    if (signedIn && al.checked && window.SandyPush) { const st = await SandyPush.state(); if (st !== 'on' && !msg.dataset.keep) msg.textContent = st === 'ios-install' ? 'Add SANDY to your Home Screen to get these alerts on iPhone.' : 'Turn on notifications for this device to get these alerts.'; }
+    if (signedIn && al.checked && window.SandyPush) { const st = await SandyPush.state(); if (st !== 'on' && !msg.dataset.keep) msg.textContent = st === 'ios-install' ? `Add SANDY to your Home Screen to get these alerts on ${SandyPush.platform() === 'ipad' ? 'iPad' : 'iPhone'}.` : 'Turn on notifications for this device to get these alerts.'; }
   }
   async function leaveSwitch(e) {
     const t = e.target, msg = $('leaveMsg'); msg.className = 'small home-msg'; delete msg.dataset.keep;
@@ -808,7 +808,7 @@
         toast(t.checked ? 'Leave-by alerts on' : 'Leave-by alerts off');
         if (t.checked && tab !== 'today') { msg.textContent = '✓ On. Open Today once a day so drive times stay fresh — SANDY also plans from home if you don’t.'; msg.classList.add('ok'); msg.dataset.keep = '1'; }
       } else if (t.id === 'leaveEarly') { await SandyLeave.setAlertPrefs({ early: t.checked }); toast(t.checked ? '10-minute heads-up on' : '10-minute heads-up off'); }
-    } catch (ex) { t.checked = !t.checked; msg.textContent = ex.message || String(ex); msg.classList.add('bad'); msg.dataset.keep = '1'; }
+    } catch (ex) { t.checked = !t.checked; msg.textContent = ex && ex.code && window.SandyPush ? SandyPush.reason(ex).text : (ex.message || String(ex)); msg.classList.add('bad'); msg.dataset.keep = '1'; }
     finally { t.disabled = false; await paintLeaveAlerts(); }
   }
 
