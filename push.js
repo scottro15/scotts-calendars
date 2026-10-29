@@ -201,10 +201,12 @@
     const reg = await readyReg(); const sub = await reg.pushManager.getSubscription();
     if (!sub) throw new PushErr('nosub');
     const sb = client(); if (!sb) throw new PushErr('signin');
-    await saveSub(sub).catch(() => {}); // make sure the server knows this device
-    let data, error;
-    try { ({ data, error } = await sb.functions.invoke('send-test-push', { body: { endpoint: sub.endpoint } })); }
-    catch (e) { error = e; }
+    const call = async () => { try { const r = await sb.functions.invoke('send-test-push', { body: { endpoint: sub.endpoint } }); return r; } catch (e) { return { error: e }; } };
+    let { data, error } = await call();
+    if (!error && data && data.devices === 0) { await saveSub(sub); ({ data, error } = await call()); } // server forgot this device: re-save
+    // a just-made subscription can take a few seconds to go live at the push service
+    for (let i = 0; i < 4 && !error && data && data.pending && !data.sent; i++) { await new Promise(r => setTimeout(r, 5500)); ({ data, error } = await call()); }
+    if (!error && data && data.pending && !data.sent) throw new PushErr('pending');
     if (error || !data) {
       // server unreachable: still prove the device can display one
       await reg.showNotification('SANDY', { body: 'Test notification (shown by this device; the server test was unavailable).', tag: 'sandy-test', icon: 'icons/icon-192.png', badge: 'icons/badge-72.png' });
@@ -238,6 +240,7 @@
       case 'nokey': return { text: 'Notifications are not set up yet.' };
       case 'nosub': return { text: 'Notifications are off for this device. Tap Enable notifications first.' };
       case 'gone': return { text: `This ${DEV}'s notification link had expired, so it was removed. Tap Enable notifications to turn it back on.` };
+      case 'pending': return { text: `This ${DEV} was just turned on and the push service is still setting it up. Try Send test notification again in a minute.` };
       case 'testfail': return { text: `The test couldn't be delivered${raw}. Turn notifications off and on again, then retry.` };
       default: return { text: (e && e.message) || String(e) };
     }
