@@ -491,7 +491,7 @@ export async function handle(req, env, f = fetch, now = Date.now()) {
   const owners = [...new Set([...rows.map(r => r.owner_id), ...leaveProfiles.map(p => p.user_id), ...longDayProfiles.map(p => p.user_id), ...weeklyProfiles.map(p => p.user_id), ...groceryProfiles.map(p => p.user_id)])];
   if (!owners.length) return json({ due: 0, sent: 0 });
   const inList = `(${owners.join(',')})`;
-  const [pr, sr] = await Promise.all([rest(`profiles?select=user_id,time_zone&user_id=in.${inList}`), rest(`push_subscriptions?select=id,owner_id,endpoint,p256dh,auth&owner_id=in.${inList}`)]);
+  const [pr, sr] = await Promise.all([rest(`profiles?select=user_id,time_zone&user_id=in.${inList}`), rest(`push_subscriptions?select=id,owner_id,endpoint,p256dh,auth,created_at&owner_id=in.${inList}`)]);
   const tz = new Map((pr.ok ? await pr.json() : []).map(p => [p.user_id, p.time_zone]));
   const subs = sr.ok ? await sr.json() : [];
   let sent = 0, failed = 0, gone = 0;
@@ -505,7 +505,7 @@ export async function handle(req, env, f = fetch, now = Date.now()) {
       if (s.dead) continue;
       try {
         const r = await sendPush(s, payload, vapid, f);
-        if (r.status === 404 || r.status === 410) { gone++; s.dead = true; await rest(`push_subscriptions?id=eq.${s.id}`, { method: 'DELETE' }); }
+        if ((r.status === 404 || r.status === 410) && !(now - Date.parse(s.created_at || 0) < 120000)) { gone++; s.dead = true; await rest(`push_subscriptions?id=eq.${s.id}`, { method: 'DELETE' }); }  // < 2 min old: FCM may not have propagated it yet, keep
         else if (r.ok) sent++; else failed++;
       } catch (_) { failed++; }
     }

@@ -13,7 +13,7 @@ const jwk = vk.privateKey.export({ format: 'jwk' });
 const pub = Buffer.concat([Buffer.from([4]), Buffer.from(jwk.x, 'base64url'), Buffer.from(jwk.y, 'base64url')]).toString('base64url');
 const env = { SUPABASE_URL: 'https://db.test', SUPABASE_SERVICE_ROLE_KEY: 'svc', SUPABASE_ANON_KEY: 'anon', VAPID_PUBLIC_KEY: pub, VAPID_PRIVATE_KEY: jwk.d, VAPID_SUBJECT: 'mailto:t@example.com' };
 const ua = nodeCrypto.createECDH('prime256v1'); ua.generateKeys(); const authSecret = nodeCrypto.randomBytes(16);
-const mine = { id: 's1', owner_id: 'u1', endpoint: 'https://fcm.googleapis.com/fcm/send/abc', p256dh: ua.getPublicKey().toString('base64url'), auth: authSecret.toString('base64url') };
+const mine = { id: 's1', created_at: '2026-01-01T00:00:00Z', owner_id: 'u1', endpoint: 'https://fcm.googleapis.com/fcm/send/abc', p256dh: ua.getPublicKey().toString('base64url'), auth: authSecret.toString('base64url') };
 
 function fake({ pushStatus = 201, user = { id: 'u1' } } = {}) {
   const log = { pushes: [], deletes: [], queries: [] };
@@ -28,7 +28,7 @@ function fake({ pushStatus = 201, user = { id: 'u1' } } = {}) {
   return { f, log };
 }
 const req = (body, auth = 'Bearer jwt') => new Request('https://fn.test/send-test-push', { method: 'POST', headers: { 'content-type': 'application/json', ...(auth ? { authorization: auth } : {}) }, body: JSON.stringify(body) });
-let t = 1e12;
+let t = Date.parse('2026-06-01T00:00:00Z');
 
 // CORS preflight
 let r = await M.handle(new Request('https://fn.test/x', { method: 'OPTIONS' }), env, fake().f);
@@ -51,6 +51,11 @@ assert(j.sent === 0 && k.log.pushes.length === 0, "never sends to another user's
 // expired device -> deleted + gone
 for (const st of [410, 404]) { k = fake({ pushStatus: st }); r = await M.handle(req({ endpoint: mine.endpoint }), env, k.f, t += 10000); j = await r.json();
   assert(j.gone === true && k.log.deletes.length === 1 && k.log.deletes[0].includes('id=eq.s1'), `${st} -> subscription removed, gone: true`); }
+// brand-new device (FCM not propagated yet): 410 -> pending, NOT deleted
+{ const fresh = mine.created_at; mine.created_at = new Date(t + 10000 - 30000).toISOString();
+  k = fake({ pushStatus: 410 }); r = await M.handle(req({ endpoint: mine.endpoint }), env, k.f, t += 10000); j = await r.json();
+  assert(j.pending === 1 && j.gone === false && k.log.deletes.length === 0, 'fresh device answering 410 -> pending, kept');
+  mine.created_at = fresh; }
 // push service error -> failed, not deleted
 k = fake({ pushStatus: 500 }); r = await M.handle(req({ endpoint: mine.endpoint }), env, k.f, t += 10000); j = await r.json();
 assert(j.sent === 0 && j.failed === 1 && j.status === 500 && k.log.deletes.length === 0, '5xx -> failed, kept');

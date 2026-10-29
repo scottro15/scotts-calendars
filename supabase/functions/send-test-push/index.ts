@@ -4,7 +4,9 @@
 // the whole path: browser subscription → push service (FCM / Apple / Mozilla) → the device.
 // - Caller: must be signed in (JWT verified by Supabase and re-checked here via /auth/v1/user).
 // - Body: { endpoint?: string } — only that device (it must belong to the caller); else all the caller's devices (max 10).
-// - Expired devices: a 404/410 from the push service deletes that subscription and returns gone: true.
+// - Expired devices: a 404/410 from the push service deletes that subscription and returns gone: true —
+//   except in the first 2 minutes after the device subscribed: FCM can answer 404/410 for a brand-new
+//   registration until it has propagated, so then it answers pending: true and keeps the device.
 // - Light rate limit: one test per device per 5 seconds (per warm instance).
 // - Secrets (function secrets only, shared with send-reminders): VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT.
 //   SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY are injected by Supabase.
@@ -58,6 +60,7 @@ export async function sendPush(sub, payloadObj, vapid, f = fetch) {
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type', 'access-control-allow-methods': 'POST, OPTIONS' };
 const json = (b, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { 'content-type': 'application/json', ...CORS } });
 const recent = new Map();
+export const FRESH_MS = 120000; // a device that subscribed < 2 min ago is never treated as expired
 
 export async function handle(req, env, f = fetch, now = Date.now()) {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -75,7 +78,7 @@ export async function handle(req, env, f = fetch, now = Date.now()) {
   if (endpoint && (!/^https:\/\//.test(endpoint) || endpoint.length > 1000)) return json({ error: 'Bad endpoint' }, 400);
   const S = { apikey: svc, authorization: `Bearer ${svc}`, 'content-type': 'application/json' };
   const rest = (p, init = {}) => f(`${base}/rest/v1/${p}`, { ...init, headers: { ...S, ...(init.headers || {}) } });
-  let q = `push_subscriptions?select=id,owner_id,endpoint,p256dh,auth&owner_id=eq.${encodeURIComponent(user.id)}&limit=10`;
+  let q = `push_subscriptions?select=id,owner_id,endpoint,p256dh,auth,created_at&owner_id=eq.${encodeURIComponent(user.id)}&limit=10`;
   if (endpoint) q += `&endpoint=eq.${encodeURIComponent(endpoint)}`;
   const sr = await rest(q); if (!sr.ok) return json({ error: 'Could not read devices' }, 500);
   const subs = await sr.json();
@@ -84,15 +87,17 @@ export async function handle(req, env, f = fetch, now = Date.now()) {
   if (now - (recent.get(key) || 0) < 5000) return json({ error: 'Slow down: one test every few seconds' }, 429);
   recent.set(key, now);
   const payload = { title: 'SANDY', body: 'Test notification: notifications work on this device 🎉', tag: 'sandy-test', url: './?tab=profile' };
-  let sent = 0, gone = 0, failed = 0, status = 0;
+  let sent = 0, gone = 0, failed = 0, pending = 0, status = 0;
   for (const s of subs) {
     try {
       const r = await sendPush(s, payload, vapid, f); status = r.status;
-      if (r.status === 404 || r.status === 410) { gone++; await rest(`push_subscriptions?id=eq.${s.id}`, { method: 'DELETE' }); }
-      else if (r.ok) sent++; else failed++;
+      if (r.status === 404 || r.status === 410) {
+        if (now - Date.parse(s.created_at || 0) < FRESH_MS) pending++;
+        else { gone++; await rest(`push_subscriptions?id=eq.${s.id}`, { method: 'DELETE' }); }
+      } else if (r.ok) sent++; else failed++;
     } catch (_) { failed++; }
   }
-  return json({ sent, failed, gone: endpoint ? gone > 0 : gone, devices: subs.length, status });
+  return json({ sent, failed, pending, gone: endpoint ? gone > 0 : gone, devices: subs.length, status });
 }
 
 const D = globalThis.Deno;
