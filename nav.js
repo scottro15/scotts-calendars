@@ -252,6 +252,8 @@
     const allDone = Promise.all(keys.map(k => jobs[k]));
     const wait = ms => new Promise(r => setTimeout(r, ms));
     const last = (todayLast.day === tk && todayLast.simple === simpleOn) ? todayLast.parts : {};
+    // 5c (t150u): phones read top-down: Now/Next, On Today (+ Overdue), Heads Up, then one Suggestion. Tablets unchanged.
+    const phone = !window.matchMedia('(min-width: 768px)').matches;
     const SUG_ORDER = ['travel', 'practice', 'longday', 'freegap', 'grocery', 'tomorrow'];
     const body = (partial) => {
       const part = k => (k in got) ? got[k] : (partial ? last[k] : null);
@@ -269,7 +271,7 @@
         const th = k === 'travel' ? v.html : k === 'tomorrow' ? SandyTomorrow.html(v) : v;
         if (th) sugTiles += sug ? sug.wrap(th, k) : th;
       }
-      if (!simpleOn && sugTiles) b += sug ? sug.shell(sugTiles) : sugTiles;
+      if (!simpleOn && sugTiles) b += sug ? sug.shell(sugTiles, { one: phone }) : sugTiles;
       const wk = !simpleOn && part('weekly');
       if (wk) { try { b += SandyWeekly.html(wk); } catch (e) { console.warn('weekly:', e); } }
       return b;
@@ -283,7 +285,7 @@
       // (and its lookups) instead of starting them over (t148u speed)
       const keepLeave = (leaveStarted || late) && $('tcLeave');
       if (keepLeave) keepLeave.remove();
-      el.innerHTML = h + body(partial) + tail;
+      el.innerHTML = phone ? h + tail + body(partial) : h + body(partial) + tail;
       if (keepLeave) { const nu = $('tcLeave'); if (nu) { nu.replaceWith(keepLeave); const sec = keepLeave.closest('.tc-heads'); if (sec && keepLeave.querySelector('li')) sec.hidden = false; } }
       if (fade) el.querySelectorAll('.tc-clash, .tc-weather, .tc-suggestions, .tc-weekly').forEach(x => x.classList.add('tc-fadein'));
       if (window.SandySimple) { try { SandySimple.bind(el); } catch (e) { console.warn('simple:', e); } }
@@ -1131,6 +1133,8 @@
     // keep pages fresh after any change
     window.addEventListener('sandy:refresh', () => { if (tab === 'today') renderToday(); else if (tab === 'todo') renderTodo(); else if (tab === 'search' && $('searchBox').value.trim()) renderSearch(); else refreshBadge(); });
     setInterval(() => { if (tab === 'today' && !document.hidden) renderToday(); }, 60000);
+    { const mqP = window.matchMedia('(min-width: 768px)'), f = () => { if (tab === 'today') renderToday(); }; // phone <-> tablet order (5c)
+      if (mqP.addEventListener) mqP.addEventListener('change', f); else if (mqP.addListener) mqP.addListener(f); }
     // keyboard: Cmd/Ctrl+K opens Search
     document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); go('search', { focus: true }); } });
     const day = document.querySelector('#bottomNav .nav-day'); if (day) day.textContent = String(new Date().getDate());

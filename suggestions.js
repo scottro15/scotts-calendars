@@ -70,12 +70,26 @@
     }).join('');
   }
 
-  function shell(tilesHtml) {
+  // 5c (t150u): on phones Today shows ONE suggestion; "More ideas" opens the rest (remembered for the day).
+  let moreDay = null;
+  const moreOpen = () => moreDay === todayYmd();
+  const moreLabel = (n, open) => open ? 'Fewer ideas' : `More ideas (${n})`;
+  function shell(tilesHtml, opts) {
     if (!tilesHtml || !String(tilesHtml).trim()) return '';
-    return `<section class="tc-sec tc-card tc-suggestions" id="tcSuggestions" aria-label="Suggestions">` +
+    const n = (String(tilesHtml).match(/<div class="sug-tile[ "]/g) || []).length;
+    const one = !!(opts && opts.one) && n > 1, open = one && moreOpen();
+    return `<section class="tc-sec tc-card tc-suggestions${one ? ' sug-one' : ''}${open ? ' sug-all' : ''}" id="tcSuggestions" aria-label="Suggestions">` +
       `<h3>Suggestions</h3>` +
-      `<div class="sug-list">${tilesHtml}</div>` +
+      `<div class="sug-list" id="sugList">${tilesHtml}</div>` +
+      (one ? `<button type="button" class="sug-more" aria-controls="sugList" aria-expanded="${open}">${moreLabel(n - 1, open)}</button>` : '') +
       `</section>`;
+  }
+  function syncMore(card) {
+    const btn = card && card.querySelector('.sug-more'); if (!btn) return;
+    const n = card.querySelectorAll('.sug-list > .sug-tile:not(.sug-leaving)').length;
+    if (n <= 1) { btn.remove(); card.classList.remove('sug-one', 'sug-all'); return; }
+    const open = card.classList.contains('sug-all');
+    btn.textContent = moreLabel(n - 1, open); btn.setAttribute('aria-expanded', String(open));
   }
 
   function esc(s) {
@@ -84,6 +98,16 @@
 
   /** Event delegation: dismiss × inside #todayCard. Returns true if handled. */
   function onClick(e) {
+    const more = e.target.closest && e.target.closest('.sug-more');
+    if (more) {
+      e.preventDefault();
+      const card = more.closest('.tc-suggestions'); if (!card) return true;
+      const open = !card.classList.contains('sug-all');
+      moreDay = open ? todayYmd() : null;
+      card.classList.toggle('sug-all', open); syncMore(card);
+      if (!open) { const r = card.getBoundingClientRect(); if (r.top < 0) card.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+      return true;
+    }
     const x = e.target.closest && e.target.closest('[data-sug-x]');
     if (!x) return false;
     e.preventDefault();
@@ -100,7 +124,7 @@
         if (list && !list.querySelector('.sug-tile')) {
           const card = document.getElementById('tcSuggestions');
           if (card) card.remove();
-        }
+        } else syncMore(document.getElementById('tcSuggestions'));
       };
       if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) done();
       else setTimeout(done, 200);
@@ -108,5 +132,5 @@
     return true;
   }
 
-  window.SandySuggestions = { wrap, shell, dismiss, undismiss, isDismissed, onClick, _test: { readAll, todayYmd } };
+  window.SandySuggestions = { wrap, shell, syncMore, dismiss, undismiss, isDismissed, onClick, _test: { readAll, todayYmd } };
 })();

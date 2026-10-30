@@ -2172,3 +2172,13 @@ html.dark .si-cando { border-color: rgba(129, 140, 248, .45); background: rgba(9
 /* 5b: "Check this location" (a vague place matched far away: no alarm until it's fixed) */
 .lb-row.lb-check .lb-main b { color: #b45309; }
 html.dark .lb-row.lb-check .lb-main b { color: #fcd34d; }
+
+/* 5c (t150u): phone Today = the briefing only (no day calendar under it); one suggestion + "More ideas" */
+@media (max-width: 767px) {
+  body.tab-today #page-home > :not(#todayCard):not(#briefing) { display: none; }
+}
+.tc-suggestions.sug-one:not(.sug-all) .sug-list > .sug-tile ~ .sug-tile { display: none; }
+.sug-more { display: block; width: 100%; min-height: 44px; margin: 8px 0 0; border: 0; border-radius: 10px; background: none; color: #4f46e5; font-weight: 700; font-size: 14px; cursor: pointer; }
+.sug-more:hover, .sug-more:focus-visible { background: rgba(79, 70, 229, .08); outline: none; }
+html.dark .sug-more { color: #a5b4fc; }
+html.dark .sug-more:hover, html.dark .sug-more:focus-visible { background: rgba(165, 180, 252, .12); }
