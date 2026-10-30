@@ -166,6 +166,13 @@
     try { const rows = await Store.calendars(); if (rows && rows.length) useCalendars(rows); } catch (e) { console.error('calendars:', e); }
   }
   if (Store.auth) {
+    // start the other startup reads alongside calendars instead of one after another (t148u speed);
+    // each is deduped/memoised in storage.js, so the later awaits reuse these requests
+    if (signedInUser) {
+      Store.profile().catch(() => {});
+      Store.categories().catch(() => {});
+      Store.list().catch(() => {});
+    }
     let rows = null;
     try { rows = await Store.calendars(); } catch (e) { console.error('calendars:', e); }
     if (rows && rows.length === 0 && window.SandyAccount) { // signed in, no calendars yet: welcome flow

@@ -267,7 +267,17 @@
     const listeners = new Set();
     const remote = adapter.name !== 'local';
     const emit = (why) => listeners.forEach(fn => { try { fn(why); } catch (e) { console.error(e); } });
-    async function ensure() { if (cache === null) cache = (await adapter.loadAll()) || []; return cache; }
+    // one load at a time: Today, the calendar and the startup prefetch can all ask at once (t148u speed)
+    let loading = null, catsLoading = null;
+    async function ensure() {
+      if (cache !== null) return cache;
+      if (!loading) loading = Promise.resolve().then(() => adapter.loadAll()).then(r => { if (cache === null) cache = r || []; return cache; }).finally(() => { loading = null; });
+      return loading;
+    }
+    // Profile: every Sandy Intelligence card reads its prefs from it; one request per ~10 s instead of one per card
+    const PROF_TTL = 10000;
+    let prof = null; // { at, p: Promise }
+    const copy = v => (v && typeof v === 'object') ? (typeof structuredClone === 'function' ? structuredClone(v) : JSON.parse(JSON.stringify(v))) : v;
     function put(ev) { const i = cache.findIndex(e => e.id === ev.id); if (i >= 0) cache[i] = ev; else cache.push(ev); }
     async function writeLocal() { if (!remote) await adapter.writeAll(cache); }
     const stamp = ev => { const now = new Date().toISOString(); if (!ev.id) { ev.id = uid(); ev.createdAt = now; } ev.updatedAt = now; return ev; };
@@ -309,7 +319,7 @@
         } else { cache = [...events]; await writeLocal(); }
       },
       /** Re-read everything from the backend (realtime / tab focus). */
-      async reload() { cache = (await adapter.loadAll()) || []; cats = null; notesCache = null; checksCache = null; linksCache = null; emit('reload'); return cache; },
+      async reload() { cache = (await adapter.loadAll()) || []; cats = null; prof = null; notesCache = null; checksCache = null; linksCache = null; emit('reload'); return cache; },
       /** Apply a realtime row change without a full reload. */
       applyRemoteChange(table, p) {
         if (table === 'notes') { notesCache = null; emit('notes'); return; }
@@ -379,11 +389,29 @@
       async createCalendars(list) { return adapter.createCalendars(list); },
       async updateCalendar(slug, patch) { return adapter.updateCalendar(slug, patch); },
       async saveCalendars(rows) { return adapter.saveCalendars(rows); }, // local mode only: replace the whole list
-      async profile() { return adapter.loadProfile ? adapter.loadProfile() : null; },
-      async saveProfile(p) { return adapter.saveProfile(p); },
+      async profile() {
+        if (!adapter.loadProfile) return null;
+        if (!prof || Date.now() - prof.at > PROF_TTL) {
+          const p = Promise.resolve().then(() => adapter.loadProfile());
+          prof = { at: Date.now(), p };
+          p.catch(() => { if (prof && prof.p === p) prof = null; });
+        }
+        return copy(await prof.p);
+      },
+      async saveProfile(p) {
+        prof = null;
+        const row = await adapter.saveProfile(p);
+        if (row && typeof row === 'object' && !Array.isArray(row)) prof = { at: Date.now(), p: Promise.resolve(copy(row)) };
+        return row;
+      },
+      forgetProfile() { prof = null; },
       async exportAccount() { return adapter.exportAccount ? adapter.exportAccount() : JSON.parse(await store.exportJSON()); },
       async deleteAccount(email) { return adapter.deleteAccount(email); },
-      async categories() { if (!cats) cats = (await adapter.loadCategories()) || {}; return cats; },
+      async categories() {
+        if (cats) return cats;
+        if (!catsLoading) catsLoading = Promise.resolve().then(() => adapter.loadCategories()).then(r => (cats = r || {})).finally(() => { catsLoading = null; });
+        return catsLoading;
+      },
       async addCategory(cal, name) { await adapter.addCategory(cal, name); cats = null; },
 
       async exportJSON() {

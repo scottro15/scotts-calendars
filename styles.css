@@ -2112,3 +2112,15 @@ html.reduce-motion .install-card { transition: none; }
 /* Welcome: "Install SANDY now" (Android, when the browser can install right away), t143u */
 .wl-install-now { margin: 4px 0 10px; }
 .wl-install-now .wl-install-btn { width: 100%; padding: 10px 14px; border-radius: 12px; font-weight: 700; }
+
+/* Today speed (t148u): Heads Up lookups still out → thin shimmer line; late cards fade in */
+.tc-heads .tc-pending { list-style: none; margin: 8px 0 2px; padding: 0; }
+.tc-heads .tc-pending li { padding: 0; border: 0 !important; }
+.tc-shimmer { display: block; height: 3px; width: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, rgba(148,163,184,.12) 0%, rgba(148,163,184,.45) 50%, rgba(148,163,184,.12) 100%);
+  background-size: 200% 100%; animation: tcShimmer 1.2s linear infinite; }
+html.dark .tc-shimmer { background-image: linear-gradient(90deg, rgba(148,163,184,.10) 0%, rgba(203,213,225,.35) 50%, rgba(148,163,184,.10) 100%); }
+@keyframes tcShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.tc-fadein { animation: tcFadeIn .35s ease-out both; }
+@keyframes tcFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .tc-shimmer { animation: none; } .tc-fadein { animation: none; } }

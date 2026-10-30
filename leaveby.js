@@ -74,6 +74,12 @@
   }
 
   // ------------------------------------------------------------------ geocode + route (free OSM services, cached)
+  // external lookups never hold Today up: give up after 2.5 s and try again next time (t148u speed)
+  function tfetch(url, opts, ms = 2500) {
+    const ac = typeof AbortController === 'function' ? new AbortController() : null;
+    const t = ac ? setTimeout(() => ac.abort(), ms) : null;
+    return fetch(url, Object.assign({}, opts || {}, ac ? { signal: ac.signal } : {})).finally(() => { if (t) clearTimeout(t); });
+  }
   const inflight = new Map();
   function once(key, fn) { if (!inflight.has(key)) inflight.set(key, fn().finally(() => inflight.delete(key))); return inflight.get(key); }
   function put(k, key, v) { const c = readLS(k, {}); c[key] = v; const ks = Object.keys(c); if (ks.length > 300) ks.sort((x, y) => c[x].t - c[y].t).slice(0, ks.length - 300).forEach(x => delete c[x]); writeLS(k, c); }
@@ -84,7 +90,7 @@
     return once('g:' + key, async () => {
       const bias = home && isFinite(home.lat) ? home : { lat: 38.63, lon: -90.4 };
       try {
-        const r = await fetch(GEO_URL + '?' + new URLSearchParams({ q, limit: 1, lang: 'en', lat: bias.lat, lon: bias.lon }));
+        const r = await tfetch(GEO_URL + '?' + new URLSearchParams({ q, limit: 1, lang: 'en', lat: bias.lat, lon: bias.lon }));
         if (!r.ok) return { ok: false, temp: r.status >= 500 || r.status === 429 };
         const f = ((await r.json()).features || [])[0];
         const c = f && f.geometry && f.geometry.coordinates;
@@ -101,7 +107,7 @@
     return once('r:' + key, async () => {
       const body = { locations: [{ lat: +o.lat, lon: +o.lon }, { lat: +d.lat, lon: +d.lon }], costing: 'auto', units: 'miles', directions_type: 'none' };
       try {
-        const r = await fetch(ROUTE_URL + '?json=' + encodeURIComponent(JSON.stringify(body)));
+        const r = await tfetch(ROUTE_URL + '?json=' + encodeURIComponent(JSON.stringify(body)));
         if (r.status >= 500 || r.status === 429) return { ok: false, temp: true };
         const j = await r.json().catch(() => ({}));
         const s = r.ok && j.trip && j.trip.summary;

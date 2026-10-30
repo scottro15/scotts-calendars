@@ -44,14 +44,27 @@
   function table(name, key, map) {
     const api = {
       available: true, cache: null, missingCols: new Set(),
+      // Today's cards (clash, free gap, grocery) and the To-Do badge all list at once: share one request
+      // and reuse it for 3 s; any save/remove forgets it (t148u speed)
+      memo: null,
+      forget() { api.memo = null; },
       async list() {
         const sb = sbc();
         if (!sb) return (api.cache = readLS(key, []));
-        const { data, error } = await sb.from(name).select('*').order('created_at');
-        if (error) { if (missing(error)) { api.available = false; return (api.cache = []); } throw new Error(error.message); }
-        api.available = true; return (api.cache = data.map(map.from));
+        if (!api.memo || Date.now() - api.memo.at > 3000) {
+          const p = (async () => {
+            const { data, error } = await sb.from(name).select('*').order('created_at');
+            if (error) { if (missing(error)) { api.available = false; return (api.cache = []); } throw new Error(error.message); }
+            api.available = true; return (api.cache = data.map(map.from));
+          })();
+          const m = { at: Date.now(), p };
+          api.memo = m;
+          p.catch(() => { if (api.memo === m) api.memo = null; });
+        }
+        return (await api.memo.p).slice();
       },
       async save(item) {
+        api.memo = null;
         const sb = sbc();
         if (!sb) { const all = readLS(key, []).filter(x => x.id !== item.id); all.push(item); localStorage.setItem(key, JSON.stringify(all)); return item; }
         // optional columns from later migrations (e.g. priority): until they run, save without them
@@ -60,12 +73,13 @@
         const opt = (map.opt || []).find(c => error && c in row && (error.message || '').includes(c));
         if (opt) { api.missingCols.add(opt); delete row[opt]; ({ data, error } = await sb.from(name).upsert(row).select()); }
         if (error) throw new Error(missing(error) ? 'This needs a quick database update first.' : error.message);
-        return map.from(data[0]);
+        api.memo = null; return map.from(data[0]);
       },
       async remove(id) {
+        api.memo = null;
         const sb = sbc();
         if (!sb) { localStorage.setItem(key, JSON.stringify(readLS(key, []).filter(x => x.id !== id))); return; }
-        const { error } = await sb.from(name).delete().eq('id', id); if (error) throw new Error(error.message);
+        const { error } = await sb.from(name).delete().eq('id', id); api.memo = null; if (error) throw new Error(error.message);
       },
     };
     return api;
@@ -149,9 +163,15 @@
     overdue.sort((x, y) => x.o.start - y.o.start);
     return { now, today, items, gaps, next, nowOn, overdue };
   }
-  async function renderToday() {
+  const PART_MS = 2500;
+  let todayTok = 0;
+  const todayLast = { day: null, simple: null, parts: {} };
+  async function renderToday(opts) {
+    const late = !!(opts && opts.late === true);
     const a = A(); if (!a) return;
+    const tok = ++todayTok;
     const d = await todayData();
+    if (tok !== todayTok) return;
     { const td = new Date(d.today.getTime()); const wd = td.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }); const md = td.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
       $('todayDate').textContent = `${wd}, ${md}`; const sub = $('todaySub'); if (sub) sub.textContent = `Today · ${td.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}`; }
     const dot = ev => `<span class="dot" style="background:${esc((a.cal(ev.calendar) || {}).color || '#666')}"></span>`;
@@ -176,59 +196,84 @@
       h += '</div>';
     }
     h += '</div>';
-    // Heads Up: leave-by (async) + SI #5 clash check + tight gaps / overlaps
-    let clashHtml = '';
-    if (window.SandyClash) {
-      try {
-        const cd = await SandyClash.data(a, d.now);
-        if (cd) clashHtml = SandyClash.html(cd);
-      } catch (e) { console.warn('clash:', e); }
-    }
-    let wxHtml = '';
-    if (window.SandyWeather) {
-      try {
-        const wd = await SandyWeather.data(a, d.now);
-        if (wd) wxHtml = SandyWeather.html(wd);
-      } catch (e) { console.warn('weather:', e); }
-    }
-    const showHeads = !!(d.gaps.length || clashHtml || wxHtml);
-    h += `<section class="tc-sec tc-card tc-heads"${showHeads ? '' : ' hidden'}><h3>Heads Up</h3><ul class="tc-warn tc-leave" id="tcLeave" aria-live="polite" hidden></ul>${clashHtml}${wxHtml}${d.gaps.length ? `<ul class="tc-warn">${d.gaps.map(g => g.kind === 'overlap'
-      ? `<li>⚠️ <b>${esc(g.p.ev.title)}</b> overlaps <b>${esc(g.n.ev.title)}</b> (${esc(t12(g.n.o.start))})</li>`
-      : `<li>⏱️ Tight: <b>${esc(g.p.ev.title)}</b> ends ${esc(t12(g.p.o.end))}, <b>${esc(g.n.ev.title)}</b> starts ${g.min ? `${g.min} min later` : 'right after'}</li>`).join('')}</ul>` : ''}</section>`;
-    // Sandy Intelligence nudges → one Suggestions card (dismissible tiles). Weekly stays its own card.
-    // Simple mode: skip Suggestions + Week ahead entirely (Now/Next, Heads Up, On Today, Overdue only).
+    // Speed (t148u, Design's 1-4): Now/Up next, On Today and Overdue come from local data and paint right away.
+    // Heads Up (clash, weather) and the Suggestions/Weekly cards are gathered in parallel, each capped at
+    // PART_MS; anything still out paints with a thin shimmer (or the last result from today) and fades in.
     const simpleOn = !!(window.SandySimple && SandySimple.isOn());
     const sug = window.SandySuggestions;
-    let sugTiles = '';
-    let tv = null, ld = null, tm = null;
+    const tk = a.ymd(d.today);
+    const wkForce = !!(window.__wkForceOpen); window.__wkForceOpen = false;
+    const jobs = {};
+    const job = (k, fn) => { jobs[k] = Promise.resolve().then(fn).catch(e => { console.warn(k + ':', e); return null; }); };
+    if (window.SandyClash) job('clash', async () => { const cd = await SandyClash.data(a, d.now); return cd ? SandyClash.html(cd) : ''; });
+    if (window.SandyWeather) job('wx', async () => { const wd = await SandyWeather.data(a, d.now); return wd ? SandyWeather.html(wd) : ''; });
     if (!simpleOn) {
-      if (window.SandyTravel) { try { tv = await SandyTravel.render(null, a, d.now); if (tv && tv.html) sugTiles += sug ? sug.wrap(tv.html, 'travel') : tv.html; } catch (e) { console.warn('travel plan:', e); tv = null; } }
-      if (window.SandyPractice) { try { const ph = SandyPractice.html(await SandyPractice.data(a, d.now), d.now, d.today); if (ph) sugTiles += sug ? sug.wrap(ph, 'practice') : ph; } catch (e) { console.warn('practice prep:', e); } }
-      if (window.SandyLongDay) { try { ld = await SandyLongDay.data(a, d.now); if (ld) { const lh = SandyLongDay.html(ld); sugTiles += sug ? sug.wrap(lh, 'longday') : lh; } } catch (e) { console.warn('long-day:', e); ld = null; } }
-      if (window.SandyFreeGap) { try { const fg = await SandyFreeGap.data(a, d.now); if (fg) { const fh = SandyFreeGap.html(fg); if (fh) sugTiles += sug ? sug.wrap(fh, 'freegap') : fh; } } catch (e) { console.warn('free-gap:', e); } }
-      if (window.SandyGrocery) { try { const gr = await SandyGrocery.data(a, d.now); if (gr) { const gh = SandyGrocery.html(gr); if (gh) sugTiles += sug ? sug.wrap(gh, 'grocery') : gh; } } catch (e) { console.warn('grocery:', e); } }
-      if (window.SandyTomorrow && SandyTomorrow.isEvening(d.now)) { try { tm = await SandyTomorrow.data(a, d.now); const th = SandyTomorrow.html(tm); if (th) sugTiles += sug ? sug.wrap(th, 'tomorrow') : th; } catch (e) { console.warn('tomorrow:', e); tm = null; } }
+      if (window.SandyTravel) job('travel', () => SandyTravel.render(null, a, d.now));
+      if (window.SandyPractice) job('practice', async () => SandyPractice.html(await SandyPractice.data(a, d.now), d.now, d.today) || '');
+      if (window.SandyLongDay) job('longday', async () => { const ld = await SandyLongDay.data(a, d.now); return ld ? SandyLongDay.html(ld) : ''; });
+      if (window.SandyFreeGap) job('freegap', async () => { const fg = await SandyFreeGap.data(a, d.now); return fg ? (SandyFreeGap.html(fg) || '') : ''; });
+      if (window.SandyGrocery) job('grocery', async () => { const gr = await SandyGrocery.data(a, d.now); return gr ? (SandyGrocery.html(gr) || '') : ''; });
+      if (window.SandyTomorrow && SandyTomorrow.isEvening(d.now)) job('tomorrow', () => SandyTomorrow.data(a, d.now));
+      if (window.SandyWeekly) job('weekly', () => SandyWeekly.data(a, d.now, { force: wkForce }));
     }
-    if (!simpleOn && sugTiles) h += sug ? sug.shell(sugTiles) : sugTiles;
-    // Sandy Intelligence #6: Sunday weekly review (weekly.js) — own card (collapsed by default)
-    let wkFocus = false;
-    if (!simpleOn && window.SandyWeekly) {
-      try {
-        const force = !!(window.__wkForceOpen);
-        window.__wkForceOpen = false;
-        const wk = await SandyWeekly.data(a, d.now, { force });
-        if (wk) { h += SandyWeekly.html(wk); wkFocus = force || new URLSearchParams(location.search).get('si') === 'weekly'; }
-      } catch (e) { console.warn('weekly:', e); }
+    const keys = Object.keys(jobs);
+    const got = {}; const pending = new Set(keys);
+    keys.forEach(k => jobs[k].then(v => { got[k] = v; pending.delete(k); }));
+    const allDone = Promise.all(keys.map(k => jobs[k]));
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    const last = (todayLast.day === tk && todayLast.simple === simpleOn) ? todayLast.parts : {};
+    const SUG_ORDER = ['travel', 'practice', 'longday', 'freegap', 'grocery', 'tomorrow'];
+    const body = (partial) => {
+      const part = k => (k in got) ? got[k] : (partial ? last[k] : null);
+      const clashHtml = part('clash') || '', wxHtml = part('wx') || '';
+      const headsWaiting = partial && (pending.has('clash') || pending.has('wx')) && !('clash' in last || 'wx' in last) && d.items.length > 0;
+      const showHeads = !!(d.gaps.length || clashHtml || wxHtml || headsWaiting);
+      let b = `<section class="tc-sec tc-card tc-heads"${showHeads ? '' : ' hidden'}><h3>Heads Up</h3><ul class="tc-warn tc-leave" id="tcLeave" aria-live="polite" hidden></ul>${clashHtml}${wxHtml}${d.gaps.length ? `<ul class="tc-warn">${d.gaps.map(g => g.kind === 'overlap'
+        ? `<li>⚠️ <b>${esc(g.p.ev.title)}</b> overlaps <b>${esc(g.n.ev.title)}</b> (${esc(t12(g.n.o.start))})</li>`
+        : `<li>⏱️ Tight: <b>${esc(g.p.ev.title)}</b> ends ${esc(t12(g.p.o.end))}, <b>${esc(g.n.ev.title)}</b> starts ${g.min ? `${g.min} min later` : 'right after'}</li>`).join('')}</ul>` : ''}${headsWaiting ? '<ul class="tc-pending" aria-hidden="true"><li><span class="tc-shimmer"></span></li></ul>' : ''}</section>`;
+      // Sandy Intelligence nudges → one Suggestions card (dismissible tiles). Weekly stays its own card.
+      // Simple mode: skip Suggestions + Week ahead entirely (Now/Next, Heads Up, On Today, Overdue only).
+      let sugTiles = '';
+      if (!simpleOn) for (const k of SUG_ORDER) {
+        const v = part(k); if (!v) continue;
+        const th = k === 'travel' ? v.html : k === 'tomorrow' ? SandyTomorrow.html(v) : v;
+        if (th) sugTiles += sug ? sug.wrap(th, k) : th;
+      }
+      if (!simpleOn && sugTiles) b += sug ? sug.shell(sugTiles) : sugTiles;
+      const wk = !simpleOn && part('weekly');
+      if (wk) { try { b += SandyWeekly.html(wk); } catch (e) { console.warn('weekly:', e); } }
+      return b;
+    };
+    const tail = (d.items.length ? `<section class="tc-sec tc-card tc-on"><h3>On Today</h3><ul class="tc-list">${d.items.map(x => row(x)).join('')}</ul></section>` : '') +
+      (d.overdue.length ? `<section class="tc-sec tc-card tc-overdue"><h3>Overdue To-Dos</h3><ul class="tc-list">${d.overdue.map(x => row(x, `<span class="overdue-badge">Overdue ${esc(a.overdueText(d.now - (x.ev.allDay ? a.startOfDay(x.o.start) : (x.o.end || x.o.start))))}</span>`)).join('')}</ul></section>` : '');
+    const paint = (partial, fade) => {
+      const el = $('todayBody');
+      el.innerHTML = h + body(partial) + tail;
+      if (fade) el.querySelectorAll('.tc-clash, .tc-weather, .tc-suggestions, .tc-weekly').forEach(x => x.classList.add('tc-fadein'));
+      if (window.SandySimple) { try { SandySimple.bind(el); } catch (e) { console.warn('simple:', e); } }
+      if (window.SandyCollapse) { try { SandyCollapse.apply(el); } catch (e) { console.warn('collapse:', e); } }
+      if (window.SandyLeave) SandyLeave.render($('tcLeave'), d.items, d.now).catch(e => console.warn('leave-by:', e));
+    };
+    // cached parts land within a few ms: then it's one paint, as before
+    if (keys.length) await Promise.race([allDone, wait(60)]);
+    if (tok !== todayTok) return;
+    let partial = false;
+    if (pending.size) {
+      partial = true; paint(true, false);
+      await Promise.race([allDone, wait(PART_MS)]);
+      if (tok !== todayTok) return;
     }
-    if (d.items.length) h += `<section class="tc-sec tc-card tc-on"><h3>On Today</h3><ul class="tc-list">${d.items.map(x => row(x)).join('')}</ul></section>`;
-    if (d.overdue.length) h += `<section class="tc-sec tc-card tc-overdue"><h3>Overdue To-Dos</h3><ul class="tc-list">${d.overdue.map(x => row(x, `<span class="overdue-badge">Overdue ${esc(a.overdueText(d.now - (x.ev.allDay ? a.startOfDay(x.o.start) : (x.o.end || x.o.start))))}</span>`)).join('')}</ul></section>`;
-    $('todayBody').innerHTML = h;
-    if (window.SandySimple) { try { SandySimple.bind($('todayBody')); } catch (e) { console.warn('simple:', e); } }
-    if (window.SandyCollapse) { try { SandyCollapse.apply($('todayBody')); } catch (e) { console.warn('collapse:', e); } }
+    const lateKeys = [...pending];
+    paint(false, partial);
+    todayLast.day = tk; todayLast.simple = simpleOn; todayLast.parts = Object.assign({}, last, got);
+    for (const k of ['travel', 'tomorrow']) if (!(k in got)) delete todayLast.parts[k]; // objects with live hooks: only fresh ones
+    const wkFocus = !!got.weekly && (wkForce || new URLSearchParams(location.search).get('si') === 'weekly');
     if (wkFocus && window.SandyWeekly) { try { SandyWeekly.focusCard(); } catch (_) {} }
-    if (window.SandyLeave) SandyLeave.render($('tcLeave'), d.items, d.now).catch(e => console.warn('leave-by:', e));
-    if (tv) tv.run();
+    const tv = got.travel, tm = got.tomorrow;
+    if (tv && tv.run) tv.run();
     if (tm) SandyTomorrow.fillLeave($('tmLeave'), tm).catch(e => console.warn('tomorrow leave-by:', e));
+    // a slow lookup that finishes later: one quiet repaint with it (its result is cached by then)
+    if (lateKeys.length && !late) allDone.then(() => { if (tok === todayTok) renderToday({ late: true }); });
   }
 
   // ------------------------------------------------------------------ To-Do

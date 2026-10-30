@@ -76,6 +76,12 @@
     61: ['🌦️', 'Light rain'], 63: ['🌧️', 'Rain'], 65: ['🌧️', 'Heavy rain'], 66: ['🌧️', 'Freezing rain'], 67: ['🌧️', 'Freezing rain'],
     71: ['🌨️', 'Light snow'], 73: ['🌨️', 'Snow'], 75: ['❄️', 'Heavy snow'], 77: ['🌨️', 'Snow grains'], 80: ['🌦️', 'Showers'], 81: ['🌧️', 'Showers'], 82: ['⛈️', 'Heavy showers'],
     85: ['🌨️', 'Snow showers'], 86: ['❄️', 'Heavy snow showers'], 95: ['⛈️', 'Thunderstorms'], 96: ['⛈️', 'Thunderstorms, hail'], 99: ['⛈️', 'Thunderstorms, hail'] };
+  // external lookups never hold Today up: give up after 2.5 s and try again next time (t148u speed)
+  function tfetch(url, opts, ms = 2500) {
+    const ac = typeof AbortController === 'function' ? new AbortController() : null;
+    const t = ac ? setTimeout(() => ac.abort(), ms) : null;
+    return fetch(url, Object.assign({}, opts || {}, ac ? { signal: ac.signal } : {})).finally(() => { if (t) clearTimeout(t); });
+  }
   const wxMem = new Map();
   function readWx() { try { return JSON.parse(localStorage.getItem(WX_KEY) || '{}'); } catch (_) { return {}; } }
   function putWx(k, v) { try { const c = readWx(); c[k] = v; for (const x of Object.keys(c)) if (Date.now() - c[x].t > DAY) delete c[x]; localStorage.setItem(WX_KEY, JSON.stringify(c)); } catch (_) {} }
@@ -86,18 +92,21 @@
     let hit = wxMem.get(k) || readWx()[k];
     if (!hit || Date.now() - hit.t > WX_TTL) {
       if (!hit && Date.now() - (wxMem.get('f:' + k) || 0) < 10 * MIN) return { ok: false, why: 'fail' }; // failed recently: don't hammer the service
-      if (!wxMem.has('p:' + k)) wxMem.set('p:' + k, (async () => {
+      const refresh = () => { if (!wxMem.has('p:' + k)) wxMem.set('p:' + k, (async () => {
         try {
           const q = new URLSearchParams({ latitude: (+lat).toFixed(3), longitude: (+lon).toFixed(3), hourly: 'temperature_2m,precipitation_probability,weather_code,wind_speed_10m',
             temperature_unit: 'fahrenheit', wind_speed_unit: 'mph', timezone: 'America/Chicago', start_date: date, end_date: date });
-          const r = await fetch(WX_URL + '?' + q); if (!r.ok) return null;
+          const r = await tfetch(WX_URL + '?' + q); if (!r.ok) return null;
           const j = await r.json(); const h = j && j.hourly; if (!h || !Array.isArray(h.time)) return null;
           const v = { t: Date.now(), time: h.time, temp: h.temperature_2m, pop: h.precipitation_probability, code: h.weather_code, wind: h.wind_speed_10m };
           wxMem.set(k, v); putWx(k, v); return v;
         } catch (_) { return null; } finally { wxMem.delete('p:' + k); }
-      })());
-      const fresh = await wxMem.get('p:' + k) || null; if (fresh) hit = fresh;
-      else { wxMem.set('f:' + k, Date.now()); if (!hit) return { ok: false, why: 'fail' }; }
+      })()); return wxMem.get('p:' + k); };
+      if (hit) refresh().then(v => { if (!v) wxMem.set('f:' + k, Date.now()); }); // stale: show the last forecast now, refresh behind it
+      else {
+        const fresh = await refresh() || null; if (fresh) hit = fresh;
+        else { wxMem.set('f:' + k, Date.now()); return { ok: false, why: 'fail' }; }
+      }
     }
     const want = `${date}T${String(at.getUTCHours()).padStart(2, '0')}:00`;
     const i = hit.time.indexOf(want); if (i < 0 || hit.temp[i] == null) return { ok: false, why: 'fail' };

@@ -92,6 +92,12 @@
     } catch (_) {}
   }
 
+  // external lookups never hold Today up: give up after 2.5 s and try again next time (t148u speed)
+  function tfetch(url, opts, ms = 2500) {
+    const ac = typeof AbortController === 'function' ? new AbortController() : null;
+    const t = ac ? setTimeout(() => ac.abort(), ms) : null;
+    return fetch(url, Object.assign({}, opts || {}, ac ? { signal: ac.signal } : {})).finally(() => { if (t) clearTimeout(t); });
+  }
   /** Hourly forecast point. Prefer SandyTravel.weather when present (shared cache). */
   async function forecastAt(lat, lon, at, now) {
     if (window.SandyTravel && typeof SandyTravel.weather === 'function') {
@@ -110,7 +116,7 @@
             temperature_unit: 'fahrenheit', wind_speed_unit: 'mph',
             timezone: 'America/Chicago', start_date: date, end_date: date
           });
-          const r = await fetch(WX_URL + '?' + q); if (!r.ok) return null;
+          const r = await tfetch(WX_URL + '?' + q); if (!r.ok) return null;
           const j = await r.json(); const h = j && j.hourly; if (!h || !Array.isArray(h.time)) return null;
           const v = { t: Date.now(), time: h.time, temp: h.temperature_2m, pop: h.precipitation_probability, code: h.weather_code, wind: h.wind_speed_10m };
           wxMem.set(k, v); putWx(k, v); return v;
@@ -135,18 +141,26 @@
   /** NWS active alerts near a point (US). Returns short titles for winter/severe only. */
   async function nwsAlerts(lat, lon) {
     const k = `${(+lat).toFixed(2)},${(+lon).toFixed(2)}`;
+    let stale = null;
     try {
       const cache = JSON.parse(localStorage.getItem(ALERT_KEY) || '{}');
       const hit = cache[k];
       if (hit && Date.now() - hit.t < ALERT_TTL) return hit.list || [];
+      if (hit) stale = hit.list || [];
     } catch (_) {}
-    let list = [];
+    // stale (under a day old): show it now, refresh behind it
+    if (stale) { if (!alertsBusy.has(k)) { alertsBusy.add(k); fetchAlerts(lat, lon, k).finally(() => alertsBusy.delete(k)); } return stale; }
+    return fetchAlerts(lat, lon, k);
+  }
+  const alertsBusy = new Set();
+  async function fetchAlerts(lat, lon, k) {
+    let list = [], ok = false;
     try {
-      const r = await fetch(`https://api.weather.gov/alerts/active?point=${(+lat).toFixed(4)},${(+lon).toFixed(4)}`, {
+      const r = await tfetch(`https://api.weather.gov/alerts/active?point=${(+lat).toFixed(4)},${(+lon).toFixed(4)}`, {
         headers: { Accept: 'application/geo+json', 'User-Agent': 'SANDY-calendar (weather heads-up)' }
       });
       if (r.ok) {
-        const j = await r.json();
+        const j = await r.json(); ok = true;
         const feats = (j && j.features) || [];
         list = feats.map(f => {
           const p = f.properties || {};
@@ -157,6 +171,7 @@
         }).slice(0, 3);
       }
     } catch (_) {}
+    if (!ok) return list; // failed or timed out: quiet, and not remembered as "no alerts"
     try {
       const cache = JSON.parse(localStorage.getItem(ALERT_KEY) || '{}');
       cache[k] = { t: Date.now(), list };
@@ -262,19 +277,28 @@
     if (!items.length) return null;
 
     const lines = [];
+    // look up every place at once (they used to go one after another), then keep the first MAX_LINES in order (t148u speed)
+    const alertP = new Map();
     const seenAlert = new Set();
-    for (const x of items) {
+    const lookup = x => (async () => {
+      try {
+        const pt = await resolvePoint(x.ev);
+        if (!pt) return null;
+        const ak = `${pt.lat.toFixed(2)},${pt.lon.toFixed(2)}`;
+        if (!alertP.has(ak)) alertP.set(ak, Promise.resolve().then(() => nwsAlerts(pt.lat, pt.lon)).catch(() => []));
+        const [w, al] = await Promise.all([forecastAt(pt.lat, pt.lon, x.o.start, now), alertP.get(ak)]);
+        return { pt, w, al, ak };
+      } catch (_) { return null; }
+    })();
+    let looked = [];
+    for (let i = 0; i < items.length; i++) {
       if (lines.length >= MAX_LINES) break;
-      const pt = await resolvePoint(x.ev);
-      if (!pt) continue;
-      const w = await forecastAt(pt.lat, pt.lon, x.o.start, now);
+      if (i % 12 === 0) looked = await Promise.all(items.slice(i, i + 12).map(lookup)); // 12 at a time
+      const r = looked[i % 12]; if (!r) continue;
+      const x = items[i], pt = r.pt, w = r.w;
+      // alerts count once per distinct point (first event there), as before
       let alerts = [];
-      // One NWS lookup per distinct point per run
-      const ak = `${pt.lat.toFixed(2)},${pt.lon.toFixed(2)}`;
-      if (!seenAlert.has(ak)) {
-        seenAlert.add(ak);
-        try { alerts = await nwsAlerts(pt.lat, pt.lon); } catch (_) { alerts = []; }
-      }
+      if (!seenAlert.has(r.ak)) { seenAlert.add(r.ak); alerts = r.al || []; }
       const evl = evaluate(w, alerts);
       if (!evl) continue;
       const dayN = Math.round((a.startOfDay(x.o.start) - today) / DAY);
