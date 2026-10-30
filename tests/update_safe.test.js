@@ -93,7 +93,7 @@ const rest = (p, o = {}) => fetch(`${URL_}/rest/v1/${p}`, { ...o, headers: { ...
     await p2.route(/supabase\.co\/rest\//, r => r.abort('failed'));
     p2.on('pageerror', e => console.log('PAGEERR', e.message));
     await p2.reload(); await p2.waitForFunction(() => window.__app && __app.Store && window.SandyNav, null, { timeout: 60000 });
-    await p2.waitForTimeout(2000);
+    const tD = Date.now(); await p2.waitForFunction(() => /QA update-safe event/.test(document.getElementById('todayBody').textContent), null, { timeout: 10000 }).catch(() => {}); console.log('D: Today shows the saved copy after', Date.now() - tD, 'ms');
     const d = await p2.evaluate(async () => ({ ev: (await __app.Store.list()).some(e => /QA update-safe event/.test(e.title)), today: /QA update-safe event/.test(document.getElementById('todayBody').textContent), offline: __app.Store.offline }));
     assert(d.ev && d.today && d.offline, `D: cold open without Supabase shows the saved copy ${JSON.stringify(d)}`);
     await p2.evaluate(() => SandyNav.go('todo')); await p2.waitForTimeout(3000);
