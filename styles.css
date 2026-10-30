@@ -118,6 +118,7 @@ dialog .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px
 .ac-pop { position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 20; background: #fff; border: 1px solid #d1d5db;
   border-radius: 10px; box-shadow: 0 10px 24px rgba(0,0,0,.15); overflow: hidden; }
 .ac-list { margin: 0; padding: 4px 0; list-style: none; max-height: 260px; overflow-y: auto; }
+.ac-pop.ac-up { top: auto; bottom: calc(100% + 2px); box-shadow: 0 -10px 24px rgba(17,24,39,.14); } /* opens upward when there's more room above (t148u) */
 .ac-list li { padding: 8px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 1px; min-height: 44px; justify-content: center; }
 .ac-list li[aria-selected="true"], .ac-list li:hover { background: #f3f4f6; }
 .ac-list .ac-main { font-size: 14px; color: var(--text); font-weight: 500; }
@@ -600,7 +601,7 @@ html.dark .push-nudge .onb-err .push-fix, html.dark .push-nudge .onb-err p { col
 #briefing .brief-head .seg { cursor: default; }
 /* Event editor: Save/Cancel always visible (sticky footer inside the sheet, iPhone safe-area aware) */
 #eventDialog .dialog-actions {
-  position: sticky; bottom: 0; z-index: 3; background: #fff;
+  position: sticky; bottom: 0; z-index: 30; background: #fff; /* above the location list (z 20): Save is never covered (t148u) */
   margin: 6px -18px -18px; padding: 10px 18px max(12px, env(safe-area-inset-bottom));
   border-top: 1px solid #e5e7eb; box-shadow: 0 -6px 14px rgba(17,24,39,.06);
 }
@@ -1211,6 +1212,7 @@ html.dark .cal-dlg .cal-edit label, html.dark .cal-dlg .cal-new label { color: #
 .ac-list .ac-sec, .ac-attrib { color: #4b5563; }
 .ac-list li[aria-selected="true"] { background: #e8eefc; box-shadow: inset 3px 0 0 #2563eb; }
 html.dark .ac-pop { background: var(--panel); border-color: #334155; box-shadow: 0 12px 28px rgba(0, 0, 0, .55); color-scheme: dark; }
+html.dark .ac-pop.ac-up { box-shadow: 0 -12px 28px rgba(0, 0, 0, .55); }
 html.dark .ac-list li { color: var(--text); }
 html.dark .ac-list li:hover { background: #1c2638; }
 html.dark .ac-list li[aria-selected="true"] { background: #1e3a5f; box-shadow: inset 3px 0 0 #60a5fa; }

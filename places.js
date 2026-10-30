@@ -161,8 +161,27 @@
         : 'Suggestions from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a> contributors via <a href="https://photon.komoot.io" target="_blank" rel="noopener">Photon</a>';
       pop.hidden = false; input.setAttribute('aria-expanded', 'true');
       status.textContent = `${res.length} suggestion${res.length === 1 ? '' : 's'}. Use up and down arrows to choose.`;
-      pop.scrollIntoView({ block: 'nearest' });
+      place();
     }
+    // Fit the list into the space that is really visible: above the editor's sticky Save bar and above the
+    // on-screen keyboard (visualViewport). Opens upward when there is more room above (iPad / tablet editor,
+    // where Location sits near the bottom of a short centred sheet). t148u: it used to cover Save.
+    function place() {
+      pop.classList.remove('ac-up'); list.style.maxHeight = '';
+      const vv = window.visualViewport; const vTop = vv ? vv.offsetTop : 0; const vBot = vv ? vv.offsetTop + vv.height : innerHeight;
+      const dlg = input.closest('dialog'); const foot = dlg && dlg.querySelector('.dialog-actions');
+      const ir = input.getBoundingClientRect();
+      const bottom = Math.min(vBot, foot ? foot.getBoundingClientRect().top : vBot);
+      const top = Math.max(vTop, dlg ? dlg.getBoundingClientRect().top : 0);
+      const extra = (attrib.offsetHeight || 24) + 10;
+      const below = bottom - ir.bottom - 6, above = ir.top - top - 6;
+      const want = Math.min(260, list.scrollHeight) + extra;
+      const up = below < want && above > below;
+      if (up) pop.classList.add('ac-up');
+      list.style.maxHeight = Math.max(96, Math.min(260, (up ? above : below) - extra)) + 'px';
+    }
+    // iOS doesn't blur the input when you tap plain page area, so close on any press outside the field + list.
+    document.addEventListener('pointerdown', e => { if (!pop.hidden && !wrap.contains(e.target)) { seq++; lastQ = ''; close(); } }, true);
     async function search(q) {
       const my = ++seq;
       let res = [], provider = 'osm';

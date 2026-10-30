@@ -992,6 +992,24 @@
 
   // ---------- Editor dialog ----------
   const dlg = document.getElementById('eventDialog');
+  // Keep the editor's Save bar above the on-screen keyboard (t148u). iPad Safari (and Android Chrome 108+) only shrink
+  // the *visual* viewport when the keyboard opens, so the centred sheet's bottom (Save) sat behind the keyboard.
+  // While the keyboard is up, the sheet is top-aligned in the visible area and capped to its height (it scrolls).
+  (function fitEditorToKeyboard() {
+    const vv = window.visualViewport; if (!vv) return;
+    const reset = () => { if (!dlg.classList.contains('kb-fit')) return; dlg.classList.remove('kb-fit'); dlg.style.maxHeight = dlg.style.marginTop = dlg.style.marginBottom = ''; };
+    const apply = () => {
+      if (!dlg.open) return reset();
+      const kb = window.innerHeight - vv.height;
+      if (kb < 120) return reset();
+      dlg.classList.add('kb-fit');
+      dlg.style.maxHeight = Math.max(240, Math.round(vv.height - 16)) + 'px';
+      dlg.style.marginTop = Math.round(vv.offsetTop + 8) + 'px'; dlg.style.marginBottom = 'auto';
+    };
+    vv.addEventListener('resize', apply); vv.addEventListener('scroll', apply);
+    dlg.addEventListener('close', reset);
+    window.__fitEditor = apply; // tests
+  })();
   const form = document.getElementById('eventForm');
   const f = name => form.elements[name];
   const fCal = document.getElementById('fCalendar');
