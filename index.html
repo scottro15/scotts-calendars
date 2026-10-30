@@ -102,7 +102,7 @@
         <div class="qa-field"><div id="qaHl" class="qa-hl" aria-hidden="true"></div><input id="qaText" name="task-jot" maxlength="2000" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" placeholder="Jot a to-do or note…" aria-label="Jot a to-do or note" enterkeyhint="done"></div>
         <div class="qa-opts">
           <select id="qaKind" aria-label="Type"><option value="todo">To-do</option><option value="note">Note</option></select>
-          <select id="qaCat" aria-label="Category"><option value="">No category</option></select>
+          <select id="qaCat" aria-label="Category"><option value="">Category</option></select>
           <button class="primary" id="qaAdd">Add</button>
         </div>
       </form>
@@ -130,7 +130,7 @@
 
     <section id="page-search" class="tab-page" aria-labelledby="searchH" hidden>
       <div class="page-head"><h1 id="searchH">Search</h1></div>
-      <input type="search" id="searchBox" class="search-box" placeholder="Search events, to-dos, notes, settings…" aria-label="Search SANDY" enterkeyhint="search" autocomplete="off">
+      <input type="search" id="searchBox" class="search-box" placeholder="Search events, to-dos, notes…" aria-label="Search SANDY" enterkeyhint="search" autocomplete="off">
       <div id="searchResults" class="search-results" aria-live="polite"></div>
           <section id="reviewSection" class="review pf-card" aria-labelledby="reviewTitle">
             <h2 id="reviewTitle">Notes Review <small id="reviewCount"></small></h2>
@@ -175,7 +175,7 @@
         <label class="pf-row"><span>Default view (Home)</span>
           <select id="defaultView"><option value="last">Last used</option><option value="timeGridDay">Day</option><option value="timeGridWeek">Week</option><option value="dayGridMonth">Month</option><option value="season">Season (Month + Season briefing)</option><option value="listWeek">List</option></select></label>
         <label class="pf-row pf-stack"><span><span class="pf-lbl">Time format</span><small class="pf-note" id="timeFmtNote">Auto follows your phone</small></span>
-          <select id="timeFormat"><option value="auto">Auto (phone setting)</option><option value="12">12-hour (2:30 PM)</option><option value="24">24-hour (14:30)</option></select></label>
+          <select id="timeFormat"><option value="auto">Auto</option><option value="12">12-hour (2:30 PM)</option><option value="24">24-hour (14:30)</option></select></label>
       </section>
       <section id="homeSection" class="pf-card">
         <h2>Home <span class="pf-h-sub">for leave-by times</span></h2>
@@ -263,7 +263,7 @@
         <div class="ac-pop tac-pop" id="titleAcPop" hidden><ul class="ac-list" id="titleAcList" role="listbox" aria-label="Past events"></ul></div>
       </div>
 
-      <div class="row">
+      <div class="row cal-cat-row">
         <label>Calendar <select name="calendar" id="fCalendar"></select></label>
         <label>Category <select name="category" id="fCategory"></select></label>
       </div>

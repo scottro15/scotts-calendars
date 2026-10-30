@@ -1020,6 +1020,15 @@
   fCal.innerHTML = CALENDARS.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
   weekdayWrap.innerHTML = DOW.map((d, i) => `<label><input type="checkbox" name="wd" value="${i}"><span>${d}</span></label>`).join('');
   let editing = null; // {id, occKey, recurring, exception}
+  // Calendar picker text fit (t148u): if the chosen calendar's full name can't fit (iPhone SE), show its short name.
+  function fitCalSelect() {
+    if (!fCal.offsetParent) return;
+    const cs = getComputedStyle(fCal), cx = (fitCalSelect.cv ||= document.createElement('canvas').getContext('2d'));
+    cx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const avail = fCal.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 24;
+    for (const o of fCal.options) { const c = CAL[o.value]; if (!c) continue; o.textContent = c.short && cx.measureText(c.name).width > avail ? c.short : c.name; }
+  }
+  window.addEventListener('resize', () => { if (dlg.open) fitCalSelect(); });
   const locAC = window.Places ? Places.attach(f('location')) : null; // location autocomplete (places.js)
   dlg.addEventListener('close', () => locAC && locAC.reset());
   // Title autofill from your own past events (titleac.js). New events/to-dos only; the date being created is kept.
@@ -1179,7 +1188,7 @@
     editing.snap = formSnap(); editing.seriesSnap = seriesSnap();
     if (locAC) { locAC.reset(); Places.warm(); } // lazy-load Google Places only once the form opens
     if (titleAC) { titleAC.reset(); if (!ev) titleAC.refresh(); }
-    dlg.showModal();
+    dlg.showModal(); fitCalSelect();
     if (!ev) f('event-title').focus();
   }
 

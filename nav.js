@@ -280,7 +280,7 @@
     const chips = [['all', 'All', null], ['inbox', 'Inbox', null], ...calendars.map(c => [c.id, c.short || c.name, c.color])];
     $('todoFilter').innerHTML = chips.map(([id, label, color]) => `<button type="button" data-f="${esc(id)}" aria-pressed="${todoUI.filter === id}" title="${esc(label)}"${color ? ` style="--c:${esc(color)}"` : ''}>${color ? '<span class="dot"></span>' : ''}<span class="chip-lbl">${esc(label)}</span></button>`).join('');
     $('todoGroup').value = todoUI.group; $('todoShowDone').checked = todoUI.showDone;
-    $('qaCat').innerHTML = '<option value="">No category</option>' + cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+    $('qaCat').innerHTML = '<option value="">Category</option>' + cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
     const avail = Inbox.available && Cats.available;
     if ($('qaText').value) qaPaint();
     $('qaText').disabled = $('qaAdd').disabled = !Inbox.available;

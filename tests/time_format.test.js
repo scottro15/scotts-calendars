@@ -60,7 +60,7 @@ const CONTRAST = `(() => {
     // ---- Profile setting
     await p.evaluate(() => SandyNav.go('profile')); await p.waitForTimeout(400);
     const sel = await p.$eval('#timeFormat', s => ({ v: s.value, opts: [...s.options].map(o => o.textContent), note: document.getElementById('timeFmtNote').textContent }));
-    assert(sel.v === fmt && sel.opts.join('|') === 'Auto (phone setting)|12-hour (2:30 PM)|24-hour (14:30)', `${tag}: Profile → Time format shows ${fmt}-hour (${sel.opts.join(' / ')})`);
+    assert(sel.v === fmt && sel.opts.join('|') === 'Auto|12-hour (2:30 PM)|24-hour (14:30)', `${tag}: Profile → Time format shows ${fmt}-hour (${sel.opts.join(' / ')})`);
     assert(/now 12-hour/.test(sel.note), `${tag}: Auto note says the phone is on 12-hour (en-US): ${sel.note}`);
     const cr = await p.evaluate(() => { const s = document.getElementById('timeFormat'), l = s.closest('.pf-row'); let bg = 'rgba(0, 0, 0, 0)', e = s;
       while (e && /rgba\(0, 0, 0, 0\)|transparent/.test(bg)) { bg = getComputedStyle(e).backgroundColor; e = e.parentElement; }

@@ -47,7 +47,11 @@
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !sheet.hidden) close(); });
     document.getElementById('aiBrief').addEventListener('click', () => { addMsg('user', 'Brief me'); addMsg('assistant', null, briefHtml()); });
     const ta = document.getElementById('aiText');
-    ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'; });
+    ta.addEventListener('input', fitAiText);
+    window.addEventListener('resize', () => { if (!sheet.hidden) fitAiText(); });
+    // refit when the box's width settles (sheet layout, mic button, web font) — width changes only, so no loop
+    if (window.ResizeObserver) { let lastW = 0; new ResizeObserver(([e]) => { const w = Math.round(e.contentRect.width); if (w && w !== lastW) { lastW = w; fitAiText(); } }).observe(ta); }
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!sheet.hidden) fitAiText(); });
     ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
     document.getElementById('aiForm').addEventListener('submit', e => { e.preventDefault(); send(); });
     setupMic(ta);
@@ -55,9 +59,31 @@
     document.getElementById('aiHist').addEventListener('click', () => (document.getElementById('aiHistPanel').hidden ? showHistory() : hideHistory()));
     window.SandyAI = { open, close, briefHtml, buildContext, applyProposal, briefData, Chats, newChat, openChat, showHistory, hideHistory, current: () => ({ id: chatId, title: chatTitle, history: history.slice() }) };
   }
+  // The message box (t148u item 3): text and placeholder always sit fully inside it. Grows with the text
+  // (border included: the old code set height = scrollHeight under border-box, clipping 2px and the last
+  // line's padding) up to its CSS max-height (5 lines), then scrolls. The example placeholder is only used
+  // when it fits on one line; narrower phones get a shorter one instead of a clipped second line.
+  const AI_PH = ['Ask or tell me… e.g. “Add film with Nick tomorrow 4pm”', 'Ask or tell me anything…', 'Ask or tell me…'];
+  function fitAiText() {
+    const ta = document.getElementById('aiText'); if (!ta || !ta.offsetParent) return;
+    ta.style.height = 'auto'; ta.style.overflowY = 'hidden';
+    if (!ta.value) {
+      // measure by width: WebKit leaves placeholder overflow out of scrollHeight
+      const cs = getComputedStyle(ta), cx = (fitAiText.cx ||= document.createElement('canvas').getContext('2d'));
+      cx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      const room = ta.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2;
+      ta.placeholder = AI_PH.find(ph => cx.measureText(ph).width <= room) || AI_PH[AI_PH.length - 1];
+    }
+    const max = parseFloat(getComputedStyle(ta).maxHeight) || 140;
+    const want = ta.scrollHeight + (ta.offsetHeight - ta.clientHeight);
+    ta.style.height = Math.min(want, max) + 'px';
+    ta.style.overflowY = want > max + 1 ? 'auto' : 'hidden';
+    ta.classList.toggle('ai-multi', want > parseFloat(getComputedStyle(ta).minHeight) + 4);
+    if (want > max && document.activeElement === ta && ta.selectionEnd === ta.value.length) ta.scrollTop = ta.scrollHeight;
+  }
   function open() {
     const s = document.getElementById('aiSheet'); closeTok++; s.classList.remove('ai-closing', 'ai-anim'); s.hidden = false; void s.offsetWidth; s.classList.add('ai-anim'); document.body.classList.add('ai-open');
-    if (!document.getElementById('aiLog').children.length) greet();
+    if (!document.getElementById('aiLog').children.length) greet(); requestAnimationFrame(fitAiText); setTimeout(fitAiText, 420); // again once the open animation has settled
   }
   let closeTok = 0;
   function close() {
@@ -111,7 +137,7 @@
   async function send() {
     const ta = document.getElementById('aiText'); const text = ta.value.trim();
     if (!text || busy) return;
-    stopMic(); ta.value = ''; ta.style.height = 'auto';
+    stopMic(); ta.value = ''; fitAiText();
     hideHistory(); addMsg('user', text); history.push({ role: 'user', content: text }); persist();
     if (!ENDPOINT) { addMsg('assistant', 'The assistant needs the online (signed-in) version of SANDY.'); return; }
     busy = true; setChatBtns(); const wait = addMsg('assistant thinking typing', null, '<span class="dot"></span><span class="dot"></span><span class="dot"></span>'); wait.setAttribute('aria-label', 'Sandy Intelligence is typing'); document.getElementById('aiSend').disabled = true;
@@ -198,7 +224,7 @@
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; await persist(true); }
     stopMic(); hideHistory(); chatId = null; chatTitle = ''; chatCreated = null; history = [];
     document.getElementById('aiLog').innerHTML = ''; greet();
-    const ta = document.getElementById('aiText'); ta.value = ''; ta.style.height = 'auto'; ta.focus({ preventScroll: true });
+    const ta = document.getElementById('aiText'); ta.value = ''; fitAiText(); ta.focus({ preventScroll: true });
   }
   async function openChat(id) {
     if (busy) return;
