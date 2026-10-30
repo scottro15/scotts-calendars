@@ -1022,6 +1022,41 @@
   let editing = null; // {id, occKey, recurring, exception}
   const locAC = window.Places ? Places.attach(f('location')) : null; // location autocomplete (places.js)
   dlg.addEventListener('close', () => locAC && locAC.reset());
+  // Title autofill from your own past events (titleac.js). New events/to-dos only; the date being created is kept.
+  const titleAC = window.SandyTitleAC ? SandyTitleAC.attach(f('event-title'), {
+    enabled: () => !!(editing && !editing.id && dlg.open),
+    cacheKey: async () => 'sandy.titleac.' + ((signedInUser && signedInUser.id) || Store.mode || 'local'),
+    load: () => Store.list(),
+    describe(it) {
+      const c = CAL[it.calendar]; const bits = [c ? c.name : ''];
+      if (it.kind === 'task') bits.push('To-do');
+      if (it.time) {
+        const tf = window.SandyTime ? SandyTime.fmtHM(it.time, { compact: true }) : it.time;
+        const h = Math.floor(it.dur / 60), m = it.dur % 60;
+        bits.push(`${tf} · ${h ? h + 'h' : ''}${h && m ? ' ' : ''}${m ? m + 'm' : ''}`);
+      } else if (it.allDay) bits.push('All day');
+      if (it.location) bits.push(it.location);
+      return { sec: bits.filter(Boolean).join(' · '), color: c && c.color };
+    },
+    apply(it) {
+      // the date being created stays; everything else comes from the most recent event with this title
+      const day = f('startDate').value || ymd(nowWall());
+      const k = form.querySelector(`input[name=kind][value=${it.kind === 'task' ? 'task' : 'event'}]`); if (k) k.checked = true;
+      const cal = CAL[it.calendar] ? it.calendar : fCal.value;
+      fCal.value = cal; fillCategories(cal, it.category || null);
+      f('allDay').checked = !!it.allDay;
+      if (it.allDay) { const e = parseLocal(day); e.setUTCDate(e.getUTCDate() + (it.days || 0)); f('endDate').value = ymd(e); }
+      else if (it.time) { f('startTime').value = it.time; const s = parseLocal(`${day}T${it.time}`); writeEnd(new Date(s.getTime() + (it.dur || 60) * 60000), false); }
+      f('location').value = it.location || ''; f('event-notes').value = it.notes || '';
+      if (it.kind === 'task' && it.scope) f('scope').value = it.scope;
+      renderReminders(it.reminders || []);
+      syncFormUI(); clampEnd(); syncEndMin(); rememberSE();
+      if (locAC) locAC.reset();
+      if (ckCtx) renderChecklist();
+      form.classList.remove('tac-filled'); void form.offsetWidth; form.classList.add('tac-filled');
+    },
+  }) : null;
+  dlg.addEventListener('close', () => titleAC && titleAC.reset());
 
   function fillCategories(calId, selected) {
     const presets = [...CAL[calId].categories, ...((customCats[calId] || []).filter(c => !CAL[calId].categories.includes(c)))];
@@ -1143,6 +1178,7 @@
     clampEnd(); syncEndMin(); rememberSE();
     editing.snap = formSnap(); editing.seriesSnap = seriesSnap();
     if (locAC) { locAC.reset(); Places.warm(); } // lazy-load Google Places only once the form opens
+    if (titleAC) { titleAC.reset(); if (!ev) titleAC.refresh(); }
     dlg.showModal();
     if (!ev) f('event-title').focus();
   }

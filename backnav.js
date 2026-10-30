@@ -23,6 +23,7 @@
       if (!d._bnKey) d._bnKey = 'dlg' + (++seq);
       out.push({ k: d._bnKey, close: () => { const ev = new Event('cancel', { cancelable: true }); d.dispatchEvent(ev); if (!ev.defaultPrevented && d.open) d.close(); } });
     }
+    if (window.SandyTitleAC && SandyTitleAC.isOpen()) out.push({ k: 'tac', close: () => SandyTitleAC.close() }); // title autofill list: closes before the editor
     const qs = window.SandyQuickSheet;
     if (qs && qs.isOpen) out.push({ k: 'qs', close: () => qs.close() });
     const ai = $('aiSheet');

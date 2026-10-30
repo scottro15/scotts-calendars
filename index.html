@@ -258,7 +258,10 @@
         <label><input type="radio" name="kind" value="task"> Task / to-do</label>
       </div>
 
-      <label>Title <input id="event-title" name="event-title" required placeholder="e.g. Film study – Maryville" autocomplete="off" autocapitalize="sentences" spellcheck="true"></label>
+      <div class="tac-wrap">
+        <label>Title <input id="event-title" name="event-title" required placeholder="e.g. Film study – Maryville" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="true"></label>
+        <div class="ac-pop tac-pop" id="titleAcPop" hidden><ul class="ac-list" id="titleAcList" role="listbox" aria-label="Past events"></ul></div>
+      </div>
 
       <div class="row">
         <label>Calendar <select name="calendar" id="fCalendar"></select></label>
@@ -410,7 +413,8 @@
   </nav>
   <script src="config.js"></script>
   <script src="storage.js?v=20261029-ipad-save"></script>
-  <script src="places.js"></script>
+  <script src="places.js?v=20261029-ipad-save"></script>
+  <script src="titleac.js?v=20261029-ipad-save"></script>
   <script src="motion.js?v=20261029-ipad-save"></script>
   <script src="account.js?v=20261029-ipad-save"></script>
   <script src="launch.js?v=20261029-ipad-save"></script>
