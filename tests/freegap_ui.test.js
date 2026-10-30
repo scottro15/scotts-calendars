@@ -60,7 +60,9 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); console.log('o
     await S.save(task({ title: 'Organize files 2h', priority: 1, start: '2026-10-26', end: '2026-10-26' }));
     await window.SandyNav.Inbox.save({ id: crypto.randomUUID(), body: 'Buy stamps', kind: 'todo', done: false, calendar: null, priority: 3 });
   });
-  const goToday = async p => { await p.click('#bottomNav button[data-tab="today"]'); await p.waitForSelector('#todayBody'); await p.waitForTimeout(500); };
+  const goToday = async p => { await p.click('#bottomNav button[data-tab="today"]'); await p.waitForSelector('#todayBody'); await p.waitForTimeout(500);
+    // 5c: phones show one suggestion; open "More ideas" so the free-gap tile is on screen
+    if (await p.$('#tcSuggestions .sug-more[aria-expanded="false"]')) { await p.click('#tcSuggestions .sug-more'); await p.waitForTimeout(250); } };
   const shot = async (p, name, sel = '#tcFreeGap') => {
     await p.evaluate(sel => {
       const t = document.getElementById('toast'); if (t) t.hidden = true;
