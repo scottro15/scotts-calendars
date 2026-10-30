@@ -66,9 +66,9 @@ const PHOTON = { features: ['Maryville University|650 Maryville University Dr|To
       // 2) tomorrow with a typed location, list still open when Save is tapped
       await openNew(); await p.locator('#event-title').tap(); await p.keyboard.type('Tab tomorrow');
       await p.fill('input[name=startDate]', D.tom); await p.fill('input[name=startTime]', '15:30'); await p.fill('input[name=endTime]', '17:00');
-      await p.locator('#fLocation').tap(); await p.keyboard.type('Maryville Univ'); await p.waitForSelector('.ac-pop:not([hidden]) li', { timeout: 5000 });
+      await p.locator('#fLocation').tap(); await p.keyboard.type('Maryville Univ'); await p.waitForSelector('.ac-wrap .ac-pop:not([hidden]) li', { timeout: 5000 });
       assert(await saveHit(), `${N} location list open: Save is still visible and on top`);
-      const pr = await p.evaluate(() => { const pop = document.querySelector('#eventDialog .ac-pop'), r = pop.getBoundingClientRect(), f = document.querySelector('#eventDialog .dialog-actions').getBoundingClientRect(); return { up: pop.classList.contains('ac-up'), overlap: r.bottom > f.top + 1 && r.top < f.top }; });
+      const pr = await p.evaluate(() => { const pop = document.querySelector('#eventDialog .ac-wrap .ac-pop'), r = pop.getBoundingClientRect(), f = document.querySelector('#eventDialog .dialog-actions').getBoundingClientRect(); return { up: pop.classList.contains('ac-up'), overlap: r.bottom > f.top + 1 && r.top < f.top }; });
       assert(!pr.overlap, `${N} list doesn't run under the Save bar (opens ${pr.up ? 'upward' : 'downward'})`);
       if (!dark) await p.screenshot({ path: `${SHOT}${name}-location-list-light.png` }); else await p.screenshot({ path: `${SHOT}${name}-location-list-dark.png` });
       await tapSave();
@@ -77,11 +77,11 @@ const PHOTON = { features: ['Maryville University|650 Maryville University Dr|To
       // 3) other date; pick a suggestion first; tap outside closes the list
       await openNew(); await p.locator('#event-title').tap(); await p.keyboard.type('Tab other');
       await p.fill('input[name=startDate]', D.other);
-      await p.locator('#fLocation').tap(); await p.keyboard.type('Maryville Univ'); await p.waitForSelector('.ac-pop:not([hidden]) li');
+      await p.locator('#fLocation').tap(); await p.keyboard.type('Maryville Univ'); await p.waitForSelector('.ac-wrap .ac-pop:not([hidden]) li');
       await p.locator('#eventDialog h2').tap(); await p.waitForTimeout(250);
-      assert(await p.$eval('#eventDialog .ac-pop', e => e.hidden), `${N} tap outside closes the location list`);
-      await p.locator('#fLocation').fill(''); await p.locator('#fLocation').tap(); await p.keyboard.type('Maryville Univ'); await p.waitForSelector('.ac-pop:not([hidden]) li');
-      await p.locator('#eventDialog .ac-list li').first().tap(); await p.waitForTimeout(300);
+      assert(await p.$eval('#eventDialog .ac-wrap .ac-pop', e => e.hidden), `${N} tap outside closes the location list`);
+      await p.locator('#fLocation').fill(''); await p.locator('#fLocation').tap(); await p.keyboard.type('Maryville Univ'); await p.waitForSelector('.ac-wrap .ac-pop:not([hidden]) li');
+      await p.locator('#eventDialog .ac-wrap .ac-list li').first().tap(); await p.waitForTimeout(300);
       await tapSave(); got = await mine(/^Tab other$/);
       assert(!(await isOpen()) && got.length === 1 && got[0].s.startsWith(D.other) && /650 Maryville/.test(got[0].loc), `${N} other date + picked place saved ${JSON.stringify(got)}`);
       // 4) keyboard up: Save stays reachable above it
