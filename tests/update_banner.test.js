@@ -154,7 +154,7 @@ let n = 0; const ok = (c, m) => { assert(c, m); n++; };
     await ctx.route(/version\.json/, r => r.fulfill({ status: 404, body: 'missing' }));
     await ctx.route(/\?fresh=/, r => r.fulfill({
       status: 200, contentType: 'text/html',
-      body: html.replace(/20\d{6}-[\w]+/g, '20991231-html'),
+      body: html.replace(/20\d{6}-[\w-]+/g, '20991231-html'),
     }));
     await p.evaluate(() => SandyUpdate.check());
     await p.waitForFunction(() => SandyUpdate.pending === '20991231-html', null, { timeout: 5000 });
