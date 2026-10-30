@@ -2182,3 +2182,51 @@ html.dark .lb-row.lb-check .lb-main b { color: #fcd34d; }
 .sug-more:hover, .sug-more:focus-visible { background: rgba(79, 70, 229, .08); outline: none; }
 html.dark .sug-more { color: #a5b4fc; }
 html.dark .sug-more:hover, html.dark .sug-more:focus-visible { background: rgba(165, 180, 252, .12); }
+
+/* ---------- Feedback replies (2026-10-30): status chips, composer, unread dots ---------- */
+@keyframes fbrIn { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes fbrOut { to { opacity: 0; transform: translateY(-4px) scale(.98); } }
+@keyframes fbDotPop { from { transform: scale(0); } 70% { transform: scale(1.25); } to { transform: scale(1); } }
+.fbr-list { list-style: none; margin: 8px 0 0; padding: 0 0 0 10px; border-left: 2px solid #c7d2fe; display: grid; gap: 6px; }
+.fbr-list:empty { display: none; }
+.fbr { padding: 6px 8px; border-radius: 8px; background: #f8fafc; }
+.fbr.unread { background: #eef2ff; box-shadow: inset 3px 0 0 #4f46e5; }
+.fbr-new, .fbr.unread { animation: fbrIn .26s cubic-bezier(.2,.8,.2,1) both; }
+.fbr-compose { animation: fbrIn .22s cubic-bezier(.2,.8,.2,1) both; margin-top: 8px; display: grid; gap: 8px; }
+.fbr-leave { animation: fbrOut .18s ease forwards; pointer-events: none; }
+.fbr-top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.fbr-when { margin-left: auto; }
+.fbr-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #e0e7ff; color: #3730a3; }
+.fbr.st-fixing .fbr-chip, .fbr-preset.st-fixing[aria-pressed="true"] { background: #fef3c7; color: #92400e; }
+.fbr.st-fixed .fbr-chip, .fbr-preset.st-fixed[aria-pressed="true"] { background: #dcfce7; color: #166534; }
+.fbr.st-planned .fbr-chip, .fbr-preset.st-planned[aria-pressed="true"] { background: #f3e8ff; color: #6b21a8; }
+.fbr.st-note .fbr-chip { background: #e5e7eb; color: #374151; }
+.fbr-body { white-space: pre-wrap; margin-top: 4px; color: #111; font-size: 14px; }
+.fbr-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 2px; }
+.fbr-newtag { display: inline-block; padding: 1px 6px; border-radius: 6px; background: #dc2626; color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+.fb-item.fb-unseen { background: linear-gradient(90deg, rgba(79,70,229,.07), transparent 70%); }
+.fbr-open { margin-top: 6px; font-size: 13px; }
+.fbr-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.fbr-preset { border: 1px solid #d1d5db; background: #fff; color: #111; border-radius: 999px; padding: 6px 10px; font-size: 13px; cursor: pointer; transition: background .15s, transform .12s; }
+.fbr-preset:active { transform: scale(.96); }
+.fbr-preset[aria-pressed="true"] { background: #e0e7ff; color: #3730a3; border-color: transparent; font-weight: 600; }
+.fbr-actions { display: flex; justify-content: flex-end; gap: 10px; align-items: center; }
+.fbr-hint { margin: 0; }
+.fbr-none { margin: 6px 0 0; }
+#fbInboxBtn, #myFbBtn { position: relative; }
+.fb-count { display: inline-block; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: 9px; background: #dc2626; color: #fff; font-size: 11px; line-height: 18px; text-align: center; vertical-align: middle; animation: fbDotPop .3s ease both; }
+.fb-dot { position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; border-radius: 50%; background: #dc2626; box-shadow: 0 0 0 2px var(--panel, #fff); animation: fbDotPop .3s ease both; }
+.fb-count[hidden], .fb-dot[hidden], .nav-dot[hidden] { display: none; }
+.nav-dot { animation: fbDotPop .3s ease both; }
+html.dark .fbr-list { border-left-color: #3b4a7a; }
+html.dark .fbr { background: #141c2f; }
+html.dark .fbr.unread { background: #1e2547; box-shadow: inset 3px 0 0 #818cf8; }
+html.dark .fbr-body { color: #f1f5f9; }
+html.dark .fbr-chip, html.dark .fbr-preset[aria-pressed="true"] { background: #312e81; color: #e0e7ff; }
+html.dark .fbr.st-fixing .fbr-chip, html.dark .fbr-preset.st-fixing[aria-pressed="true"] { background: #78350f; color: #fde68a; }
+html.dark .fbr.st-fixed .fbr-chip, html.dark .fbr-preset.st-fixed[aria-pressed="true"] { background: #14532d; color: #bbf7d0; }
+html.dark .fbr.st-planned .fbr-chip, html.dark .fbr-preset.st-planned[aria-pressed="true"] { background: #4c1d95; color: #e9d5ff; }
+html.dark .fbr.st-note .fbr-chip { background: #334155; color: #e2e8f0; }
+html.dark .fbr-preset { background: #0f1729; color: #e2e8f0; border-color: var(--line); }
+html.dark .fb-item.fb-unseen { background: linear-gradient(90deg, rgba(129,140,248,.12), transparent 70%); }
+@media (prefers-reduced-motion: reduce) { .fbr-new, .fbr.unread, .fbr-compose, .fbr-leave, .fb-count, .fb-dot, .nav-dot { animation: none; } }

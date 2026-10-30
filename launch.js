@@ -2,7 +2,8 @@
  *  - Time zone setting (profiles.time_zone; detected from the browser at sign-up, editable here)
  *  - Feedback button -> public.feedback (RLS: you insert your own; only the admin reads everyone's)
  *  - Invites screen (admin only) -> Edge Function "admin-invites" (service role stays server-side)
- *  - Marks the signed-in user's invite as accepted (rpc accept_my_invite). */
+ *  - Marks the signed-in user's invite as accepted (rpc accept_my_invite).
+ *  - Feedback replies: Scott replies with a status; senders see "My feedback" + unread dots (2026-10-30). */
 (function () {
   'use strict';
   const CFG = window.CALENDAR_CONFIG || {};
@@ -29,7 +30,7 @@
   }
 
   // ---------- Feedback ----------
-  function openFeedback({ sb, toast }) {
+  function openFeedback({ sb, toast, after }) {
     const d = openDialog('fb-dlg', `<form method="dialog">
       <h2>Send feedback</h2>
       <p class="muted small">Bugs, ideas, anything confusing. Scott reads every note.</p>
@@ -45,19 +46,125 @@
       go.disabled = true; go.textContent = 'Sending…'; err.textContent = '';
       const { error } = await sb.from('feedback').insert({ body: text, page: (location.pathname + location.search).slice(0, 200), user_agent: navigator.userAgent.slice(0, 400) });
       if (error) { err.textContent = 'Could not send: ' + error.message; go.disabled = false; go.textContent = 'Send'; return; }
-      d.close(); toast && toast('Thanks! Feedback sent');
+      d.close(); toast && toast('Thanks! Feedback sent'); if (typeof after === 'function') after();
     };
   }
 
-  // ---------- Feedback inbox (admin) ----------
-  async function openFeedbackInbox({ sb }) {
-    const d = openDialog('fbin-dlg', `<form method="dialog"><h2>Feedback</h2><div class="fb-list"><p class="muted small">Loading…</p></div>
-      <div class="data-btns"><button value="cancel">Close</button></div></form>`);
+  // ---------- Feedback replies (2026-10-30) ----------
+  // Scott (admin only, RLS) replies with a status preset and/or custom text; the sender sees it in
+  // "My feedback" with an unread dot and gets a web push (send-reminders cron). New feedback badges Scott.
+  const FB_STATUS = { looking: "We're looking into it", fixing: "We're actively fixing it", fixed: "It's fixed", planned: 'Planned for a future update', note: 'Reply from Scott' };
+  const FB_PRESETS = ['looking', 'fixing', 'fixed', 'planned'];
+  const fmtFull = iso => iso ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+  const fbState = { sb: null, uid: null, admin: false, unread: 0, unseen: 0, onChange: null };
+  function replyHtml(r, opts = {}) {
+    const unread = opts.mine && !r.read_at;
+    return `<li class="fbr st-${esc(r.status)}${unread ? ' unread' : ''}${opts.fresh ? ' fbr-new' : ''}" data-id="${esc(r.id)}">
+      <div class="fbr-top"><span class="fbr-chip">${esc(FB_STATUS[r.status] || FB_STATUS.note)}</span>${unread ? '<span class="fbr-newtag">New</span>' : ''}
+        <span class="small muted fbr-when">${esc(fmtFull(r.created_at))}</span></div>
+      ${r.body ? `<div class="fbr-body">${esc(r.body)}</div>` : ''}
+      ${opts.admin ? `<div class="fbr-meta small muted"><span>${r.read_at ? 'Seen ✓' : 'Not seen yet'}</span><button type="button" class="link-btn danger" data-act="del-reply" data-id="${esc(r.id)}">Delete</button></div>` : ''}
+    </li>`;
+  }
+  const leave = el => new Promise(res => { if (!el) return res(); el.classList.add('fbr-leave'); setTimeout(() => { el.remove(); res(); }, 200); });
+  function paintDots() {
+    const n = fbState.admin ? fbState.unseen : 0, u = fbState.unread;
+    const ib = document.getElementById('fbInboxBtn'); if (ib) { let b = ib.querySelector('.fb-count'); if (!b) { b = document.createElement('b'); b.className = 'fb-count'; ib.appendChild(b); } b.hidden = !n; b.textContent = n > 99 ? '99+' : String(n || ''); }
+    const mb = document.getElementById('myFbBtn'); if (mb) { let d = mb.querySelector('.fb-dot'); if (!d) { d = document.createElement('b'); d.className = 'fb-dot'; d.setAttribute('aria-label', 'New reply'); mb.appendChild(d); } d.hidden = !u; }
+    const nav = document.querySelector('.bottom-nav button[data-tab="profile"], button[data-tab="profile"]');
+    if (nav) { let d = nav.querySelector('#navProfileDot'); if (!d) { d = document.createElement('b'); d.id = 'navProfileDot'; d.className = 'nav-badge nav-dot'; nav.appendChild(d); }
+      const tot = u + n; d.hidden = !tot; d.textContent = tot > 9 ? '9+' : String(tot || ''); d.title = u ? 'New reply to your feedback' : 'New feedback'; }
+  }
+  async function refreshCounts() {
+    const sb = fbState.sb; if (!sb) return;
+    try {
+      const r = await sb.from('feedback_replies').select('id', { count: 'exact', head: true }).eq('owner_id', fbState.uid).is('read_at', null);
+      fbState.unread = r.error ? 0 : (r.count || 0);
+      const mine = await sb.from('feedback').select('id', { count: 'exact', head: true }).eq('owner_id', fbState.uid);
+      const mb = document.getElementById('myFbBtn'); if (mb) mb.hidden = !(mine.count > 0);
+      if (fbState.admin) { const a = await sb.from('feedback').select('id', { count: 'exact', head: true }).is('seen_at', null); fbState.unseen = a.error ? 0 : (a.count || 0); }
+    } catch (_) {}
+    paintDots();
+  }
+
+  // ---------- My feedback (any signed-in user) ----------
+  async function openMyFeedback({ sb, toast }) {
+    const d = openDialog('fbin-dlg myfb-dlg', `<form method="dialog"><h2>My feedback</h2>
+      <p class="muted small">Notes you've sent and Scott's updates on them.</p>
+      <div class="fb-list"><p class="muted small">Loading…</p></div>
+      <div class="data-btns"><button type="button" class="myfb-new">💬 Send more feedback</button><button value="cancel">Close</button></div></form>`);
     const box = d.querySelector('.fb-list');
-    const { data, error } = await sb.from('feedback').select('email,body,page,created_at').order('created_at', { ascending: false }).limit(200);
+    d.querySelector('.myfb-new').onclick = () => { d.close(); openFeedback({ sb, toast, after: refreshCounts }); };
+    const [fb, rp] = await Promise.all([
+      sb.from('feedback').select('id,body,created_at').eq('owner_id', fbState.uid).order('created_at', { ascending: false }).limit(100),
+      sb.from('feedback_replies').select('id,feedback_id,status,body,created_at,read_at').eq('owner_id', fbState.uid).order('created_at', { ascending: true })]);
+    if (fb.error) { box.innerHTML = `<p class="onb-err">${esc(fb.error.message)}</p>`; return; }
+    const by = {}; (rp.data || []).forEach(r => (by[r.feedback_id] = by[r.feedback_id] || []).push(r));
+    box.innerHTML = fb.data.length ? fb.data.map(f => { const rs = by[f.id] || []; return `<div class="fb-item" data-id="${esc(f.id)}">
+        <div class="small muted">You · ${esc(fmtFull(f.created_at))}</div><div class="fb-body">${esc(f.body)}</div>
+        ${rs.length ? `<ul class="fbr-list">${rs.map(r => replyHtml(r, { mine: true })).join('')}</ul>` : '<p class="small muted fbr-none">No reply yet. Scott reads every note.</p>'}</div>`; }).join('')
+      : '<p class="muted small">You haven\'t sent any feedback yet.</p>';
+    const first = box.querySelector('.fbr.unread'); if (first) first.closest('.fb-item').scrollIntoView({ block: 'nearest' });
+    if (fbState.unread) { try { await sb.rpc('mark_my_feedback_replies_read'); } catch (_) {} fbState.unread = 0; paintDots(); }
+  }
+
+  // ---------- Feedback inbox (admin) ----------
+  function composerHtml(id) {
+    return `<div class="fbr-compose" data-id="${esc(id)}">
+      <div class="fbr-presets" role="group" aria-label="Status">${FB_PRESETS.map(k => `<button type="button" class="fbr-preset st-${k}" data-st="${k}" aria-pressed="false">${esc(FB_STATUS[k])}</button>`).join('')}</div>
+      <textarea class="fbr-text" rows="2" maxlength="2000" placeholder="Optional message (or write your own reply)"></textarea>
+      <div class="fbr-actions"><button type="button" class="link-btn" data-act="cancel-reply">Cancel</button><button type="button" class="primary" data-act="send-reply" disabled>Send reply</button></div>
+      <p class="small muted fbr-hint">They'll see it in SANDY and get a notification.</p></div>`;
+  }
+  async function openFeedbackInbox({ sb, toast }) {
+    const d = openDialog('fbin-dlg', `<form method="dialog"><h2>Feedback</h2><div class="fb-list"><p class="muted small">Loading…</p></div>
+      <p class="onb-err" role="alert"></p>
+      <div class="data-btns"><button value="cancel">Close</button></div></form>`);
+    const box = d.querySelector('.fb-list'), err = d.querySelector('.onb-err');
+    let { data, error } = await sb.from('feedback').select('id,email,body,page,created_at,seen_at').order('created_at', { ascending: false }).limit(200);
+    let replies = true;
+    if (error) { replies = false; ({ data, error } = await sb.from('feedback').select('email,body,page,created_at').order('created_at', { ascending: false }).limit(200)); } // before the 2026-10-30 migration
     if (error) { box.innerHTML = `<p class="onb-err">${esc(error.message)}</p>`; return; }
-    box.innerHTML = data.length ? data.map(f => `<div class="fb-item"><div class="small muted">${esc(f.email || '')} · ${esc(new Date(f.created_at).toLocaleString())}</div><div class="fb-body">${esc(f.body)}</div></div>`).join('')
+    const rp = replies ? await sb.from('feedback_replies').select('id,feedback_id,status,body,created_at,read_at').order('created_at', { ascending: true }) : { data: [] };
+    if (rp.error) replies = false;
+    const by = {}; (rp.data || []).forEach(r => (by[r.feedback_id] = by[r.feedback_id] || []).push(r));
+    box.innerHTML = data.length ? data.map(f => `<div class="fb-item${replies && !f.seen_at ? ' fb-unseen' : ''}" data-id="${esc(f.id || '')}">
+        <div class="small muted">${replies && !f.seen_at ? '<span class="fbr-newtag">New</span> ' : ''}${esc(f.email || '')} · ${esc(new Date(f.created_at).toLocaleString())}</div><div class="fb-body">${esc(f.body)}</div>
+        ${replies ? `<ul class="fbr-list">${(by[f.id] || []).map(r => replyHtml(r, { admin: true })).join('')}</ul>
+        <button type="button" class="link-btn fbr-open" data-act="reply" data-id="${esc(f.id)}">↩︎ Reply with status</button>` : ''}</div>`).join('')
       : '<p class="muted small">No feedback yet.</p>';
+    if (replies && fbState.unseen) { try { await sb.rpc('mark_feedback_seen'); } catch (_) {} fbState.unseen = 0; paintDots(); }
+    box.onclick = async e => {
+      const pre = e.target.closest('.fbr-preset');
+      if (pre) { const c = pre.closest('.fbr-compose'); const on = pre.getAttribute('aria-pressed') !== 'true';
+        c.querySelectorAll('.fbr-preset').forEach(x => x.setAttribute('aria-pressed', 'false')); pre.setAttribute('aria-pressed', String(on)); syncSend(c); return; }
+      const b = e.target.closest('[data-act]'); if (!b) return; err.textContent = '';
+      const item = b.closest('.fb-item');
+      if (b.dataset.act === 'reply') {
+        if (item.querySelector('.fbr-compose')) return;
+        b.hidden = true; b.insertAdjacentHTML('afterend', composerHtml(b.dataset.id));
+        const c = item.querySelector('.fbr-compose'); c.querySelector('.fbr-text').oninput = () => syncSend(c);
+        c.scrollIntoView({ block: 'nearest' }); return;
+      }
+      if (b.dataset.act === 'cancel-reply') { const c = b.closest('.fbr-compose'); await leave(c); item.querySelector('.fbr-open').hidden = false; return; }
+      if (b.dataset.act === 'send-reply') {
+        const c = b.closest('.fbr-compose'); const p = c.querySelector('.fbr-preset[aria-pressed="true"]'); const text = c.querySelector('.fbr-text').value.trim();
+        const status = p ? p.dataset.st : 'note'; if (!p && !text) return;
+        b.disabled = true; b.textContent = 'Sending…';
+        const { data: row, error: e2 } = await sb.from('feedback_replies').insert({ feedback_id: c.dataset.id, status, body: text || null }).select('id,feedback_id,status,body,created_at,read_at').single();
+        if (e2) { err.textContent = 'Could not send: ' + e2.message; b.disabled = false; b.textContent = 'Send reply'; return; }
+        item.querySelector('.fbr-list').insertAdjacentHTML('beforeend', replyHtml(row, { admin: true, fresh: true }));
+        await leave(c); item.querySelector('.fbr-open').hidden = false;
+        toast && toast('Reply sent · they\'ll get a notification'); return;
+      }
+      if (b.dataset.act === 'del-reply') {
+        if (!confirm('Delete this reply? If it was already delivered, the notification stays on their device.')) return;
+        b.disabled = true; const { error: e3 } = await sb.from('feedback_replies').delete().eq('id', b.dataset.id);
+        if (e3) { err.textContent = e3.message; b.disabled = false; return; }
+        await leave(b.closest('.fbr'));
+      }
+    };
+    function syncSend(c) { c.querySelector('[data-act="send-reply"]').disabled = !c.querySelector('.fbr-preset[aria-pressed="true"]') && !c.querySelector('.fbr-text').value.trim(); }
   }
 
   // ---------- Invites (admin) ----------
@@ -201,7 +308,7 @@
     box.innerHTML = `<label class="small tz-field">Time zone
         <select id="tzSelect">${(zones().includes(cur) ? zones() : [cur, ...zones()]).map(z => `<option${z === cur ? ' selected' : ''}>${esc(z)}</option>`).join('')}</select></label>
       <p class="muted small tz-hint">Sets "today" and the now-line. Event times stay as you entered them.</p>
-      <div class="data-btns"><button id="feedbackBtn" type="button">💬 Send feedback</button></div>
+      <div class="data-btns"><button id="feedbackBtn" type="button">💬 Send feedback</button><button id="myFbBtn" type="button" hidden>My feedback</button></div>
       <div class="data-btns admin-btns" hidden><button id="invitesBtn" type="button">✉️ Invites</button><button id="fbInboxBtn" type="button">Feedback inbox</button></div>`;
     const anchor = sec.querySelector('#acctDelete'); sec.insertBefore(box, anchor);
     const sel = box.querySelector('#tzSelect');
@@ -211,14 +318,26 @@
       catch (e) { alert('Could not save time zone: ' + (e.message || e)); sel.value = timeZone(); }
       sel.disabled = false;
     };
-    box.querySelector('#feedbackBtn').onclick = () => openFeedback({ sb, toast });
+    box.querySelector('#feedbackBtn').onclick = () => openFeedback({ sb, toast, after: refreshCounts });
+    box.querySelector('#myFbBtn').onclick = () => openMyFeedback({ sb, toast });
+    Object.assign(fbState, { sb, uid: user.id, admin: false });
+    const q = new URLSearchParams(location.search), want = q.get('fb'); // opened from a push notification
+    if (want) { q.delete('fb'); try { history.replaceState(history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash); } catch (_) {} }
     sb.rpc('sandy_is_admin').then(({ data }) => {
-      if (data !== true) return;
-      box.querySelector('.admin-btns').hidden = false;
-      box.querySelector('#invitesBtn').onclick = () => openInvites({ sb, toast });
-      box.querySelector('#fbInboxBtn').onclick = () => openFeedbackInbox({ sb });
-    }, () => {});
+      fbState.admin = data === true;
+      if (fbState.admin) {
+        box.querySelector('.admin-btns').hidden = false;
+        box.querySelector('#invitesBtn').onclick = () => openInvites({ sb, toast });
+        box.querySelector('#fbInboxBtn').onclick = () => openFeedbackInbox({ sb, toast });
+      }
+      refreshCounts().then(() => {
+        if (want === 'inbox' && fbState.admin) openFeedbackInbox({ sb, toast });
+        else if (want === 'mine') openMyFeedback({ sb, toast });
+      });
+    }, () => { refreshCounts(); });
+    // pick up replies/new feedback that arrive while the app is open
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshCounts(); });
   }
 
-  window.SandyLaunch = { mount, openFeedback, openInvites, callInvites, inviteNoteText, inviteGreeting, INVITE_LINK, smsHref };
+  window.SandyLaunch = { mount, openFeedback, openMyFeedback, openFeedbackInbox, refreshCounts, FB_STATUS, openInvites, callInvites, inviteNoteText, inviteGreeting, INVITE_LINK, smsHref };
 })();

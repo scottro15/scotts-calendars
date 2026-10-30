@@ -461,6 +461,21 @@ export function dueGroceryNudges(profiles, events, sent, now = Date.now()) {
 
 // ------------------------------------------------------------------ HTTP handler
 const json = (b, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { 'content-type': 'application/json' } });
+// ------------------------------------------------------------------ feedback replies + new-feedback alerts
+// Scott's status replies go to the person who sent the feedback; new feedback alerts Scott.
+// QA accounts (@example.com) never alert Scott, so tests can't notify a real person.
+export const FB_STATUS = { looking: "We're looking into it", fixing: "We're actively fixing it", fixed: "It's fixed", planned: 'Planned for a future update', note: 'Reply from Scott' };
+export const isQaEmail = e => /@example\.com$/i.test(String(e || '').trim());
+const clip = (t, n) => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+export function feedbackReplyPayload(r) {
+  const label = FB_STATUS[r.status] || FB_STATUS.note;
+  const text = r.status === 'note' ? clip(r.body, 180) : clip(label + (r.body ? ' — ' + r.body : ''), 180);
+  return { title: r.status === 'fixed' ? 'SANDY: your feedback is fixed ✅' : 'SANDY: update on your feedback', body: text, tag: `fbr-${r.feedback_id}`, url: './?tab=profile&fb=mine' };
+}
+export function feedbackAlertPayload(f) {
+  return { title: 'New SANDY feedback', body: clip(`${f.email || 'Someone'}: ${f.body}`, 180), tag: 'fb-new', url: './?tab=profile&fb=inbox' };
+}
+
 export async function handle(req, env, f = fetch, now = Date.now()) {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
   const base = env.SUPABASE_URL, svc = env.SUPABASE_SERVICE_ROLE_KEY;
@@ -488,8 +503,18 @@ export async function handle(req, env, f = fetch, now = Date.now()) {
   // grocery nudge: who has it on (column may not exist yet -> skipped; safe if undeployed before migration)
   const grr = await rest('profiles?select=user_id,time_zone&si_grocery=is.true');
   const groceryProfiles = grr.ok ? await grr.json() : [];
-  const owners = [...new Set([...rows.map(r => r.owner_id), ...leaveProfiles.map(p => p.user_id), ...longDayProfiles.map(p => p.user_id), ...weeklyProfiles.map(p => p.user_id), ...groceryProfiles.map(p => p.user_id)])];
-  if (!owners.length) return json({ due: 0, sent: 0 });
+  // feedback queue (table/columns may not exist yet -> skipped). Only the last day, so nothing old is blasted.
+  const fbSince = new Date(now - 86400000).toISOString();
+  const [frr, fnr] = await Promise.all([
+    rest(`feedback_replies?select=id,feedback_id,owner_id,status,body&pushed_at=is.null&created_at=gte.${fbSince}&order=created_at&limit=50`),
+    rest(`feedback?select=id,owner_id,email,body&pushed_at=is.null&created_at=gte.${fbSince}&order=created_at&limit=50`)]);
+  const fbReplies = frr.ok ? await frr.json() : [];
+  const fbNew = fnr.ok ? await fnr.json() : [];
+  let adminId = null;
+  if (fbNew.length) { const ar = await rest('rpc/sandy_default_owner', { method: 'POST', body: '{}' }); adminId = ar.ok ? await ar.json() : null; }
+  const fbAlert = fbNew.filter(n => adminId && !isQaEmail(n.email) && n.owner_id !== adminId);
+  const owners = [...new Set([...fbReplies.map(r => r.owner_id), ...(fbAlert.length ? [adminId] : []), ...rows.map(r => r.owner_id), ...leaveProfiles.map(p => p.user_id), ...longDayProfiles.map(p => p.user_id), ...weeklyProfiles.map(p => p.user_id), ...groceryProfiles.map(p => p.user_id)])];
+  if (!owners.length) return json({ due: 0, sent: 0, feedback_pushes: 0 });
   const inList = `(${owners.join(',')})`;
   const [pr, sr] = await Promise.all([rest(`profiles?select=user_id,time_zone&user_id=in.${inList}`), rest(`push_subscriptions?select=id,owner_id,endpoint,p256dh,auth,created_at&owner_id=in.${inList}`)]);
   const tz = new Map((pr.ok ? await pr.json() : []).map(p => [p.user_id, p.time_zone]));
@@ -510,6 +535,14 @@ export async function handle(req, env, f = fetch, now = Date.now()) {
       } catch (_) { failed++; }
     }
   };
+  // feedback: claim each row (pushed_at is null -> now) so a second run can't send it again
+  let fbSent = 0;
+  const claimFb = async (table, id) => {
+    const c = await rest(`${table}?id=eq.${id}&pushed_at=is.null`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ pushed_at: new Date(now).toISOString() }) });
+    return c.ok && (await c.json()).length > 0;
+  };
+  for (const r of fbReplies) if (await claimFb('feedback_replies', r.id)) { await deliver(r.owner_id, feedbackReplyPayload(r)); fbSent++; }
+  for (const n of fbNew) if (await claimFb('feedback', n.id) && fbAlert.includes(n)) { await deliver(adminId, feedbackAlertPayload(n)); fbSent++; }
   const due = dueReminders(rows, o => tz.get(o), now);
   for (const d of due) {
     // claim it first (primary key = event + date + minutes): a second run can't send it again
@@ -597,7 +630,7 @@ export async function handle(req, env, f = fetch, now = Date.now()) {
       }
     }
   }
-  return json({ due: due.length, sent, failed, gone, leave_due: leaveDue, planned, long_day_due: longDayDue, weekly_review_due: weeklyDue, grocery_due: groceryDue });
+  return json({ due: due.length, sent, failed, gone, leave_due: leaveDue, planned, long_day_due: longDayDue, weekly_review_due: weeklyDue, grocery_due: groceryDue, feedback_pushes: fbSent });
 }
 
 const D = globalThis.Deno;
