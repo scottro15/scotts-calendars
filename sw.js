@@ -21,6 +21,8 @@ self.addEventListener('message', e => {
   if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 self.addEventListener('activate', e => e.waitUntil((async () => {
+  // only caches from an older SANDY scheme are removed; this build's files and the previous build's stay
+  // until they age out (see the fetch handler), so open tabs on the old build keep working offline
   const keys = await caches.keys();
   await Promise.all(keys.filter(k => k.startsWith('sandy-') && k !== CACHE).map(k => caches.delete(k)));
   try { if (self.registration.navigationPreload) await self.registration.navigationPreload.enable(); } catch (_) {}
@@ -48,13 +50,27 @@ self.addEventListener('fetch', e => {
   }
   if (!/\.(js|css|png|svg|webmanifest|ico|woff2?)$/.test(url.pathname)) return;
   e.respondWith((async () => {
-    const key = url.origin + url.pathname; // one copy per file, whatever the ?v= tag
+    // Update-safe (t156u): copies are kept per ?v= build, so a page still running the previous build
+    // (update banner showing, not reloaded yet) falls back to ITS files, not the new build's. The two
+    // newest builds of each file are kept; older ones are pruned.
+    const v = url.searchParams.get('v') || '';
+    const key = url.origin + url.pathname + (v ? '?v=' + v : '');
     try {
       const r = await fetch(req);
-      if (r && r.ok && r.type === 'basic') { const copy = r.clone(); caches.open(CACHE).then(c => c.put(key, copy)).catch(() => {}); }
+      if (r && r.ok && r.type === 'basic') {
+        const copy = r.clone();
+        caches.open(CACHE).then(async c => {
+          await c.put(key, copy);
+          const same = (await c.keys()).filter(k => { const u = new URL(k.url); return u.pathname === url.pathname; });
+          const builds = [...new Set(same.map(k => new URL(k.url).searchParams.get('v') || ''))].sort().reverse(); // tags are YYYYMMDD-…: newest first
+          const keep = new Set([v, ...builds.filter(b => b !== v).slice(0, 1)]);
+          await Promise.all(same.filter(k => !keep.has(new URL(k.url).searchParams.get('v') || '')).map(k => c.delete(k)));
+        }).catch(() => {});
+      }
       return r;
     } catch (err) {
-      const hit = await caches.match(key);
+      const c = await caches.open(CACHE);
+      const hit = await c.match(key) || await c.match(url.origin + url.pathname) || await c.match(req, { ignoreSearch: true });
       if (hit) return hit;
       throw err;
     }

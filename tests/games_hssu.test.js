@@ -225,7 +225,7 @@ const notes = (miles, drive, loc, extra = '') => `Harris-Stowe State University 
     await tp.evaluate(() => SandyUpdate.check());
     await tp.waitForFunction(() => window.SandyUpdate.visible && document.getElementById('updateBanner') && !document.getElementById('updateBanner').hidden, null, { timeout: 5000 });
     assert(await tp.locator('#updateBanner').isVisible(), 'update: banner shown when a newer deploy is detected');
-    assert(await tp.locator('#updateBannerTap').innerText().then(t => /New update available/.test(t)), 'update: banner copy');
+    assert(await tp.locator('#updateBannerTap').innerText().then(t => /Update ready/.test(t)), 'update: banner copy');
     const nav = tp.waitForURL(/build=20991231-x/, { timeout: 5000 }).then(() => true).catch(() => false);
     await tp.locator('#updateBannerTap').click();
     assert(await nav, 'update: tapping the banner reloads once (…?build=<new tag>)');

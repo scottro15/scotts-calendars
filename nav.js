@@ -52,10 +52,34 @@
         const sb = sbc();
         if (!sb) return (api.cache = readLS(key, []));
         if (!api.memo || Date.now() - api.memo.at > 3000) {
+          const load = (async () => {
+            // keep-what-you-have (t156u): an error (network blip, expired session, mid-session deploy) keeps the
+            // last good list on screen, or this device's saved copy, instead of emptying To-Do
+            const snapKey = async () => { try { const { data } = await sb.auth.getSession(); return data && data.session ? `sandy.snap.v1.${name}.${data.session.user.id}` : null; } catch (_) { return null; } };
+            let res;
+            try { res = await sb.from(name).select('*').order('created_at'); } catch (e) { res = { error: e }; }
+            const { data, error } = res;
+            if (error) {
+              if (missing(error)) { api.available = false; return (api.cache = []); }
+              if (api.cache) { console.warn(name + ': keeping the last list:', error.message || error); return api.cache; }
+              try { const k = await snapKey(); const v = k && JSON.parse(localStorage.getItem(k) || 'null'); if (v && Array.isArray(v.rows)) { console.warn(name + ': showing the saved copy'); return (api.cache = v.rows); } } catch (_) {}
+              throw new Error(error.message || String(error));
+            }
+            api.available = true; api.cache = data.map(map.from);
+            try { const k = await snapKey(); const v = JSON.stringify({ at: Date.now(), rows: api.cache }); if (k && v.length < 1e6) localStorage.setItem(k, v); } catch (_) {}
+            return api.cache;
+          })();
+          // supabase-js retries failed reads with backoff (~7 s offline): when this device already has a list
+          // (or a saved copy), show it after 2.5 s and let the request finish in the background
           const p = (async () => {
-            const { data, error } = await sb.from(name).select('*').order('created_at');
-            if (error) { if (missing(error)) { api.available = false; return (api.cache = []); } throw new Error(error.message); }
-            api.available = true; return (api.cache = data.map(map.from));
+            let fb = api.cache;
+            if (!fb) try { const { data: sd } = await sb.auth.getSession(); const k = sd && sd.session ? `sandy.snap.v1.${name}.${sd.session.user.id}` : null; const v = k && JSON.parse(localStorage.getItem(k) || 'null'); if (v && Array.isArray(v.rows)) fb = v.rows; } catch (_) {}
+            if (!fb) return load;
+            load.catch(() => {});
+            let t; const slow = new Promise(r => { t = setTimeout(() => r('slow'), 2500); });
+            const r = await Promise.race([load.then(x => ({ x }), e => ({ e })), slow]); clearTimeout(t);
+            if (r === 'slow') { console.warn(name + ': slow, showing what this device has'); if (!api.cache) api.cache = fb; return fb; }
+            if (r.e) throw r.e; return r.x;
           })();
           const m = { at: Date.now(), p };
           api.memo = m;
@@ -324,6 +348,7 @@
   }
   async function renderTodo() {
     const a = A(); if (!a) return;
+    Inbox.list().catch(() => {}); // start it alongside categories (shared via the 3 s memo)
     let cats = []; try { cats = (await Cats.list()).sort((x, y) => (x.sort - y.sort) || x.name.localeCompare(y.name)); } catch (e) { console.warn(e); }
     const catOf = id => cats.find(c => c.id === id);
     const { items, today } = await todoItems();

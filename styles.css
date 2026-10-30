@@ -1830,8 +1830,39 @@ html.dark .tc-weather .wx-buf { color: #94a3b8; }
   opacity: .7; cursor: pointer; padding: 0;
 }
 .update-banner-x:hover, .update-banner-x:focus-visible { opacity: 1; background: rgba(255,255,255,.12); }
+/* 4c (t156u): the update pill can't be missed — a glow runs clockwise around it and gently pulses.
+   Light mode glow: --update-glow (deep navy by default; Scott is choosing navy / SANDY accent / charcoal).
+   Dark mode: white. Reduced motion: a steady glow, no movement. */
+:root { --update-glow: #1E2A4A; }
+html.dark { --update-glow: #ffffff; }
+@property --ub-angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.update-banner { isolation: isolate; overflow: visible; }
+.update-banner::before, .update-banner::after { content: ''; position: absolute; inset: -3px; border-radius: inherit; pointer-events: none; }
+.update-banner::before { /* the travelling ring */
+  padding: 3px;
+  background: conic-gradient(from var(--ub-angle), transparent 0deg, transparent 150deg,
+    color-mix(in srgb, var(--update-glow) 35%, transparent) 250deg, var(--update-glow) 340deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  filter: drop-shadow(0 0 3px var(--update-glow));
+  animation: ubSpin 2.6s linear infinite;
+}
+.update-banner::after { /* the pulse */
+  z-index: -1;
+  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--update-glow) 30%, transparent);
+  animation: ubPulse 2.6s ease-in-out infinite;
+}
+@keyframes ubSpin { to { --ub-angle: 360deg; } }
+@keyframes ubPulse {
+  0%, 100% { box-shadow: 0 0 6px 1px color-mix(in srgb, var(--update-glow) 28%, transparent); }
+  50% { box-shadow: 0 0 18px 5px color-mix(in srgb, var(--update-glow) 55%, transparent); }
+}
+html:not(.dark) .update-banner { box-shadow: 0 8px 24px rgba(15, 23, 42, .22); }
+.update-banner .ub-ic { display: inline-block; margin-right: 2px; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) {
   .update-banner { transition: none; }
+  .update-banner::before { animation: none; background: var(--update-glow); opacity: .85; filter: drop-shadow(0 0 4px var(--update-glow)); }
+  .update-banner::after { animation: none; box-shadow: 0 0 12px 3px color-mix(in srgb, var(--update-glow) 45%, transparent); }
 }
 
 /* todo chips @320: keep labels inside pills */

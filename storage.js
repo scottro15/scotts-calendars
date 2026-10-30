@@ -261,18 +261,81 @@
   function createStore(adapter) {
     let cache = null;
     let cats = null;
-    let notesCache = null;
-    let checksCache = null;
-    let linksCache = null;
+    const NOTES = keeper('notes', () => adapter.loadNotes());
+    const CHECKS = keeper('checks', () => adapter.loadChecks());
+    const LINKS = keeper('links', () => adapter.loadLinks ? adapter.loadLinks() : [], rows => rows.filter(l => /^https:\/\/([a-z0-9-]+\.)*notion\.(so|com|site)\//i.test(l.url || '')));
     const listeners = new Set();
     const remote = adapter.name !== 'local';
     const emit = (why) => listeners.forEach(fn => { try { fn(why); } catch (e) { console.error(e); } });
     // one load at a time: Today, the calendar and the startup prefetch can all ask at once (t148u speed)
     let loading = null, catsLoading = null;
+    // Keep-what-you-have (t156u): a failed load (network blip on wake, expired session, a deploy mid-session)
+    // never empties the app. Last good events / notes / to-dos are also kept on this device (cleared on
+    // sign-out) so a cold open that can't reach the server still shows them.
+    const SNAP = 'sandy.snap.v1.';
+    async function snapUid() { try { if (!remote || !adapter.client) return null; const { data } = await adapter.client.auth.getSession(); return data && data.session ? data.session.user.id : null; } catch (_) { return null; } }
+    async function snapSave(kind, rows) {
+      try { const id = await snapUid(); if (!id) return; const v = JSON.stringify({ at: Date.now(), rows }); if (v.length > 2.5e6) return; localStorage.setItem(SNAP + kind + '.' + id, v); } catch (_) {}
+    }
+    async function snapRead(kind) {
+      try { const id = await snapUid(); if (!id) return null; const v = JSON.parse(localStorage.getItem(SNAP + kind + '.' + id) || 'null'); return v && Array.isArray(v.rows) ? v.rows : null; } catch (_) { return null; }
+    }
+    function snapClear() { try { Object.keys(localStorage).filter(k => k.startsWith(SNAP)).forEach(k => localStorage.removeItem(k)); } catch (_) {} }
+    // supabase-js retries failed reads with backoff (~7 s when offline): with a saved copy on this device,
+    // a read that takes over 2.5 s resolves to { slow: snapshot } and the request carries on in the background
+    async function quick(kind, p) {
+      if (!remote) return p;
+      const snap = await snapRead(kind); if (!snap) return p;
+      p.catch(() => {});
+      let t; const slow = new Promise(r => { t = setTimeout(() => r({ slow: snap }), 2500); });
+      const r = await Promise.race([p.then(x => ({ x }), e => ({ e })), slow]); clearTimeout(t);
+      if (r.slow) return r; if (r.e) throw r.e; return r.x;
+    }
     async function ensure() {
       if (cache !== null) return cache;
-      if (!loading) loading = Promise.resolve().then(() => adapter.loadAll()).then(r => { if (cache === null) cache = r || []; return cache; }).finally(() => { loading = null; });
+      if (!loading) loading = Promise.resolve().then(() => {
+        const p = Promise.resolve().then(() => adapter.loadAll());
+        return quick('events', p).then(r => {
+          if (r && r.slow) { // show the saved copy now; swap in the server's list when it answers
+            p.then(rows => { cache = rows || []; store.offline = false; snapSave('events', cache); emit('reload'); }, () => setTimeout(() => { if (store.offline) store.reload().catch(() => {}); }, 15000));
+            console.warn('events: slow, showing the saved copy'); store.offline = true;
+          }
+          return r;
+        });
+      }).then(r => {
+        if (r && r.slow) { if (cache === null) cache = r.slow; return cache; }
+        if (cache === null) cache = r || [];
+        store.offline = false; if (remote) snapSave('events', cache);
+        return cache;
+      }, async err => {
+        const snap = remote ? await snapRead('events') : null;
+        if (!snap) throw err;
+        console.warn('events: showing the saved copy until the server answers:', err);
+        if (cache === null) cache = snap; store.offline = true;
+        setTimeout(() => { if (store.offline) store.reload().catch(() => {}); }, 15000);
+        return cache;
+      }).finally(() => { loading = null; });
       return loading;
+    }
+    // notes / checks / links: an error keeps the last good list (retried after 20 s) instead of caching []
+    function keeper(kind, load, filter) {
+      const k = { data: null, dirty: false, failAt: 0, available: true, error: null };
+      k.get = async () => {
+        if (k.data && !(k.dirty && Date.now() - k.failAt > 20000)) return k.data;
+        try {
+          let rows = (await load()) || []; if (filter) rows = filter(rows);
+          k.data = rows; k.dirty = false; k.available = true; k.error = null;
+          if (remote && kind !== 'links') snapSave(kind, rows);
+        } catch (e) {
+          console.warn(kind + ' unavailable, keeping what is on screen:', e);
+          k.failAt = Date.now(); k.dirty = true;
+          if (!k.data && remote) k.data = await snapRead(kind);
+          if (!k.data) { k.available = false; k.error = e.message || String(e); k.data = []; }
+        }
+        return k.data;
+      };
+      k.stale = () => { if (k.data) { k.dirty = true; k.failAt = 0; } }; // refetch next time, show the old list meanwhile
+      return k;
     }
     // Profile: every Sandy Intelligence card reads its prefs from it; one request per ~10 s instead of one per card
     const PROF_TTL = 10000;
@@ -298,6 +361,7 @@
     }
 
     const store = {
+      offline: false, // true while showing the saved copy because the server could not be reached
       mode: adapter.name,
       adapterName: adapter.label,
       adapter,
@@ -319,12 +383,12 @@
         } else { cache = [...events]; await writeLocal(); }
       },
       /** Re-read everything from the backend (realtime / tab focus). */
-      async reload() { cache = (await adapter.loadAll()) || []; cats = null; prof = null; notesCache = null; checksCache = null; linksCache = null; emit('reload'); return cache; },
+      async reload() { cache = (await adapter.loadAll()) || []; cats = null; prof = null; NOTES.stale(); CHECKS.stale(); LINKS.stale(); store.offline = false; if (remote) snapSave('events', cache); emit('reload'); return cache; },
       /** Apply a realtime row change without a full reload. */
       applyRemoteChange(table, p) {
-        if (table === 'notes') { notesCache = null; emit('notes'); return; }
-        if (table === 'checks') { checksCache = null; emit('checks'); return; }
-        if (table === 'links') { linksCache = null; emit('notes'); return; }
+        if (table === 'notes') { NOTES.stale(); emit('notes'); return; }
+        if (table === 'checks') { CHECKS.stale(); emit('checks'); return; }
+        if (table === 'links') { LINKS.stale(); emit('notes'); return; }
         if (table !== 'events' || !cache) { cats = null; emit('categories'); return; }
         if (p.eventType === 'DELETE') { const id = p.old && p.old.id; if (id) cache = cache.filter(e => e.id !== id && e.seriesId !== id); }
         else if (p.new && p.new.id) put(adapter.fromRow(p.new));
@@ -333,66 +397,57 @@
       /** Day notes ("Today's Note"), keyed by series/event id + Chicago date. Separate from events. */
       notes: {
         available: true, error: null,
-        async all() {
-          if (notesCache) return notesCache;
-          try { notesCache = (await adapter.loadNotes()) || []; this.available = true; this.error = null; }
-          catch (e) { console.warn('Day notes unavailable:', e); this.available = false; this.error = e.message || String(e); notesCache = []; }
-          return notesCache;
-        },
+        async all() { const r = await NOTES.get(); this.available = NOTES.available; this.error = NOTES.error; return r; },
         async get(eventId, date) { return (await this.all()).find(n => n.eventId === eventId && n.date === date) || null; },
         /** Empty body deletes the note. */
         async set(eventId, date, body) {
-          await this.all(); body = (body || '').trim();
-          const i = notesCache.findIndex(n => n.eventId === eventId && n.date === date);
-          if (!body) { if (i >= 0) { await adapter.deleteNote(eventId, date); notesCache.splice(i, 1); } return null; }
+          const list = await this.all(); body = (body || '').trim();
+          const i = list.findIndex(n => n.eventId === eventId && n.date === date);
+          if (!body) { if (i >= 0) { await adapter.deleteNote(eventId, date); list.splice(i, 1); } return null; }
           const now = new Date().toISOString();
-          const n = await adapter.upsertNote({ ...(i >= 0 ? notesCache[i] : { id: uid(), createdAt: now }), eventId, date, body, updatedAt: now });
-          if (i >= 0) notesCache[i] = n; else notesCache.push(n);
+          const n = await adapter.upsertNote({ ...(i >= 0 ? list[i] : { id: uid(), createdAt: now }), eventId, date, body, updatedAt: now });
+          if (i >= 0) list[i] = n; else list.push(n);
           return n;
         },
-        invalidate() { notesCache = null; },
+        invalidate() { NOTES.stale(); },
       },
       /** Checklist ticks per occurrence: keys of the '- [ ]' note lines ticked on that date. */
       checks: {
         available: true, error: null,
-        async all() {
-          if (checksCache) return checksCache;
-          try { checksCache = (await adapter.loadChecks()) || []; this.available = true; this.error = null; }
-          catch (e) { console.warn('Checklists unavailable:', e); this.available = false; this.error = e.message || String(e); checksCache = []; }
-          return checksCache;
-        },
+        async all() { const r = await CHECKS.get(); this.available = CHECKS.available; this.error = CHECKS.error; return r; },
         async get(eventId, date) { const c = (await this.all()).find(x => x.eventId === eventId && x.date === date); return c ? [...c.checked] : []; },
         async set(eventId, date, checked) {
-          await this.all();
+          const list = await this.all();
           const c = await adapter.upsertChecks({ eventId, date, checked: [...new Set(checked)] });
-          const i = checksCache.findIndex(x => x.eventId === eventId && x.date === date);
-          if (i >= 0) checksCache[i] = c; else checksCache.push(c);
+          const i = list.findIndex(x => x.eventId === eventId && x.date === date);
+          if (i >= 0) list[i] = c; else list.push(c);
           return c;
         },
-        invalidate() { checksCache = null; },
+        invalidate() { CHECKS.stale(); },
       },
       /** Notion links per occurrence (read-only in the app; written by the sync routine via cal.py note-link). */
       links: {
         available: true,
-        async all() {
-          if (linksCache) return linksCache;
-          try { linksCache = ((await adapter.loadLinks?.()) || []).filter(l => /^https:\/\/([a-z0-9-]+\.)*notion\.(so|com|site)\//i.test(l.url || '')); this.available = true; }
-          catch (e) { console.warn('Notion links unavailable:', e); this.available = false; linksCache = []; }
-          return linksCache;
-        },
+        async all() { const r = await LINKS.get(); this.available = LINKS.available; return r; },
         async get(eventId, date) { const l = (await this.all()).find(x => x.eventId === eventId && x.date === date); return l ? l.url : null; },
-        invalidate() { linksCache = null; },
+        invalidate() { LINKS.stale(); },
       },
       onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 
-      async calendars() { return adapter.loadCalendars ? adapter.loadCalendars() : null; },
+      async calendars() {
+        if (!adapter.loadCalendars) return null;
+        try { let rows = await quick('calendars', Promise.resolve().then(() => adapter.loadCalendars())); if (rows && rows.slow) { console.warn('calendars: slow, showing the saved copy'); return rows.slow; } if (remote && Array.isArray(rows) && rows.length) snapSave('calendars', rows); return rows; }
+        catch (e) { const snap = remote ? await snapRead('calendars') : null; if (snap && snap.length) { console.warn('calendars: showing the saved copy', e); store.offline = true; return snap; } throw e; }
+      },
       async createCalendars(list) { return adapter.createCalendars(list); },
       async updateCalendar(slug, patch) { return adapter.updateCalendar(slug, patch); },
       async saveCalendars(rows) { return adapter.saveCalendars(rows); }, // local mode only: replace the whole list
       async profile() {
         if (!adapter.loadProfile) return null;
         if (!prof || Date.now() - prof.at > PROF_TTL) {
-          const p = Promise.resolve().then(() => adapter.loadProfile());
+          const p = quick('profile', Promise.resolve().then(() => adapter.loadProfile())).then(r => (r && r.slow ? r.slow[0] : r)).then(
+            row => { if (remote && row && typeof row === 'object') snapSave('profile', [row]); return row; },
+            async e => { const snap = remote ? ((await snapRead('profile')) || [])[0] : null; if (snap && typeof snap === 'object') { console.warn('profile: showing the saved copy', e); return snap; } throw e; });
           prof = { at: Date.now(), p };
           p.catch(() => { if (prof && prof.p === p) prof = null; });
         }
@@ -496,7 +551,7 @@
         if (error) throw error;
         return data && data.session ? data.session.user : null;
       },
-      async signOut() { await sb.auth.signOut(); },
+      async signOut() { try { Object.keys(localStorage).filter(k => k.startsWith('sandy.snap.v1.')).forEach(k => localStorage.removeItem(k)); } catch (_) {} await sb.auth.signOut(); }, // the saved copies leave with the account
       onSignIn(fn) { return sb.auth.onAuthStateChange((evt, session) => { if (session && (evt === 'SIGNED_IN' || evt === 'INITIAL_SESSION')) fn(session.user); }); },
       // Invite-only: any account that exists in Supabase Auth was invited (sign-ups are off),
       // and Row Level Security limits each account to its own calendars.

@@ -54,7 +54,7 @@ let n = 0; const ok = (c, m) => { assert(c, m); n++; };
     await p.evaluate(() => SandyUpdate.check());
     await p.waitForFunction(() => SandyUpdate.visible && !document.getElementById('updateBanner').hidden);
     const txt = await p.locator('#updateBannerTap').innerText();
-    ok(/New update available/.test(txt) && /Tap to refresh/.test(txt), `banner copy: ${JSON.stringify(txt)}`);
+    ok(/Update ready/.test(txt) && /Tap to refresh/.test(txt), `banner copy: ${JSON.stringify(txt)}`);
     ok(await p.evaluate(() => SandyUpdate.pending === '20991231-banner'), 'pending = live tag');
     await p.screenshot({ path: `${SHOTS}/01-banner-light.png` });
     await p.locator('#updateBannerDismiss').click();
