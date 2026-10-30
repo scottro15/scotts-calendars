@@ -2155,3 +2155,16 @@ html.dark .tc-shimmer { background-image: linear-gradient(90deg, rgba(148,163,18
 .tc-fadein { animation: tcFadeIn .35s ease-out both; }
 @keyframes tcFadeIn { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .tc-shimmer { animation: none; } .tc-fadein { animation: none; } }
+
+/* 5a (t150u): the Sandy Intelligence explainer lives in Profile as "What Sandy can do" */
+.si-cando { margin: 0 0 8px; border: 1px solid rgba(99, 102, 241, .35); border-radius: 12px; background: rgba(99, 102, 241, .05); }
+.si-cando > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; cursor: pointer; font-weight: 600; font-size: 14px; min-height: 44px; box-sizing: border-box; }
+.si-cando > summary::-webkit-details-marker { display: none; }
+.si-cando-chev { transition: transform .2s ease; opacity: .7; }
+.si-cando[open] .si-cando-chev { transform: rotate(180deg); }
+.si-cando-list { margin: 0; padding: 0 14px 12px 30px; line-height: 1.45; }
+.si-cando-list li { margin: 4px 0; }
+.si-cando[open] .si-cando-list { animation: siCanDoIn .22s ease-out; }
+@keyframes siCanDoIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+html.dark .si-cando { border-color: rgba(129, 140, 248, .45); background: rgba(99, 102, 241, .1); }
+@media (prefers-reduced-motion: reduce) { .si-cando[open] .si-cando-list { animation: none; } .si-cando-chev { transition: none; } }

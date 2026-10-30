@@ -24,7 +24,6 @@
     ['tc-suggestions', () => 'suggestions', s => { const n = s.querySelectorAll('.sug-tile').length; return n ? n + ' tip' + (n === 1 ? '' : 's') : ''; }],
   ];
   const n = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`;
-  TYPES.push(['tc-nudges', () => 'si-intro', () => '']);
   const typeOf = s => TYPES.find(t => s.classList.contains(t[0])) || [null, x => 'card:' + (x.id || x.className.split(/\s+/).filter(c => c.startsWith('tc-') && c !== 'tc-sec' && c !== 'tc-card').join('.')), () => ''];
   let seq = 0, focusKey = null;
   document.addEventListener('focusin', e => { const b = e.target.closest && e.target.closest('.tc-tog'); focusKey = b ? b.dataset.ckey : null; });
@@ -72,7 +71,6 @@
     root = root || document.getElementById('todayBody'); if (!root) return;
     const state = read();
     root.querySelectorAll('section.tc-card').forEach(sec => enhance(sec, state));
-    const nudge = document.getElementById('todayNudges'); if (nudge) enhance(nudge, state); // the Sandy Intelligence intro card
     if (!root.__tcObs) { // async fills (leave-by, travel times, Tomorrow's drive) change summaries: keep counts fresh
       root.__tcObs = new MutationObserver(() => root.querySelectorAll('section.tc-card.is-collapsed').forEach(setCount));
       root.__tcObs.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-leave', 'hidden'] });

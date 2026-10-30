@@ -63,10 +63,6 @@
       <section id="todayCard" class="today-card" aria-labelledby="todayH">
         <div class="tc-head"><h2 id="todayH"><span id="todayDate" class="tc-date">Today</span></h2><span id="todaySub" class="tc-sub">Today</span></div>
         <div id="todayBody"></div>
-        <div id="todayNudges" class="tc-nudges" aria-label="Sandy Intelligence prep nudges">
-          <div class="tc-nudge-head">✨ Sandy Intelligence <span class="tc-soon">more coming</span></div>
-          <p class="muted small">Leave-by times show in Heads Up for events with a location, from home or from where you are. Get a push when it’s time to leave: Profile → Leave-by alerts. Free gaps get to-do suggestions you can tap to schedule. Heads Up flags clashes with shifts or practices. Sundays get a week-ahead review. After 5 PM, a Long-day card appears when tomorrow spans 10+ hours (or 8+ scheduled). After 6 PM, a Tomorrow card shows your first event, when to leave and what to prep. Before a Maryville or Jennings practice, Practice prep shows your notes from the last one. Away and neutral Maryville games get a travel plan: when to leave, when you’ll be back, and the weather.</p>
-        </div>
       </section>
       <!-- Briefing: preview of the selected period (respects the calendar toggles) -->
       <section id="briefing" class="briefing" aria-labelledby="briefTitle">
@@ -207,6 +203,19 @@
       <section id="siSection" class="pf-card">
         <h2>Sandy Intelligence</h2>
         <p class="muted small si-intro">Free, rule-based nudges from your calendar. No AI calls.</p>
+        <details id="siCanDo" class="si-cando">
+          <summary><span class="si-cando-t">✨ What Sandy can do</span><span class="si-cando-chev" aria-hidden="true">▾</span></summary>
+          <ul class="si-cando-list small">
+            <li><b>Leave by</b>: events with a location get a leave-by time in Heads Up, from home or from where you are. Push when it’s time to leave: Leave-by alerts, above.</li>
+            <li><b>Free gaps</b>: to-do suggestions you can tap to schedule.</li>
+            <li><b>Clashes</b>: Heads Up flags overlaps with shifts or practices.</li>
+            <li><b>Sundays</b>: a week-ahead review.</li>
+            <li><b>Long day</b>: after 5 PM, a card when tomorrow spans 10+ hours (or 8+ scheduled).</li>
+            <li><b>Tomorrow</b>: after 6 PM, your first event, when to leave and what to prep.</li>
+            <li><b>Practice prep</b>: before a Maryville or Jennings practice, your notes from the last one.</li>
+            <li><b>Travel plan</b>: away and neutral Maryville games get when to leave, when you’ll be back, and the weather.</li>
+          </ul>
+        </details>
         <label class="pf-row pf-stack"><span><span class="pf-lbl">Simple Today</span><small class="pf-note">Show only Now/Next, Heads Up, On Today, and Overdue. Hides Suggestions, Week ahead, and other extras. Also available as a toggle on the Today tab.</small></span><span class="switch"><input type="checkbox" id="siSimpleMode" role="switch"><span></span></span></label>
         <label class="pf-row pf-stack"><span><span class="pf-lbl">Long-day nudge</span><small class="pf-note">Evening before a 10+ hour span or 8+ scheduled hours: pack lunch and snacks. In-app from 5 PM; push at 8 PM when notifications are on.</small></span><span class="switch"><input type="checkbox" id="siLongDay" role="switch" checked><span></span></span></label>
         <label class="pf-row pf-stack"><span><span class="pf-lbl">Free-gap to-do coach</span><small class="pf-note">Suggests open to-dos that fit free gaps on Today (and tomorrow after 5 PM). Tap to schedule into the gap; Undo if you change your mind.</small></span><span class="switch"><input type="checkbox" id="siFreeGap" role="switch" checked><span></span></span></label>

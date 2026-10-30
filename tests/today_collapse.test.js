@@ -70,10 +70,8 @@ const ok200 = (r, body) => r.fulfill({ status: 200, contentType: 'application/js
   assert(/^🚌 Travel plan · Neutral site · leave \d{1,2}:\d\d [AP]M$/i.test(t('tc-travel')), 'Travel plan summary: ' + t('tc-travel'));
   await p.screenshot({ path: `${SHOTS}/today_collapsed_light.png` });
 
-  // the Sandy Intelligence intro card collapses too
-  await p.click('#todayNudges .tc-tog');
-  assert(await p.$eval('#todayNudges', e => e.classList.contains('is-collapsed') && e.querySelector('.tc-tog').getAttribute('aria-expanded') === 'false' && e.querySelector('.tc-body').getBoundingClientRect().height < 1), 'Sandy Intelligence intro card collapses');
-  assert(await p.evaluate(() => JSON.parse(localStorage.getItem('sandy.todayCollapsed.v1'))['si-intro'] === 1), '...and is remembered');
+  // 5a: the Sandy Intelligence explainer moved to Profile → What Sandy can do
+  assert(await p.evaluate(() => !document.getElementById('todayNudges') && !!document.querySelector('#siSection #siCanDo')), 'explainer is off Today and in Profile');
   // re-render (every minute), next day, reload: state kept, no animation
   await tog(p, 'tc-tomorrow'); // re-open one
   await p.evaluate(() => window.SandyNav.renderToday()); await p.waitForTimeout(500);
@@ -81,7 +79,6 @@ const ok200 = (r, body) => r.fulfill({ status: 200, contentType: 'application/js
   assert(await p.$eval('section.tc-on', e => e.classList.contains('tc-noanim') || getComputedStyle(e.querySelector('.tc-body')).transitionDuration.split(',').every(x => parseFloat(x) === 0)), 're-render does not animate');
   await p.reload(); await p.waitForFunction(() => window.SandyCollapse && window.SandyNav); await today(p);
   hs = await heads(p); assert(hs.find(h => h.cls === 'tc-on').collapsed && hs.find(h => h.cls === 'tc-heads').collapsed && !hs.find(h => h.cls === 'tc-tomorrow').collapsed, 'state survives a reload');
-  assert(await p.$eval('#todayNudges', e => e.classList.contains('is-collapsed')), 'intro card state survives a reload');
   await p.clock.setSystemTime(new Date('2026-11-18T14:00:00Z')); await today(p); // Wed 8 AM
   hs = await heads(p); assert(hs.find(h => h.cls === 'tc-on').collapsed && hs.find(h => h.cls === 'tc-practice').collapsed, 'state carries to the next day');
   // per user
