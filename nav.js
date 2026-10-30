@@ -246,13 +246,20 @@
     };
     const tail = (d.items.length ? `<section class="tc-sec tc-card tc-on"><h3>On Today</h3><ul class="tc-list">${d.items.map(x => row(x)).join('')}</ul></section>` : '') +
       (d.overdue.length ? `<section class="tc-sec tc-card tc-overdue"><h3>Overdue To-Dos</h3><ul class="tc-list">${d.overdue.map(x => row(x, `<span class="overdue-badge">Overdue ${esc(a.overdueText(d.now - (x.ev.allDay ? a.startOfDay(x.o.start) : (x.o.end || x.o.start))))}</span>`)).join('')}</ul></section>` : '');
+    let leaveStarted = false;
     const paint = (partial, fade) => {
       const el = $('todayBody');
+      // the leave-by rows fill themselves in as drive times arrive: a repaint of the same Today keeps that list
+      // (and its lookups) instead of starting them over (t148u speed)
+      const keepLeave = (leaveStarted || late) && $('tcLeave');
+      if (keepLeave) keepLeave.remove();
       el.innerHTML = h + body(partial) + tail;
+      if (keepLeave) { const nu = $('tcLeave'); if (nu) { nu.replaceWith(keepLeave); const sec = keepLeave.closest('.tc-heads'); if (sec && keepLeave.querySelector('li')) sec.hidden = false; } }
       if (fade) el.querySelectorAll('.tc-clash, .tc-weather, .tc-suggestions, .tc-weekly').forEach(x => x.classList.add('tc-fadein'));
       if (window.SandySimple) { try { SandySimple.bind(el); } catch (e) { console.warn('simple:', e); } }
       if (window.SandyCollapse) { try { SandyCollapse.apply(el); } catch (e) { console.warn('collapse:', e); } }
-      if (window.SandyLeave) SandyLeave.render($('tcLeave'), d.items, d.now).catch(e => console.warn('leave-by:', e));
+      if (window.SandyLeave && !(keepLeave && keepLeave.isConnected)) SandyLeave.render($('tcLeave'), d.items, d.now).catch(e => console.warn('leave-by:', e));
+      leaveStarted = true;
     };
     // cached parts land within a few ms: then it's one paint, as before
     if (keys.length) await Promise.race([allDone, wait(60)]);
