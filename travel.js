@@ -64,7 +64,7 @@
     const L = window.SandyLeave; let from = null;
     if (L) { const h = await L.getHome(); if (h && h.address) from = { kind: 'home', label: 'home', address: h.address, lat: h.lat, lon: h.lon }; }
     if (!from && x.g.team === 'maryville') from = { kind: 'campus', label: MARYVILLE.label, address: MARYVILLE.address };
-    if (from && L && x.g.location) { const r = await L.drive(from, x.g.location); if (r && r.ok) return { mins: r.mins, miles: r.miles, from: from.label, source: 'route' }; }
+    if (from && L && x.g.location) { const r = await L.drive(from, x.g.location); if (r && r.ok && !r.check) return { mins: r.mins, miles: r.miles, from: from.label, source: 'route' }; }
     const n = parseDur(x.g.drive); // the game's notes: "Drive from Maryville University: …" / "Drive from home: …" (HSSU)
     if (n) { const f = String(x.g.from || (x.g.team === 'maryville' ? MARYVILLE.label : 'home')); return { mins: n, miles: x.g.miles, from: /^home$/i.test(f) ? 'home' : f, source: 'notes' }; }
     return null;

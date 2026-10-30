@@ -27,10 +27,11 @@
   const B2B_MIN = 60;             // a previous event ending up to this long before counts as "where you'll be"
   const MAX_LOOKUPS = 10;         // per render, so a packed day can't hammer the free services
   const DAY = 864e5, MIN = 6e4;
+  const FAR_MI = 150, FAR_MIN = 120; // 5b: a vague place this far / this long a drive gets "Check this location", not an alarm
   const NEAR_M = 480;             // ~0.3 mi: closer than this to home counts as "at home"
   const CHECK_AHEAD_MIN = 60;     // start checking your location this long before the from-home leave time
   const POS_TTL = 5 * 6e4;        // reuse a position for 5 minutes
-  const LS = { home: 'sandy.home.v1', geo: 'sandy.geo.v1', route: 'sandy.route.v1', useLoc: 'sandy.useLoc.v1', locAsked: 'sandy.locAsked.v1' };
+  const LS = { home: 'sandy.home.v1', geo: 'sandy.geo.v2', route: 'sandy.route.v1', useLoc: 'sandy.useLoc.v1', locAsked: 'sandy.locAsked.v1' };
   const A = () => window.__app;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const t12 = d => (window.SandyTime ? SandyTime.fmt(d) : d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }));
@@ -83,20 +84,35 @@
   const inflight = new Map();
   function once(key, fn) { if (!inflight.has(key)) inflight.set(key, fn().finally(() => inflight.delete(key))); return inflight.get(key); }
   function put(k, key, v) { const c = readLS(k, {}); c[key] = v; const ks = Object.keys(c); if (ks.length > 300) ks.sort((x, y) => c[x].t - c[y].t).slice(0, ks.length - 300).forEach(x => delete c[x]); writeLS(k, c); }
+  // 5b: an address that names its state / ZIP / street number is taken at its word, even far away (away games).
+  // A bare place name ("Jennings High School") is matched near home first, so it can't jump to Kansas.
+  const STATES = 'AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC';
+  const ABBR_RE = new RegExp(`,\\s*(${STATES})\\b`); // capitals only, so ", in the gym" isn't Indiana
+  const STATE_RE = new RegExp(`,\\s*(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming)\\b`, 'i');
+  const explicit = q => { q = String(q || ''); return ABBR_RE.test(q) || STATE_RE.test(q) || /\b\d{5}\b/.test(q) || /(^|,)\s*\d+[a-z]?\s+[a-z]/i.test(q); };
+  // "Venue (School), 123 Main St, Town, ST 12345" -> "123 Main St, Town, ST 12345" when the full line finds nothing
+  const streetPart = q => { const t = String(q).replace(/\([^)]*\)/g, '').split(',').slice(1).join(',').trim(); return /\d/.test(t) ? t : ''; };
+  const miles = (a, b) => meters(a, b) / 1609.34;
   function geocode(q, fresh) {
     const key = norm(q); if (!key) return Promise.resolve({ ok: false });
     const hit = readLS(LS.geo, {})[key];
     if (hit && !fresh && (hit.ok || Date.now() - hit.t < DAY)) return Promise.resolve(hit);
     return once('g:' + key, async () => {
       const bias = home && isFinite(home.lat) ? home : { lat: 38.63, lon: -90.4 };
+      const ask = async text => {
+        const r = await tfetch(GEO_URL + '?' + new URLSearchParams({ q: text, limit: 5, lang: 'en', lat: bias.lat, lon: bias.lon }));
+        if (!r.ok) throw Object.assign(new Error('geo'), { temp: r.status >= 500 || r.status === 429 });
+        return ((await r.json()).features || []).map(f => f && f.geometry && f.geometry.coordinates).filter(c => c && isFinite(c[0]) && isFinite(c[1])).map(c => ({ lat: +c[1], lon: +c[0] }));
+      };
       try {
-        const r = await tfetch(GEO_URL + '?' + new URLSearchParams({ q, limit: 1, lang: 'en', lat: bias.lat, lon: bias.lon }));
-        if (!r.ok) return { ok: false, temp: r.status >= 500 || r.status === 429 };
-        const f = ((await r.json()).features || [])[0];
-        const c = f && f.geometry && f.geometry.coordinates;
-        const v = c ? { ok: true, lat: +c[1], lon: +c[0], t: Date.now() } : { ok: false, t: Date.now() };
+        let fs = await ask(q);
+        if (!fs.length && streetPart(q)) fs = await ask(streetPart(q));
+        const ex = explicit(q);
+        const pick = ex ? fs[0] : fs.find(f => miles(bias, f) <= FAR_MI) || fs[0];
+        const mi = pick ? Math.round(miles(bias, pick)) : null;
+        const v = pick ? { ok: true, lat: pick.lat, lon: pick.lon, mi, far: !ex && mi > FAR_MI, t: Date.now() } : { ok: false, t: Date.now() };
         put(LS.geo, key, v); return v;
-      } catch (_) { return { ok: false, temp: true }; }
+      } catch (e) { return { ok: false, temp: e && e.temp !== undefined ? e.temp : true }; }
     });
   }
   const memRoutes = new Map(); // routes from your current location: memory only (never written to storage)
@@ -119,7 +135,9 @@
   async function drive(from, to) {
     const [g1, g2] = await Promise.all([isFinite(from.lat) ? { ok: true, lat: from.lat, lon: from.lon } : geocode(from.address), geocode(to)]);
     if (!g1.ok || !g2.ok) return { ok: false, temp: g1.temp || g2.temp, why: !g2.ok ? 'dest' : 'origin' };
-    return route(g1, g2);
+    const r = await route(g1, g2);
+    // 5b: a vague place that lands far away (or a 2 h+ drive) is probably the wrong match: ask, don't alarm
+    return r.ok && !explicit(to) && (g2.far || r.mins > FAR_MIN) ? { ...r, check: true, mi: g2.mi } : r;
   }
 
 
@@ -237,6 +255,7 @@
     const fromTxt = c.cur && c.curR && c.curR.ok ? 'from your current location' : c.from.kind === 'home' ? 'from home' : `from ${esc(c.from.label)}`;
     if (!r) return `<li class="lb-row lb-pending" data-state="pending">🚗 <span class="lb-main">Working out the drive…</span><span class="lb-sub">${at} · ${fromTxt}</span></li>`;
     if (!r.ok) return `<li class="lb-row lb-fail" data-state="${r.temp ? 'offline' : 'noroute'}">📍 <span class="lb-main">${r.temp ? 'Drive time unavailable right now' : 'Couldn’t work out the drive'}</span><span class="lb-sub">${at} · ${esc(c.loc)} · ${mapsA(c, 'Open in Maps')}</span></li>`;
+    if (r.check) return `<li class="lb-row lb-check" data-state="check" data-mins="${r.mins}">📍 <span class="lb-main"><b>Check this location</b> · ${fmtDrive(r.mins)} drive?</span><span class="lb-sub">${at} · “${esc(c.loc)}” matched a place ${r.miles != null ? `${Math.round(r.miles)} mi` : 'far'} away. Add the city or full address to the event. · ${mapsA(c, 'Open in Maps')}</span></li>`;
     const leave = leaveAt(c.x.o.start, r.mins);
     const lateBy = Math.round((now.getTime() + r.mins * MIN - c.x.o.start.getTime()) / MIN);
     const main = leave <= now ? `<b>Leave now</b> · ${fmtDrive(r.mins)} drive${lateBy > 0 ? ` <span class="lb-late">(about ${fmtDrive(lateBy)} late)</span>` : ''}` : `<b>Leave by ${esc(t12(leave))}</b> · ${fmtDrive(r.mins)} drive`;
@@ -282,7 +301,7 @@
       }
     }
     // leave-by alerts: hand the computed times to the push server
-    const plans = live.filter(c => results.get(c) && results.get(c).ok).map(c => {
+    const plans = live.filter(c => results.get(c) && results.get(c).ok && !results.get(c).check).map(c => {
       const home = results.get(c), r = c.curR && c.curR.ok ? c.curR : home;
       return { c, mins: r.mins, leave: leaveAt(c.x.o.start, r.mins), homeLeave: c.from.kind === 'home' ? leaveAt(c.x.o.start, home.mins) : null,
         origin: c.curR && c.curR.ok ? 'current' : c.from.kind, label: c.curR && c.curR.ok ? 'your current location' : c.from.kind === 'home' ? 'home' : c.from.label };
@@ -303,12 +322,12 @@
     if (!c) return null;
     if (!c.from) return { c, needHome: true };
     const r = await drive(c.from, c.loc);
-    return { c, r, leave: r.ok ? leaveAt(c.x.o.start, r.mins) : null };
+    return { c, r, leave: r.ok && !r.check ? leaveAt(c.x.o.start, r.mins) : null };
   }
   /** Opened from a "Check your drive" push (?locate=1): check location even before the 1-hour window. */
   function locateSoon() { forceLocate = true; }
   function invalidate() { home = undefined; prefs = undefined; }
   window.SandyLeave = { render, firstLeave, geocode, drive, getHome, setHome, invalidate, candidates, leaveAt, mapsUrl, BUFFER_MIN, B2B_MIN, NEAR_M, CHECK_AHEAD_MIN,
     answerAsk, locateSoon, useLoc, setUseLoc, locState, clearPos, getAlertPrefs, setAlertPrefs, savePlans,
-    _test: { geocode, route, drive, norm, meters, wallToUtc, sentSig } };
+    _test: { explicit, streetPart, FAR_MI, FAR_MIN, geocode, route, drive, norm, meters, wallToUtc, sentSig } };
 })();

@@ -93,11 +93,12 @@
     const r = await SandyLeave.firstLeave(d.items, d.day);
     if (!el.isConnected || !r) return r;
     if (r.needHome) el.innerHTML = '🚗 <button type="button" class="tc-link lb-sethome">Add your home</button> to see when to leave';
+    else if (r.r && r.r.ok && r.r.check) el.innerHTML = `📍 <b>Check this location</b> for ${evBtn(r.c.x)} <span class="muted">· “${esc(r.c.loc)}” looks ${r.r.mins >= 60 ? Math.round(r.r.mins / 60) + '+ hr' : r.r.mins + ' min'} away</span>`;
     else if (r.r && r.r.ok) {
       const who = d.first && r.c.x === d.first ? '' : ` for ${evBtn(r.c.x)}`;
       el.innerHTML = `🚗 Leave by <b>${esc(t12(r.leave))}</b>${who} <span class="muted">· ${r.r.mins} min from ${esc(r.c.from.kind === 'home' ? 'home' : r.c.from.label)}</span>`;
     } else el.innerHTML = `🚗 Couldn't work out the drive to ${esc(r.c.loc)}`;
-    el.hidden = false; el.dataset.state = r.needHome ? 'nohome' : r.r && r.r.ok ? 'ok' : 'fail';
+    el.hidden = false; el.dataset.state = r.needHome ? 'nohome' : r.r && r.r.ok ? (r.r.check ? 'check' : 'ok') : 'fail';
     return r;
   }
   window.SandyTomorrow = { isEvening, data, html, fillLeave, checklist, prepLines, EVENING_HOUR };
