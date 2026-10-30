@@ -98,7 +98,7 @@ const rest = (p, o = {}) => fetch(`${URL_}/rest/v1/${p}`, { ...o, headers: { ...
     assert(d.ev && d.today && d.offline, `D: cold open without Supabase shows the saved copy ${JSON.stringify(d)}`);
     await p2.evaluate(() => SandyNav.go('todo')); await p2.waitForTimeout(3000);
     const dj = await p2.evaluate(async () => { const t0 = Date.now(); await SandyNav.renderTodo(); return { ms: Date.now() - t0, jot: /QA update-safe jot/.test(document.getElementById('todoList').textContent) }; });
-    assert(dj.jot && dj.ms < 6000, 'D: To-Do jots from the saved copy, in under 6 s (supabase-js would retry for ~7 s) ' + JSON.stringify(dj));
+    assert(dj.jot && dj.ms < 3000, 'D: To-Do jots from the saved copy, in under 3 s (supabase-js alone would retry for ~7 s) ' + JSON.stringify(dj));
     await p2.unroute(/supabase\.co\/rest\//);
     // sign-out removes the saved copies
     await p2.evaluate(async () => { await __app.Store.auth.signOut(); });

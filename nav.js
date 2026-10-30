@@ -51,6 +51,8 @@
       async list() {
         const sb = sbc();
         if (!sb) return (api.cache = readLS(key, []));
+        // a slow read is still running in the background: hand back what this device has right away
+        if (api.slowLoad && api.cache && (!api.memo || Date.now() - api.memo.at > 3000)) return api.cache.slice();
         if (!api.memo || Date.now() - api.memo.at > 3000) {
           const load = (async () => {
             // keep-what-you-have (t156u): an error (network blip, expired session, mid-session deploy) keeps the
@@ -66,7 +68,7 @@
               throw new Error(error.message || String(error));
             }
             api.available = true; api.cache = data.map(map.from);
-            try { const k = await snapKey(); const v = JSON.stringify({ at: Date.now(), rows: api.cache }); if (k && v.length < 1e6) localStorage.setItem(k, v); } catch (_) {}
+            try { const k = await snapKey(); const v = JSON.stringify({ at: Date.now(), rows: api.cache }); if (k && v.length < 1e6 && !window.__sandySnapOff) localStorage.setItem(k, v); } catch (_) {}
             return api.cache;
           })();
           // supabase-js retries failed reads with backoff (~7 s offline): when this device already has a list
@@ -78,12 +80,16 @@
             load.catch(() => {});
             let t; const slow = new Promise(r => { t = setTimeout(() => r('slow'), 2500); });
             const r = await Promise.race([load.then(x => ({ x }), e => ({ e })), slow]); clearTimeout(t);
-            if (r === 'slow') { console.warn(name + ': slow, showing what this device has'); if (!api.cache) api.cache = fb; return fb; }
+            if (r === 'slow') {
+              console.warn(name + ': slow, showing what this device has'); if (!api.cache) api.cache = fb;
+              api.slowLoad = load; const done = () => { if (api.slowLoad === load) api.slowLoad = null; }; load.then(done, done);
+              return fb;
+            }
             if (r.e) throw r.e; return r.x;
           })();
           const m = { at: Date.now(), p };
           api.memo = m;
-          p.catch(() => { if (api.memo === m) api.memo = null; });
+          p.then(() => { m.at = Date.now(); }, () => { if (api.memo === m) api.memo = null; }); // reuse for 3 s after it answers
         }
         return (await api.memo.p).slice();
       },

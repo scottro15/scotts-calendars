@@ -275,7 +275,7 @@
     const SNAP = 'sandy.snap.v1.';
     async function snapUid() { try { if (!remote || !adapter.client) return null; const { data } = await adapter.client.auth.getSession(); return data && data.session ? data.session.user.id : null; } catch (_) { return null; } }
     async function snapSave(kind, rows) {
-      try { const id = await snapUid(); if (!id) return; const v = JSON.stringify({ at: Date.now(), rows }); if (v.length > 2.5e6) return; localStorage.setItem(SNAP + kind + '.' + id, v); } catch (_) {}
+      try { if (window.__sandySnapOff) return; const id = await snapUid(); if (!id || window.__sandySnapOff) return; const v = JSON.stringify({ at: Date.now(), rows }); if (v.length > 2.5e6) return; localStorage.setItem(SNAP + kind + '.' + id, v); } catch (_) {}
     }
     async function snapRead(kind) {
       try { const id = await snapUid(); if (!id) return null; const v = JSON.parse(localStorage.getItem(SNAP + kind + '.' + id) || 'null'); return v && Array.isArray(v.rows) ? v.rows : null; } catch (_) { return null; }
@@ -551,7 +551,7 @@
         if (error) throw error;
         return data && data.session ? data.session.user : null;
       },
-      async signOut() { try { Object.keys(localStorage).filter(k => k.startsWith('sandy.snap.v1.')).forEach(k => localStorage.removeItem(k)); } catch (_) {} await sb.auth.signOut(); }, // the saved copies leave with the account
+      async signOut() { const clear = () => { try { Object.keys(localStorage).filter(k => k.startsWith('sandy.snap.v1.')).forEach(k => localStorage.removeItem(k)); } catch (_) {} }; window.__sandySnapOff = true; clear(); try { await sb.auth.signOut(); } finally { clear(); } }, // no saved copies written after sign-out (late reads included); // the saved copies leave with the account
       onSignIn(fn) { return sb.auth.onAuthStateChange((evt, session) => { if (session && (evt === 'SIGNED_IN' || evt === 'INITIAL_SESSION')) fn(session.user); }); },
       // Invite-only: any account that exists in Supabase Auth was invited (sign-ups are off),
       // and Row Level Security limits each account to its own calendars.
