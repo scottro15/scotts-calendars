@@ -30,6 +30,11 @@
     <div class="auth-card">
       <h1 data-app-name data-app-prefix="📅 ">📅 SANDY</h1>
       <p id="authMsg" class="muted"></p>
+      <p id="authHomeNote" class="auth-note" role="note" hidden></p>
+      <div id="authReconnect" class="auth-reconnect" hidden>
+        <span class="auth-spin" aria-hidden="true"></span>
+        <div class="auth-reconnect-btns"><button type="button" class="primary" id="authRetry">Try again</button><button type="button" class="link-btn" id="authFresh">Sign in again instead</button></div>
+      </div>
       <form id="authForm">
         <label>Email <input id="authEmail" type="email" required autocomplete="email"></label>
         <button type="submit" class="primary">Email me a code</button>

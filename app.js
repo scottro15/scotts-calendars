@@ -186,6 +186,8 @@
     } catch (e) { console.warn('profile:', e); }
   }
 
+  // Ask the browser not to evict this device's storage (keeps the sign-in + saved copies under storage pressure).
+  function keepStorage() { try { if (navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p => p || navigator.storage.persist()).catch(() => {}); } catch (_) {} }
   async function requireOwnerSignIn() {
     const gate = document.getElementById('authGate');
     const msg = document.getElementById('authMsg');
@@ -198,10 +200,56 @@
       formEl.hidden = !!user; outBtn.hidden = !user; document.getElementById('authCodeForm').hidden = true;
       msg.textContent = user ? `Signed in as ${user.email}, which doesn't have access to these calendars.` : 'Sign in with your email. We\'ll email you an 8-digit code. Type it here to sign in.';
     };
-    let user = null;
-    try { user = await Store.auth.user(); } catch (e) { console.error(e); }
-    if (Store.auth.isOwner(user)) return user;
-    showFor(user);
+    // Home Screen app (t152u): iPhone/iPad Home Screen apps keep their own sign-in, separate from Safari.
+    const ua = navigator.userAgent || '';
+    const appleMobile = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    const standalone = (() => { try { return !!(navigator.standalone || (window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches))); } catch (_) { return false; } })();
+    const note = document.getElementById('authHomeNote');
+    const homeNote = () => {
+      if (standalone && appleMobile) return `<b>Sign in once here in the Home Screen app.</b> Safari and the Home Screen app keep separate sign-ins, so signing in to Safari doesn't carry over. Type the 8-digit code from the email right here (there's no link to tap). You'll stay signed in after this.`;
+      if (standalone) return `<b>Sign in once here in the SANDY app.</b> Type the 8-digit code from the email right here. You'll stay signed in after this.`;
+      if (appleMobile) return `Using SANDY from your Home Screen? It keeps its own sign-in, so after you add it, open it and sign in once there too.`;
+      return '';
+    };
+    const showNote = on => { const h = on ? homeNote() : ''; note.innerHTML = h; note.hidden = !h; note.classList.toggle('auth-note-app', standalone); };
+    const recon = document.getElementById('authReconnect');
+    let user = null, slow = false;
+    // supabase-js retries a failed renew for ~25 s before answering; with a saved sign-in, show "reconnecting"
+    // after a moment instead of a blank screen.
+    const first = Store.auth.user().catch(e => { console.error(e); return null; });
+    const SLOW = {};
+    const r0 = await Promise.race([first, new Promise(res => setTimeout(() => res(SLOW), 1500))]);
+    if (r0 === SLOW) slow = true; else user = r0;
+    if (Store.auth.isOwner(user)) { keepStorage(); return user; }
+    const saved = () => !!(Store.auth.hasSavedSession && Store.auth.hasSavedSession());
+    if (slow && !saved()) { user = await first; if (Store.auth.isOwner(user)) { keepStorage(); return user; } slow = false; }
+    // Signed in before but the session couldn't be renewed right now (offline / slow network): don't show the
+    // sign-in form, keep retrying. Only a session the server rejects (removed by supabase-js) shows the form.
+    if (!user && saved()) {
+      const back = await new Promise(resolve => {
+        gate.hidden = false; formEl.hidden = true; outBtn.hidden = true; document.getElementById('authCodeForm').hidden = true; showNote(false);
+        recon.hidden = false; recon.classList.remove('auth-swap'); void recon.offsetWidth; recon.classList.add('auth-swap');
+        let tries = 0, busy = !!slow, timer = null;
+        const setMsg = () => { msg.textContent = navigator.onLine === false ? 'You\'re still signed in. SANDY will reconnect as soon as you\'re back online.' : 'You\'re still signed in. Reconnecting…'; };
+        const done = v => { clearInterval(timer); window.removeEventListener('online', attempt); document.removeEventListener('visibilitychange', onVis); recon.hidden = true; resolve(v); };
+        async function attempt() {
+          if (busy) return; busy = true; tries++; setMsg();
+          let u = null; try { u = await Store.auth.user(); } catch (_) {}
+          busy = false;
+          if (u) return done(u);
+          if (!Store.auth.hasSavedSession()) return done(null); // the server said no: sign in again
+          if (tries >= 3 && navigator.onLine !== false) msg.textContent = 'You\'re still signed in, but SANDY can\'t reach the server right now. It keeps trying.';
+        }
+        const onVis = () => { if (document.visibilityState === 'visible') attempt(); };
+        document.getElementById('authRetry').onclick = attempt;
+        document.getElementById('authFresh').onclick = () => done(null);
+        window.addEventListener('online', attempt); document.addEventListener('visibilitychange', onVis);
+        timer = setInterval(attempt, 5000); setMsg();
+        if (slow) first.then(u => { busy = false; if (u) done(u); else if (!Store.auth.hasSavedSession()) done(null); });
+      });
+      if (back && Store.auth.isOwner(back)) { gate.hidden = true; keepStorage(); return back; }
+    }
+    showFor(user); showNote(!user);
     outBtn.onclick = async () => { await Store.auth.signOut(); showFor(null); };
     const codeForm = document.getElementById('authCodeForm');
     const codeEl = document.getElementById('authCode');
@@ -238,7 +286,7 @@
     document.getElementById('authResend').onclick = () => send(sentTo || emailEl.value.trim());
     document.getElementById('authChangeEmail').onclick = () => { showCode(false); msg.textContent = 'Sign in with your email. We\'ll email you an 8-digit code. Type it here to sign in.'; emailEl.focus(); };
     return new Promise(resolve => {
-      Store.auth.onSignIn(u => { if (Store.auth.isOwner(u)) { gate.hidden = true; resolve(u); } else showFor(u); });
+      Store.auth.onSignIn(u => { if (Store.auth.isOwner(u)) { gate.hidden = true; recon.hidden = true; keepStorage(); resolve(u); } else showFor(u); });
     });
   }
 

@@ -2230,3 +2230,19 @@ html.dark .fbr.st-note .fbr-chip { background: #334155; color: #e2e8f0; }
 html.dark .fbr-preset { background: #0f1729; color: #e2e8f0; border-color: var(--line); }
 html.dark .fb-item.fb-unseen { background: linear-gradient(90deg, rgba(129,140,248,.12), transparent 70%); }
 @media (prefers-reduced-motion: reduce) { .fbr-new, .fbr.unread, .fbr-compose, .fbr-leave, .fb-count, .fb-dot, .nav-dot { animation: none; } }
+
+/* ---------- Home Screen sign-in guidance + reconnecting (t152u) ---------- */
+.auth-note { margin: 0; padding: 10px 12px; border-radius: 10px; background: #eef2ff; color: #1e2a4a; font-size: .9rem; line-height: 1.4; animation: onb-in 300ms cubic-bezier(.2,.9,.3,1.1) both; }
+.auth-note.auth-note-app { background: #ecfdf5; color: #064e3b; box-shadow: inset 3px 0 0 #10b981; }
+.auth-reconnect { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.auth-reconnect[hidden] { display: none; }
+.auth-reconnect-btns { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+.auth-reconnect-btns .primary { width: 100%; }
+.auth-spin { width: 26px; height: 26px; border-radius: 50%; border: 3px solid #c7d2fe; border-top-color: #4f46e5; animation: authSpin .9s linear infinite; }
+@keyframes authSpin { to { transform: rotate(360deg); } }
+.wl-signin-note { display: block; margin-top: 3px; font-weight: 600; }
+html.dark .auth-note { background: #1e2547; color: #e0e7ff; }
+html.dark .auth-note.auth-note-app { background: #0b2e24; color: #d1fae5; box-shadow: inset 3px 0 0 #34d399; }
+html.dark .auth-spin { border-color: #334155; border-top-color: #818cf8; }
+@media (prefers-reduced-motion: reduce) { .auth-note { animation: none; } .auth-spin { animation-duration: 2.5s; } }
+html.reduce-motion .auth-note { animation: none; }

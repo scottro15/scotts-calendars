@@ -528,6 +528,11 @@
     return {
       ownerEmail: owner,
       async user() { const { data } = await sb.auth.getSession(); return data.session ? data.session.user : null; },
+      // A saved sign-in is still on this device (refresh token kept) but couldn't be renewed just now, e.g. the
+      // Home Screen app opened offline or on a slow network after the 1-hour access token expired. supabase-js
+      // keeps the session for network errors and removes it only when the server rejects it, so this means
+      // "still signed in, reconnecting", not "signed out".
+      hasSavedSession() { try { const v = JSON.parse(localStorage.getItem(sb.auth.storageKey) || 'null'); return !!(v && (v.refresh_token || (v.currentSession && v.currentSession.refresh_token))); } catch (_) { return false; } },
       async sendMagicLink(email) {
         // Hosted: always come back to the canonical site URL (must match Supabase's allowed redirect URLs).
         // Elsewhere (local dev/tests): come back to wherever the app is running.

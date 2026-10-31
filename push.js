@@ -266,7 +266,7 @@
       <ol class="push-steps">
         <li>${share}</li>
         <li>Choose <b>Add to Home Screen</b>, then tap <b>Add</b>.</li>
-        <li>Open <b>SANDY</b> from the new Home Screen icon and sign in.</li>
+        <li>Open <b>SANDY</b> from the new Home Screen icon and sign in once there. It keeps its own sign-in, separate from Safari.</li>
         <li>Open <b>Profile</b> → <b>Notifications</b> → <b>Enable notifications</b> → <b>Allow</b>.</li>
       </ol>
       <p class="muted small">Needs ${pad ? 'iPadOS' : 'iOS'} 16.4 or newer.</p>

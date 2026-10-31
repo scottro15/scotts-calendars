@@ -29,7 +29,7 @@
   const coarse = () => { try { return !window.matchMedia || matchMedia('(pointer: coarse)').matches; } catch (e) { return true; } };
   const installed = () => { try { return !!((window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone); } catch (e) { return false; } };
   const IOS_STEPS = `<li>Open SANDY in Safari and tap <b>Share</b>, then <b>Add to Home Screen</b>.</li>
-      <li>Open SANDY from your Home Screen icon, not from Safari.</li>`;
+      <li>Open SANDY from your Home Screen icon, not from Safari. <span class="wl-signin-note">It keeps its own sign-in, separate from Safari, so sign in once more there.</span></li>`;
   const CHROME_STEPS = `<li>Open SANDY in <b>Chrome</b> and tap <b>Install</b> on the <b>Install SANDY</b> card (or Chrome's own <b>Install app</b> pop-up). Don't see it? Tap <b>⋮</b> at the top right, then <b>Add to Home screen</b> → <b>Install</b> (some phones say <b>Install app</b>).</li>
       <li>Open SANDY from its Home screen icon, not from Chrome.</li>`;
   const SAMSUNG_STEPS = `<li>In <b>Samsung Internet</b>, tap the <b>install icon</b> in the address bar if you see it (or <b>Install</b> on the <b>Install SANDY</b> card). Otherwise tap <b>☰</b> (bottom right), then <b>Add page to</b> → <b>Home screen</b>.</li>
@@ -43,7 +43,7 @@
     if (pf === 'mi') return MI_STEPS;
     if (pf === 'android') return CHROME_STEPS;
     return `<li><b>iPhone:</b> open SANDY in Safari, tap <b>Share</b>, then <b>Add to Home Screen</b>.<br><b>Android:</b> open SANDY in Chrome and tap <b>Install</b>, or tap <b>⋮</b> → <b>Add to Home screen</b> (Samsung Internet: <b>☰</b> → <b>Add page to</b> → <b>Home screen</b>).</li>
-      <li>Open SANDY from your Home Screen icon, not from the browser.</li>`;
+      <li>Open SANDY from your Home Screen icon, not from the browser. <span class="wl-signin-note">On iPhone and iPad it keeps its own sign-in, so sign in once more there.</span></li>`;
   }
   const body = pf => `
     <p>This is a beta, so there will be bugs. Please report any issues you run into, and send me your feedback and suggestions too.</p>
