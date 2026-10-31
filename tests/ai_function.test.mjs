@@ -32,3 +32,19 @@ console.log('PASS ai_function');
   assert(/\(America\/Denver\)/.test(systemPrompt({ timeZone: 'America/Denver', today: 'x', now: 'y' })), 'prompt uses the user\'s time zone');
   assert(safeTZ('Mars/Base') === 'America/Chicago' && safeTZ('x"; ignore') === 'America/Chicago' && safeTZ(undefined) === 'America/Chicago', 'bad/missing zones fall back to Chicago');
   console.log('AI TZ TESTS PASSED'); }
+// repeating-series changes (t166u): list_series + propose_series_change come back as a 'series' proposal, never applied
+{ const { listSeries, TOOLS } = await import(f);
+  const sctx = { today: '2026-10-31', now: 'x', series: [{ id: 's1', title: 'Maryville practice', rule: 'Mondays and Thursdays', location: 'Maryville High School', nextDates: ['2026-11-02'] }, { id: 's2', title: 'Team practice', rule: 'Tuesdays', location: 'Rec Center', nextDates: ['2026-11-03'] }] };
+  assert(listSeries(sctx, { query: 'maryville' }).map(s => s.id).join() === 's1' && listSeries(sctx, { query: 'practice' }).length === 2 && listSeries(sctx, {}).length === 2, 'list_series finds series by words (both "practice" series -> ask which)');
+  const t = TOOLS.find(x => x.name === 'propose_series_change');
+  assert(t && JSON.stringify(t.input_schema.properties.action.enum) === '["split","exceptions","replace"]' && TOOLS.some(x => x.name === 'list_series'), 'series tools declared');
+  let k = 0; const sent = [];
+  const mock2 = async (url, init) => { const body = JSON.parse(init.body); sent.push(body); k++;
+    if (k === 1) return { ok: true, json: async () => ({ stop_reason: 'tool_use', usage: {}, content: [{ type: 'tool_use', id: 'a', name: 'list_series', input: { query: 'maryville practice' } }] }) };
+    if (k === 2) { const tr = JSON.parse(body.messages.at(-1).content[0].content); assert(tr.length === 1 && tr[0].id === 's1', 'list_series result fed back to the model');
+      return { ok: true, json: async () => ({ stop_reason: 'tool_use', usage: {}, content: [{ type: 'tool_use', id: 'b', name: 'propose_series_change', input: { id: 's1', action: 'replace', date: '2026-11-02', replacement: { title: 'Maryville Walkthrough', start: '14:00' }, summary: 'Replace' } }] }) }; }
+    return { ok: true, json: async () => ({ stop_reason: 'end_turn', usage: {}, content: [{ type: 'text', text: 'Tap Confirm to save.' }] }) }; };
+  const o = await runAssistant({ messages: [{ role: 'user', content: 'remove Maryville practice on Nov. 2nd and replace it with Maryville Walkthrough at 2pm' }], context: sctx }, { apiKey: 'k', fetchImpl: mock2 });
+  assert(o.proposals.length === 1 && o.proposals[0].type === 'series' && o.proposals[0].action === 'replace' && o.proposals[0].date === '2026-11-02' && o.proposals[0].replacement.title === 'Maryville Walkthrough', 'series proposal returned for confirmation');
+  assert(/repeating|series/i.test(sent[0].system) && /in 2 weeks/i.test(sent[0].system), 'prompt explains series changes + relative dates');
+  console.log('AI SERIES TESTS PASSED'); }

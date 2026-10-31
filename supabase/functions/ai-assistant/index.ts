@@ -33,6 +33,22 @@ export const TOOLS = [
     input_schema: { type: 'object', properties: { id: { type: 'string' }, occurrence: { type: 'string' }, scope: { type: 'string', enum: ['one', 'all'] }, changes: { type: 'object', properties: evProps }, summary: { type: 'string' } }, required: ['id', 'occurrence', 'changes', 'summary'] } },
   { name: 'propose_delete', description: 'Propose deleting an event (scope "one" = just that occurrence of a repeating event).',
     input_schema: { type: 'object', properties: { id: { type: 'string' }, occurrence: { type: 'string' }, scope: { type: 'string', enum: ['one', 'all'] }, summary: { type: 'string' } }, required: ['id', 'occurrence', 'summary'] } },
+  { name: 'list_series', description: 'List the user\'s REPEATING event series (id, title, rule such as "Tuesdays", time, location, next dates, skipped/changed dates). Optional text filter.',
+    input_schema: { type: 'object', properties: { query: { type: 'string' } } } },
+  { name: 'propose_series_change', description: [
+    'Propose a change to a REPEATING series in one confirm card (the app shows exactly what changes; nothing is saved until the user confirms). id = the series id from list_series (or list_events).',
+    'action "split": from date `from` on, the series follows `changes`; earlier dates stay exactly as they are. Use for "starting in 2 weeks / from Dec 1 on / going forward, move X to Thursday 7 PM". `from` is the date the change starts (e.g. today + 14 days for "in 2 weeks"); give only what changes: start/end as HH:MM (24h), weekdays (0=Sun..6=Sat) to change the day, freq/interval, until, title, location.',
+    'action "exceptions": change only specific dates, rest of the series unchanged. items: [{date, skip: true}] cancels that date; [{date, start, end?, title?, location?}] moves/retimes it (start/end HH:MM on the same day, or YYYY-MM-DDTHH:MM to move it to another day). Several dates go in ONE call.',
+    'action "replace": cancel the occurrence on `date` and add a one-off event `replacement` {title, start, end?, minutes?, location?, category?, calendar?, notes?} (start/end HH:MM on that day). It keeps the series\' calendar, category, location and reminders unless given. Use for "remove/cancel X on <date> and replace it with Y at 2pm".',
+    'Every date must be one of the series\' dates. If the date is not one, or more than one series could match, ask the user instead of guessing.'].join(' '),
+    input_schema: { type: 'object', properties: {
+      id: { type: 'string' }, action: { type: 'string', enum: ['split', 'exceptions', 'replace'] },
+      from: { type: 'string', description: 'split: YYYY-MM-DD' },
+      changes: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' }, minutes: { type: 'integer' }, weekdays: { type: 'array', items: { type: 'integer' } }, freq: { type: 'string', enum: ['daily', 'weekly', 'monthly', 'yearly'] }, interval: { type: 'integer' }, until: { type: 'string' }, title: { type: 'string' }, location: { type: 'string' }, category: { type: 'string' }, notes: { type: 'string' } } },
+      items: { type: 'array', items: { type: 'object', properties: { date: { type: 'string' }, skip: { type: 'boolean' }, start: { type: 'string' }, end: { type: 'string' }, title: { type: 'string' }, location: { type: 'string' } }, required: ['date'] } },
+      date: { type: 'string', description: 'replace: YYYY-MM-DD of the occurrence to cancel' },
+      replacement: { type: 'object', properties: { title: { type: 'string' }, start: { type: 'string' }, end: { type: 'string' }, minutes: { type: 'integer' }, location: { type: 'string' }, category: { type: 'string' }, calendar: { type: 'string' }, notes: { type: 'string' } } },
+      summary: { type: 'string' } }, required: ['id', 'action', 'summary'] } },
   { name: 'propose_check', description: 'Propose checking off (done=true) or un-checking a to-do occurrence.',
     input_schema: { type: 'object', properties: { id: { type: 'string' }, occurrence: { type: 'string' }, done: { type: 'boolean' }, summary: { type: 'string' } }, required: ['id', 'occurrence', 'done', 'summary'] } },
 ];
@@ -51,6 +67,7 @@ export function systemPrompt(ctx) {
     `Calendars: ${cals}.`,
     'Use list_events to look things up before answering or editing. To change anything, call the propose_* tools — they do NOT save; the user sees a confirm card for each and taps Confirm. Never claim something is saved; say "tap Confirm to save".',
     'Ask one short question if the request is ambiguous (e.g. which calendar). Pick the most likely calendar from context when reasonable.',
+    'Repeating events: use list_series to find the series. For changes to a series from a date on, to several specific dates, or replacing one date with a different event, use propose_series_change (one card per request). Resolve relative dates yourself from today (e.g. "in 2 weeks" = today + 14 days; "Nov. 2nd" = the next Nov 2). If two or more series could match (e.g. two "practice" series), or the date is not one of the series\' dates, ask one short question (list the options with day and time) before proposing.',
     'Events whose title mentions Christian Dake are reference only (another person\'s schedule): never call them conflicts.',
     'Be brief and warm. Plain text, no markdown tables. Use 12-hour times like 3:30 PM.',
   ].join('\n');
@@ -61,6 +78,12 @@ function listEvents(ctx, { from, to, query }) {
   const rows = (ctx.events || []).filter(e => e.occ <= (to || '9999') && (e.endDay || e.occ) >= (from || '0000'))
     .filter(e => !q || `${e.title} ${e.category || ''} ${e.location || ''} ${e.calendar}`.toLowerCase().includes(q));
   return rows.slice(0, 120);
+}
+
+export function listSeries(ctx, { query }) {
+  const q = (query || '').toLowerCase().trim();
+  const words = q.split(/\s+/).filter(w => w.length > 2);
+  return (ctx.series || []).filter(e => !q || words.every(w => `${e.title} ${e.category || ''} ${e.location || ''}`.toLowerCase().includes(w)) || `${e.title}`.toLowerCase().includes(q)).slice(0, 40);
 }
 
 const PROPOSAL_TOOLS = { propose_add: 'add', propose_edit: 'edit', propose_delete: 'delete', propose_check: 'check' };
@@ -88,6 +111,8 @@ export async function runAssistant({ messages, context }, { apiKey, fetchImpl = 
     msgs.push({ role: 'user', content: uses.map(u => {
       let out;
       if (u.name === 'list_events') out = listEvents(context || {}, u.input || {});
+      else if (u.name === 'list_series') out = listSeries(context || {}, u.input || {});
+      else if (u.name === 'propose_series_change') { proposals.push({ type: 'series', ...(u.input || {}) }); out = { ok: true, status: 'shown to the user with a preview of every date that changes (not saved yet)' }; }
       else if (PROPOSAL_TOOLS[u.name]) { proposals.push({ type: PROPOSAL_TOOLS[u.name], ...(u.input || {}) }); out = { ok: true, status: 'shown to the user for confirmation (not saved yet)' }; }
       else out = { error: 'unknown tool' };
       return { type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(out) };

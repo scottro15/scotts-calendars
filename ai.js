@@ -57,7 +57,7 @@
     setupMic(ta);
     document.getElementById('aiNew').addEventListener('click', newChat);
     document.getElementById('aiHist').addEventListener('click', () => (document.getElementById('aiHistPanel').hidden ? showHistory() : hideHistory()));
-    window.SandyAI = { open, close, briefHtml, buildContext, applyProposal, briefData, Chats, newChat, openChat, showHistory, hideHistory, current: () => ({ id: chatId, title: chatTitle, history: history.slice() }) };
+    window.SandyAI = { open, close, briefHtml, buildContext, applyProposal, renderProposal, seriesPlan, briefData, Chats, newChat, openChat, showHistory, hideHistory, current: () => ({ id: chatId, title: chatTitle, history: history.slice() }) };
   }
   // The message box (t148u item 3): text and placeholder always sit fully inside it. Grows with the text
   // (border included: the old code set height = scrollHeight under border-box, clipping 2px and the last
@@ -123,12 +123,37 @@
         if (ev.location) r.location = ev.location;
         if (isRef(ev)) r.referenceOnly = true;
         if (ev.allDay && r.end !== o.key) r.endDay = r.end;
+        if (ev.seriesId) { r.changedOccurrenceOf = ev.seriesId; r.originalDate = ev.originalDate; }
         events.push(r);
       }
     }
     events.sort((a, b) => a.start < b.start ? -1 : 1);
-    return { timeZone: A.timeZone ? A.timeZone() : 'America/Chicago', today: A.ymd(today), now: `${A.ymd(now)} ${t12fixed(now)}`, calendars: A.calendars().map(c => ({ id: c.id, name: c.name })), events };
+    // repeating series (t166u): the model edits these with propose_series_change
+    const all = await A.Store.list(); const tk = A.ymd(today);
+    const series = all.filter(ev => A.isRecurring(ev) && !(ev.recurrence.until && ev.recurrence.until < A.ymd(rs))).slice(0, 80).map(ev => {
+      const r = ev.recurrence, b = A.parseLocal(ev.start);
+      const o = { id: ev.id, title: ev.title, calendar: ev.calendar, category: ev.category, rule: ruleText(ev), firstDate: String(ev.start).slice(0, 10) };
+      if (!ev.allDay) { const e = new Date(b.getTime() + seriesLen(ev)); o.time = `${t12fixed(b)}–${t12fixed(e)}`; } else o.allDay = true;
+      if (r.until) o.until = r.until;
+      if (ev.location) o.location = ev.location;
+      const sk = (ev.exdates || []).filter(d => d >= A.ymd(rs)); if (sk.length) o.skippedOrChanged = sk.slice(0, 20);
+      const nx = A.occurrences(ev, today, new Date(today.getTime() + 120 * DAY)).slice(0, 6).map(x => x.key); if (nx.length) o.nextDates = nx;
+      return o;
+    });
+    return { timeZone: A.timeZone ? A.timeZone() : 'America/Chicago', today: tk, now: `${A.ymd(now)} ${t12fixed(now)}`, calendars: A.calendars().map(c => ({ id: c.id, name: c.name })), events, series };
   }
+
+  const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], WDL = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+  const seriesLen = ev => { const d = A.parseLocal(ev.end || ev.start) - A.parseLocal(ev.start); return d > 0 ? d : 3600000; };
+  function ruleText(ev) {
+    const r = ev.recurrence || {}; const n = +r.interval || 1; const b = A.parseLocal(ev.start);
+    if (r.freq === 'weekly') { const ds = (r.byWeekday && r.byWeekday.length ? r.byWeekday : [b.getUTCDay()]).map(Number).sort(); const names = ds.length === 1 ? WDL[ds[0]] : ds.map(d => WD[d]).join(', '); return n > 1 ? `every ${n} weeks on ${names}` : names.replace(/^./, c => c.toUpperCase()); }
+    if (r.freq === 'daily') return n > 1 ? `every ${n} days` : 'Every day';
+    if (r.freq === 'monthly') return `${n > 1 ? `Every ${n} months` : 'Monthly'} on day ${b.getUTCDate()}`;
+    if (r.freq === 'yearly') return 'Every year';
+    return 'One time';
+  }
+  const whenText = ev => { const b = A.parseLocal(ev.start); if (ev.allDay) return ruleText(ev) + ', all day'; return `${ruleText(ev)}, ${t12(b)}–${t12(new Date(b.getTime() + seriesLen(ev)))}`; };
 
   async function token() {
     try { const c = A.Store.adapter && A.Store.adapter.client; if (!c) return ''; const { data } = await c.auth.getSession(); return data.session ? data.session.access_token : ''; } catch (e) { return ''; }
@@ -150,7 +175,7 @@
       if (!res.ok) { addMsg('assistant error', data.error || (res.status === 404 ? 'The assistant isn’t switched on yet. “Brief me” works now.' : `Something went wrong (${res.status}).`)); history.pop(); persist(); return; }
       addMsg('assistant', data.reply); history.push({ role: 'assistant', content: data.reply }); persist();
       (data.proposals || []).forEach((p, i) => setTimeout(() => renderProposal(p), (window.Motion && Motion.reduced()) ? 0 : 120 * (i + 1)));
-    } catch (e) { wait.remove(); addMsg('assistant error', 'Could not reach the assistant. Check your connection and try again.'); history.pop(); persist(); }
+    } catch (e) { console.error(e); wait.remove(); addMsg('assistant error', 'Could not reach the assistant. Check your connection and try again.'); history.pop(); persist(); }
     finally { busy = false; document.getElementById('aiSend').disabled = false; setChatBtns(); }
   }
 
@@ -288,7 +313,87 @@
     }
     return { ev, rows };
   }
+  /** Series changes (t166u): build the exact plan up front so the card shows what will change. */
+  const keyDay = k => fmtDay(k);
+  const listDays = ks => ks.length > 4 ? `${ks.slice(0, 3).map(keyDay).join(', ')} +${ks.length - 3} more` : ks.map(keyDay).join(', ');
+  async function seriesPlan(p) {
+    const S = window.SandySeries; const all = await A.Store.list();
+    let ev = all.find(e => e.id === p.id) || null;
+    if (ev && ev.seriesId) ev = all.find(e => e.id === ev.seriesId) || null; // a changed occurrence -> its series
+    if (!ev) throw new Error('I couldn’t find that repeating event');
+    if (!A.isRecurring(ev)) throw new Error(`“${ev.title}” doesn’t repeat`);
+    const isOcc = k => S.occKeys(ev, k, k).length > 0 || S.exceptionsOf(all, ev.id).some(e => e.originalDate === k);
+    const near = k => { const ks = S.occKeys(ev, S.addDays(k, -10), S.addDays(k, 10)); return ks.length ? ` Nearest dates: ${ks.slice(0, 3).map(keyDay).join(', ')}.` : ''; };
+    const rows = [['Series', `${ev.title} · ${whenText(ev)}`]];
+    let plan;
+    if (p.action === 'split') {
+      const from = String(p.from || '').slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) throw new Error('Which date should the change start from?');
+      const c = p.changes || {};
+      plan = S.split(ev, from, { start: c.start, end: c.end, minutes: c.minutes, weekdays: c.weekdays, freq: c.freq, interval: c.interval, until: c.until, title: c.title, location: c.location, category: c.category, notes: c.notes }, all);
+      const before = S.occKeys(ev, String(ev.start).slice(0, 10), S.addDays(from, -1));
+      if (before.length) rows.push(['Stays the same', `through ${keyDay(before[before.length - 1])}`]);
+      const nx = A.occurrences(plan.next, A.parseLocal(from), A.parseLocal(S.addDays(from, 120))).slice(0, 3).map(o => o.key);
+      rows.push([plan.inPlace ? 'Changes to' : `From ${keyDay(nx[0] || from)}`, whenText(plan.next) + (plan.next.title !== ev.title ? ` · “${plan.next.title}”` : '') + (plan.next.location !== ev.location && plan.next.location ? ` · ${plan.next.location}` : '')]);
+      if (nx.length) rows.push(['Next dates', listDays(nx)]);
+      if (plan.next.recurrence.until) rows.push(['Until', keyDay(plan.next.recurrence.until)]);
+      rows.push(['Kept', 'calendar, category, location, notes and reminders']);
+    } else if (p.action === 'exceptions') {
+      const items = (p.items || []).filter(x => x && x.date).map(x => ({ ...x, date: String(x.date).slice(0, 10) }));
+      if (!items.length) throw new Error('Which dates should change?');
+      const bad = items.filter(x => !isOcc(x.date)); if (bad.length) throw new Error(`${listDays(bad.map(x => x.date))} ${bad.length > 1 ? 'aren’t dates' : 'isn’t a date'} for “${ev.title}”.${near(bad[0].date)}`);
+      const skips = items.filter(x => x.skip), moves = items.filter(x => !x.skip);
+      const a = skips.length ? S.skip(ev, skips.map(x => x.date), all) : { save: [ev], remove: [], created: [] };
+      const b = moves.length ? S.move(a.save[0], moves, all) : { save: [a.save[0]], remove: [], created: [] };
+      plan = { save: b.save, remove: a.remove, created: b.created };
+      for (const x of skips) rows.push(['Skip', keyDay(x.date)]);
+      for (const row of b.save.slice(1)) { const d = row.originalDate || row.start.slice(0, 10); rows.push([keyDay(d), row.allDay ? 'all day' : `${t12(A.parseLocal(row.start))}–${t12(A.parseLocal(row.end))}${row.start.slice(0, 10) !== d ? ` on ${keyDay(row.start.slice(0, 10))}` : ''}${row.title !== ev.title ? ` · “${row.title}”` : ''}`]); }
+      rows.push(['Everything else', 'unchanged']);
+    } else if (p.action === 'replace') {
+      const d = String(p.date || '').slice(0, 10);
+      if (!isOcc(d)) throw new Error(`${d ? keyDay(d) : 'That date'} isn’t a date for “${ev.title}”.${d ? near(d) : ''}`);
+      plan = S.replace(ev, d, p.replacement || {}, all);
+      const n = plan.added;
+      rows.push(['Cancel', `${keyDay(d)}${ev.allDay ? '' : `, ${t12(A.parseLocal(`${d}T${A.hm(A.parseLocal(ev.start))}`))}`}`]);
+      rows.push(['Add instead', `${n.title} · ${keyDay(n.start.slice(0, 10))}${n.allDay ? '' : `, ${t12(A.parseLocal(n.start))}–${t12(A.parseLocal(n.end))}`}`]);
+      if (n.location) rows.push(['Where', n.location]);
+      rows.push(['Rest of the series', 'unchanged']);
+    } else throw new Error('Unknown series change');
+    return { ev, rows, plan };
+  }
+  function undoBtn(card, undo, label) {
+    const box = card.querySelector('.ai-card-btns');
+    box.innerHTML = `<span class="ai-card-status">${esc(label)}</span><button type="button" class="ai-undo" data-undo>Undo</button>`;
+    const u = box.querySelector('[data-undo]');
+    u.addEventListener('click', async () => {
+      u.disabled = true;
+      try { await undo(); box.innerHTML = '<span class="ai-card-status ai-undone">↩ Undone</span>'; history.push({ role: 'user', content: '(I undid that change)', note: 1 }); persist(); A.refresh(); }
+      catch (e) { console.error(e); u.disabled = false; A.toast('Could not undo: ' + (e.message || e), 4000); }
+    });
+  }
+  async function renderSeries(p) {
+    let info, err = null;
+    try { info = await seriesPlan(p); } catch (e) { err = e.message || String(e); }
+    const rows = info ? info.rows : [];
+    const card = addMsg('assistant card', null, `<div class="ai-card-from">✨ Sandy Intelligence suggests</div><div class="ai-card-title">${esc(p.summary || 'Change a repeating event')}</div>
+      ${rows.length ? `<dl class="ai-series-dl">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''}
+      ${err ? `<p class="ai-card-warn" role="alert">${esc(err)}</p>` : ''}
+      <div class="ai-card-btns"><button type="button" class="primary" data-ok>Confirm</button><button type="button" data-no>Cancel</button></div>`);
+    card.classList.add('ai-card', 'ai-series-card'); card.dataset.action = p.action || '';
+    const ok = card.querySelector('[data-ok]'), no = card.querySelector('[data-no]');
+    if (err) ok.disabled = true;
+    no.addEventListener('click', () => { card.querySelector('.ai-card-btns').innerHTML = '<span class="ai-card-status">Cancelled</span>'; history.push({ role: 'user', content: `(I cancelled: ${p.summary || 'series change'})`, note: 1 }); persist(); });
+    ok.addEventListener('click', async () => {
+      ok.disabled = no.disabled = true;
+      try {
+        const fresh = await seriesPlan(p); // rebuilt from the latest data
+        const undo = await window.SandySeries.apply(fresh.plan);
+        undoBtn(card, undo, '✓ Saved'); history.push({ role: 'user', content: `(I confirmed: ${p.summary || 'series change'})`, note: 1 }); persist(); A.refresh();
+      } catch (e) { console.error(e); ok.disabled = no.disabled = false; A.toast('Could not save: ' + (e.message || e), 4000); }
+    });
+    return card;
+  }
   async function renderProposal(p) {
+    if (p.type === 'series') return renderSeries(p);
     const { ev, rows } = await describe(p);
     const card = addMsg('assistant card', null, `<div class="ai-card-from">✨ Sandy Intelligence suggests</div><div class="ai-card-title">${esc(p.summary || VERB[p.type] || p.type)}</div>
       <dl>${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
@@ -300,7 +405,7 @@
     no.addEventListener('click', () => { done('Cancelled'); history.push({ role: 'user', content: `(I cancelled: ${p.summary || p.type})`, note: 1 }); persist(); });
     ok.addEventListener('click', async () => {
       ok.disabled = no.disabled = true;
-      try { await applyProposal(p); done('✓ Saved'); history.push({ role: 'user', content: `(I confirmed: ${p.summary || p.type})`, note: 1 }); persist(); A.refresh(); }
+      try { const snap = window.SandySeries ? await SandySeries.snapshot() : null; await applyProposal(p); if (snap) undoBtn(card, SandySeries.snapshotUndo(snap), '✓ Saved'); else done('✓ Saved'); history.push({ role: 'user', content: `(I confirmed: ${p.summary || p.type})`, note: 1 }); persist(); A.refresh(); }
       catch (e) { console.error(e); ok.disabled = no.disabled = false; A.toast('Could not save: ' + (e.message || e), 4000); }
     });
   }
@@ -309,6 +414,7 @@
   const FIELDS = ['title', 'calendar', 'category', 'allDay', 'start', 'end', 'location', 'notes'];
   async function applyProposal(p) {
     const S = A.Store;
+    if (p.type === 'series') return applySeries(p);
     if (p.type === 'add') {
       const task = p.kind === 'task'; const allDay = p.allDay != null ? !!p.allDay : (task || String(p.start).length <= 10);
       const start = allDay ? String(p.start).slice(0, 10) : p.start;
@@ -343,6 +449,7 @@
     }
     throw new Error('Unknown change');
   }
+  async function applySeries(p) { const { plan } = await seriesPlan(p); return window.SandySeries.apply(plan); }
 
   // ---------- Brief me (on-device) ----------
   async function briefData() {

@@ -2246,3 +2246,22 @@ html.dark .auth-note.auth-note-app { background: #0b2e24; color: #d1fae5; box-sh
 html.dark .auth-spin { border-color: #334155; border-top-color: #818cf8; }
 @media (prefers-reduced-motion: reduce) { .auth-note { animation: none; } .auth-spin { animation-duration: 2.5s; } }
 html.reduce-motion .auth-note { animation: none; }
+
+/* ---------- Sandy Intelligence: repeating-series changes + undo (t166u) ---------- */
+.ai-series-card dl dt { white-space: nowrap; }
+.ai-series-card dl dd { overflow-wrap: anywhere; }
+.ai-card-warn { margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; background: #fef3c7; color: #78350f; font-size: 15px; animation: onb-in 260ms cubic-bezier(.2,.9,.3,1.1) both; }
+.ai-card-btns { align-items: center; }
+.ai-card-status { animation: aiStatusIn 240ms cubic-bezier(.2,.9,.3,1.1) both; }
+.ai-card-status.ai-undone { color: #374151; }
+.ai-card-btns .ai-undo { margin-left: auto; background: transparent !important; border: 1px solid #c7d2fe !important; color: #4338ca !important; font-weight: 600; animation: aiStatusIn 240ms 80ms cubic-bezier(.2,.9,.3,1.1) both; }
+@keyframes aiStatusIn { from { opacity: 0; transform: translateY(4px) scale(.97); } to { opacity: 1; transform: none; } }
+html.dark .ai-card-warn { background: #3b2f0b; color: #fde68a; }
+html.dark .ai-card-status.ai-undone { color: #cbd5e1; }
+html.dark .ai-card-btns .ai-undo { border-color: #4f46e5 !important; color: #c7d2fe !important; }
+#scopeFollowing:not([hidden]) { animation: onb-in 260ms cubic-bezier(.2,.9,.3,1.1) both; }
+@media (prefers-reduced-motion: reduce) { .ai-card-status, .ai-card-btns .ai-undo, .ai-card-warn, #scopeFollowing { animation: none !important; } }
+html.reduce-motion .ai-card-status, html.reduce-motion .ai-card-btns .ai-undo, html.reduce-motion .ai-card-warn, html.reduce-motion #scopeFollowing { animation: none !important; }
+.ai-msg.ai-card { animation: msgUp 300ms cubic-bezier(.2,.9,.3,1.1) both; transform-origin: 0 100%; }
+@media (prefers-reduced-motion: reduce) { .ai-msg.ai-card { animation: none; } }
+html.reduce-motion .ai-msg.ai-card { animation: none; }

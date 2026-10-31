@@ -730,6 +730,7 @@
     const ex = {
       kind: series.kind, calendar: series.calendar, category: series.category, title: series.title,
       allDay: series.allDay, location: series.location || '', notes: series.notes || '', example: series.example,
+      reminders: series.reminders || [], ...(series.kind === 'task' ? { todoCategoryId: series.todoCategoryId || null, priority: series.priority || null } : {}), // a moved occurrence keeps its reminders
       start: series.allDay ? ymd(occStart) : `${ymd(occStart)}T${hm(occStart)}`,
       end: series.allDay ? ymd(occEnd) : `${ymd(occEnd)}T${hm(occEnd)}`,
       recurrence: { freq: 'none' }, seriesId: series.id, originalDate: occKey,
@@ -750,18 +751,21 @@
   const scopeDlg = document.getElementById('scopeDialog');
   const fmtOcc = k => parseLocal(k).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
   /** Ask whether a change applies to one occurrence or the whole series. Resolves 'one' | 'all' | null (cancel). */
-  function askScope({ mode = 'save', occKey, title = '', oneDisabledReason = '' } = {}) {
+  function askScope({ mode = 'save', occKey, title = '', oneDisabledReason = '', following = false } = {}) {
     const del = mode === 'delete';
     document.getElementById('scopeTitle').textContent = del ? 'Delete…' : mode === 'move' ? 'Move…' : 'Apply changes to…';
     document.getElementById('scopeDesc').textContent = `"${title}" is a repeating event.`;
     document.getElementById('scopeOneSub').textContent = occKey ? `Only ${fmtOcc(occKey)}` : '';
     document.getElementById('scopeAllSub').textContent = del ? 'Every occurrence is deleted' : 'Every occurrence changes';
+    // "This and following": earlier dates stay as they are (the series is split at this date, t166u)
+    const fol = document.getElementById('scopeFollowing'); fol.hidden = !(following && occKey);
+    document.getElementById('scopeFollowingSub').textContent = occKey ? `${fmtOcc(occKey)} and after${del ? ' are deleted' : ''}; earlier dates stay` : '';
     scopeDlg.classList.toggle('danger-mode', del);
     const one = document.getElementById('scopeOne'), hint = document.getElementById('scopeHint');
     one.disabled = !!oneDisabledReason; hint.hidden = !oneDisabledReason; hint.textContent = oneDisabledReason;
     scopeDlg.returnValue = '';
     return new Promise(res => {
-      scopeDlg.addEventListener('close', () => { const v = scopeDlg.returnValue; res(v === 'one' || v === 'all' ? v : null); }, { once: true });
+      scopeDlg.addEventListener('close', () => { const v = scopeDlg.returnValue; res(v === 'one' || v === 'all' || (v === 'following' && !fol.hidden) ? v : null); }, { once: true });
       scopeDlg.showModal();
       (one.disabled ? document.getElementById('scopeAll') : one).focus();
     });
@@ -774,6 +778,10 @@
     const n = e.shiftKey ? (i <= 0 ? els.length - 1 : i - 1) : (i === els.length - 1 ? 0 : i + 1);
     e.preventDefault(); els[n].focus();
   });
+  /** "This and following" only makes sense after the first occurrence (from the first one it is "all"). */
+  const canFollow = (ev, occKey) => !!(window.SandySeries && occKey && isRecurring(ev) && SandySeries.firstKey(ev) && occKey > SandySeries.firstKey(ev));
+  /** Save a split/skip plan from series.js and return a short toast-able undo. */
+  async function applySeriesPlan(plan) { return SandySeries.apply(plan); }
   /** Shift a whole series so its occurrence shown at `shownStart` lands at `start`, with the new length. */
   function shiftSeries(series, shownStart, v) {
     const shift = parseLocal(v.start) - shownStart, len = parseLocal(v.end) - parseLocal(v.start);
@@ -792,9 +800,16 @@
     try {
       if (isRecurring(ev)) {
         const occKey = info.event.extendedProps.occKey;
-        const choice = await askScope({ mode: 'move', occKey, title: ev.title });
+        const choice = await askScope({ mode: 'move', occKey, title: ev.title, following: canFollow(ev, occKey) });
         if (!choice) { info.revert(); refresh(); return; }
         if (choice === 'one') { await Store.saveMany(detachOccurrence(ev, occKey, times)); toast('Moved this event only'); }
+        else if (choice === 'following') {
+          if (ev.allDay !== allDay) { info.revert(); refresh(); toast("Can't switch a series between all-day and timed by dragging"); return; }
+          const shift = dayDiff(parseLocal(occKey), startOfDay(parseLocal(times.start))); const r = { ...ev.recurrence };
+          if (r.freq === 'weekly' && shift) r.byWeekday = [...new Set((r.byWeekday && r.byWeekday.length ? r.byWeekday : [parseLocal(ev.start).getUTCDay()]).map(d => (((+d + shift) % 7) + 7) % 7))].sort();
+          await applySeriesPlan(SandySeries.splitRow(ev, occKey, { ...ev, ...times, recurrence: r, exdates: shift ? [] : undefined }, await Store.list(), !shift));
+          toast('Moved this and following events');
+        }
         else {
           if (ev.allDay !== allDay) { info.revert(); refresh(); toast("Can't switch a whole series between all-day and timed by dragging"); return; }
           Object.assign(ev, shiftSeries(ev, occurrenceStart(ev, occKey), times)); await Store.save(ev); toast('Moved all events in the series');
@@ -1426,12 +1441,24 @@
       let scope = 'all';
       if (existing && editing.recurring && editing.occKey) {
         const seriesChanged = seriesSnap() !== editing.seriesSnap;
-        scope = await askScope({ mode: 'save', occKey: editing.occKey, title: f('event-title').value.trim() || existing.title,
-          oneDisabledReason: seriesChanged ? 'You changed the calendar, type or repeat rule, which can only apply to the whole series.' : '' });
+        scope = await askScope({ mode: 'save', occKey: editing.occKey, title: f('event-title').value.trim() || existing.title, following: !existing.seriesId && canFollow(existing, editing.occKey),
+          oneDisabledReason: seriesChanged ? 'You changed the calendar, type or repeat rule, which can only apply to the series (all, or this and following).' : '' });
         if (!scope) return; // Cancel: stay in the editor, nothing saved
       }
       const calId = existing && (existing.seriesId || scope === 'one') ? existing.calendar : fCal.value;
       const v = await readForm(calId);
+
+      // (0) this and following: end the series the day before, continue with the form's details from this date
+      if (scope === 'following') {
+        const freq = f('freq').value;
+        const rule = freq === 'none' ? { freq: 'none' } : { freq, interval: Math.max(1, +f('interval').value || 1), until: f('until').value || null,
+          byWeekday: freq === 'weekly' ? [...form.querySelectorAll('input[name=wd]:checked')].map(cb => +cb.value) : undefined };
+        const next = { ...existing, ...v, recurrence: rule };
+        if (existing.kind === 'task') { next.completedDates = (existing.completedDates || []).filter(d => d >= editing.occKey); const set = new Set(next.completedDates); f('done').checked ? set.add(editing.occKey) : set.delete(editing.occKey); next.completedDates = [...set]; }
+        const same = rule.freq === existing.recurrence.freq && JSON.stringify(rule.byWeekday || null) === JSON.stringify(existing.recurrence.byWeekday || null) && +rule.interval === +(existing.recurrence.interval || 1) && v.start.slice(0, 10) === editing.occKey;
+        await applySeriesPlan(SandySeries.splitRow(existing, editing.occKey, { ...next, exdates: same ? undefined : [] }, await Store.list(), same));
+        dlg.close(); toast('Saved this and following events'); refresh(); afterReminders(v.reminders); return;
+      }
 
       // (1) only this occurrence of a repeating item
       if (scope === 'one') {
@@ -1470,11 +1497,12 @@
     const ev = await Store.get(editing.id); if (!ev) return;
     try {
       if (isRecurring(ev)) {
-        const choice = editing.occKey ? await askScope({ mode: 'delete', occKey: editing.occKey, title: ev.title }) : (confirm(`Delete every occurrence of "${ev.title}"?`) ? 'all' : null);
+        const choice = editing.occKey ? await askScope({ mode: 'delete', occKey: editing.occKey, title: ev.title, following: canFollow(ev, editing.occKey) }) : (confirm(`Delete every occurrence of "${ev.title}"?`) ? 'all' : null);
         if (!choice) return;
-        if (choice === 'one') { ev.exdates = [...new Set([...(ev.exdates || []), editing.occKey])]; await Store.save(ev); }
+        if (choice === 'one') { await applySeriesPlan(SandySeries.skip(ev, [editing.occKey], await Store.list())); }
+        else if (choice === 'following') await applySeriesPlan(SandySeries.endBefore(ev, editing.occKey, await Store.list()));
         else await Store.remove(ev.id);
-        dlg.close(); toast(choice === 'one' ? 'Deleted this event only' : 'Deleted all events in the series'); refresh();
+        dlg.close(); toast(choice === 'one' ? 'Deleted this event only' : choice === 'following' ? 'Deleted this and following events' : 'Deleted all events in the series'); refresh();
       } else if (confirm(ev.seriesId ? `Delete this occurrence of "${ev.title}"?` : `Delete "${ev.title}"?`)) {
         await Store.remove(ev.id); dlg.close(); toast('Deleted'); refresh();
       }
