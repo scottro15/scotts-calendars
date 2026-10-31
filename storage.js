@@ -342,13 +342,17 @@
     let prof = null; // { at, p: Promise }
     const copy = v => (v && typeof v === 'object') ? (typeof structuredClone === 'function' ? structuredClone(v) : JSON.parse(JSON.stringify(v))) : v;
     function put(ev) { const i = cache.findIndex(e => e.id === ev.id); if (i >= 0) cache[i] = ev; else cache.push(ev); }
-    async function writeLocal() { if (!remote) await adapter.writeAll(cache); }
+    // t166u: the device's saved copy (used offline) follows every change made here or arriving live, not only
+    // full loads -- otherwise a series edited this session showed its old dates offline until the next open
+    let snapT = null;
+    function keepSnap() { if (!remote) return; clearTimeout(snapT); snapT = setTimeout(() => { if (cache && !store.offline) snapSave('events', cache); }, 400); }
+    async function writeLocal() { if (!remote) await adapter.writeAll(cache); else keepSnap(); }
     const stamp = ev => { const now = new Date().toISOString(); if (!ev.id) { ev.id = uid(); ev.createdAt = now; } ev.updatedAt = now; return ev; };
 
     async function upsertMany(evs) {
       await ensure();
       evs.forEach(stamp);
-      if (remote) { const saved = await adapter.upsertMany(evs); saved.forEach(put); return saved; }
+      if (remote) { const saved = await adapter.upsertMany(evs); saved.forEach(put); keepSnap(); return saved; }
       evs.forEach(put); await writeLocal(); return evs;
     }
     async function removeIds(ids) {
@@ -392,7 +396,7 @@
         if (table !== 'events' || !cache) { cats = null; emit('categories'); return; }
         if (p.eventType === 'DELETE') { const id = p.old && p.old.id; if (id) cache = cache.filter(e => e.id !== id && e.seriesId !== id); }
         else if (p.new && p.new.id) put(adapter.fromRow(p.new));
-        emit('remote');
+        keepSnap(); emit('remote');
       },
       /** Day notes ("Today's Note"), keyed by series/event id + Chicago date. Separate from events. */
       notes: {
