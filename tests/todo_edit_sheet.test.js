@@ -69,7 +69,10 @@ let n = 0; const ok = (c, m) => { assert(c, m); n++; };
     ok(await p.locator('#qsCatChip').isVisible(), 'category chip');
     ok(await p.locator('#qsRemChip').isVisible(), 'reminders chip');
     ok(await p.locator('#qsDelete').isVisible(), 'Delete button');
-    ok(await p.locator('#qsSend').innerText().then(t => /Save/i.test(t)), 'Save button');
+    ok(await p.locator('#qsSend').isHidden(), 'task view saves as you go: no Save button (Todoist)');
+    ok(await p.locator('#qsClose').isVisible(), 'close button');
+    ok(await p.locator('#qsSubs').isVisible(), 'sub-tasks section');
+    ok(await p.locator('#qsCheck').isVisible(), 'complete circle');
     // New category option present
     const hasNew = await p.locator('#qsCat option[value="__new__"]').count();
     ok(hasNew === 1, '+ New category option');
@@ -100,8 +103,9 @@ let n = 0; const ok = (c, m) => { assert(c, m); n++; };
     await p.fill('#qsDesc', 'Bread too');
     await p.selectOption('#qsPri', '1');
     await p.selectOption('#qsRem', '60');
-    await p.click('#qsSend');
+    await p.click('#qsClose');
     await p.waitForFunction(() => !SandyQuickSheet.isOpen);
+    await p.waitForFunction(async id => (await __app.Store.get(id)).title === 'Edited grocery run', id);
     const saved = await p.evaluate(async id => {
       const ev = await __app.Store.get(id);
       return { title: ev.title, notes: ev.notes, priority: ev.priority, reminders: ev.reminders };
@@ -127,8 +131,9 @@ let n = 0; const ok = (c, m) => { assert(c, m); n++; };
     ok((await p.locator('#qsText').inputValue()) === 'Inbox jot edit', 'inbox title');
     // Set today via date select
     await p.selectOption('#qsDate', { index: 1 }); // Today
-    await p.click('#qsSend');
+    await p.click('#qsClose');
     await p.waitForFunction(() => !SandyQuickSheet.isOpen);
+    await p.waitForFunction(id => !(SandyNav.Inbox.cache || []).some(x => x.id === id), iid);
     const gone = await p.evaluate(id => !(SandyNav.Inbox.cache || []).some(x => x.id === id), iid);
     ok(gone, 'inbox item removed after scheduling');
     await p.screenshot({ path: `${SHOTS}/04-inbox-scheduled-light.png` });

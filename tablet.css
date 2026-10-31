@@ -90,9 +90,13 @@ html.lay-tablet body.tab-todo .qs-backdrop { display: none; }
 html.lay-tablet body.tab-todo .qs-grab { display: none; }
 html.lay-tablet body.tab-todo .qs-sheet form { flex: 1; }
 html.lay-tablet body.tab-todo .qs-sheet .qs-field { flex: none; }
-html.lay-tablet body.tab-todo .qs-chips { flex-wrap: wrap; overflow: visible; }
+html.lay-tablet body.tab-todo .qs-chips { flex-wrap: nowrap; overflow-x: auto; } /* one swipeable row, like Todoist (2026-10-31) */
 html.lay-tablet body.tab-todo .qs-foot { margin-top: auto; padding-top: 14px; }
 html.lay-tablet body.tab-todo .qs-desc { min-height: 96px; }
+html.lay-tablet body.tab-todo .qs-editing .qs-desc { min-height: 44px; }
+html.lay-tablet body.tab-todo .qs-sheet.qs-editing { max-height: none; }
+html.lay-tablet body.tab-todo .qs-editing .qs-foot { top: 56px; margin-top: 0; padding-top: 8px; }
+html.lay-tablet body.tab-todo #qsClose { display: none; }
 .qs-pane-head { display: none; }
 html.lay-tablet body.tab-todo .qs-pane-head { display: flex; align-items: center; justify-content: space-between; min-height: 56px; margin: 0 0 6px;
   border-bottom: 1px solid var(--qs-line, var(--line)); position: sticky; top: 0; background: inherit; z-index: 2; }

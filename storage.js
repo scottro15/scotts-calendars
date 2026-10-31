@@ -407,10 +407,11 @@
         async set(eventId, date, body) {
           const list = await this.all(); body = (body || '').trim();
           const i = list.findIndex(n => n.eventId === eventId && n.date === date);
-          if (!body) { if (i >= 0) { await adapter.deleteNote(eventId, date); list.splice(i, 1); } return null; }
+          if (!body) { if (i >= 0) { await adapter.deleteNote(eventId, date); list.splice(i, 1); if (remote) snapSave('notes', list); } return null; }
           const now = new Date().toISOString();
           const n = await adapter.upsertNote({ ...(i >= 0 ? list[i] : { id: uid(), createdAt: now }), eventId, date, body, updatedAt: now });
           if (i >= 0) list[i] = n; else list.push(n);
+          if (remote) snapSave('notes', list);
           return n;
         },
         invalidate() { NOTES.stale(); },
@@ -425,6 +426,7 @@
           const c = await adapter.upsertChecks({ eventId, date, checked: [...new Set(checked)] });
           const i = list.findIndex(x => x.eventId === eventId && x.date === date);
           if (i >= 0) list[i] = c; else list.push(c);
+          if (remote) snapSave('checks', list); // the saved (offline) copy keeps the new ticks (to-do sub-tasks, checklists)
           return c;
         },
         invalidate() { CHECKS.stale(); },

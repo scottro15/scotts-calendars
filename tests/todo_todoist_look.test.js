@@ -66,7 +66,7 @@ let n = 0; const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); n++
       return {
         titleFs: parseFloat(ts.fontSize), titleFw: ts.fontWeight,
         descFs: parseFloat(ds.fontSize),
-        descClamp: ds.webkitLineClamp || ds.lineClamp,
+        descClamp: ds.webkitLineClamp || ds.lineClamp, descWs: ds.whiteSpace,
         checkRadius: cs.borderRadius,
         titles: [...document.querySelectorAll('.td-title')].map(e => e.textContent.trim()),
         descs: [...document.querySelectorAll('.td-desc')].map(e => e.textContent.trim()),
@@ -75,7 +75,7 @@ let n = 0; const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); n++
     assert(styles.titleFs >= 15 && styles.titleFs <= 16.5, `title ~15–16px (got ${styles.titleFs})`);
     assert(+styles.titleFw <= 500, `title normal weight (got ${styles.titleFw})`);
     assert(styles.descFs >= 12 && styles.descFs <= 14, `desc ~13px (got ${styles.descFs})`);
-    assert(String(styles.descClamp) === '2', `desc clamped to 2 (got ${styles.descClamp})`);
+    assert(String(styles.descClamp) === 'none' && styles.descWs === 'pre-wrap', `full description, line breaks kept (Scott 2026-10-31) (got clamp ${styles.descClamp}, ${styles.descWs})`);
     assert(styles.checkRadius.includes('50%') || parseFloat(styles.checkRadius) >= 10, 'round checkbox');
     assert(styles.titles.includes('Buy groceries'), 'task title is name');
     assert(styles.titles.includes('Pack snacks'), 'inbox title is first line');
