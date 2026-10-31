@@ -241,7 +241,7 @@
       st.rem = '';
       st._editTime = null;
     }
-    st.edit = edit; st.hideDone = false;
+    st.edit = edit; st.hideDone = !!(n.SubUI && n.SubUI.hideDone);
     if (st.open) { fillSelects(); syncEditChrome(); paint(); renderSubs(); kb(); st.sig = sig(); $('qsSheet').scrollTop = 0; $('qsSheet').querySelector('.qs-chips').scrollLeft = 0; $('qsSheet').focus({ preventScroll: true }); return; }
     showSheet(false); st.sig = sig();
   }
@@ -474,7 +474,7 @@
     $('qsClose').addEventListener('click', close);
     $('qsCheck').addEventListener('click', completeEdit);
     $('qsSubsToggle').addEventListener('click', () => { const ex = $('qsSubsToggle').getAttribute('aria-expanded') !== 'true'; $('qsSubsToggle').setAttribute('aria-expanded', String(ex)); $('qsSubs').classList.toggle('collapsed', !ex); });
-    $('qsSubsHide').addEventListener('click', () => { st.hideDone = !st.hideDone; renderSubs(); });
+    $('qsSubsHide').addEventListener('click', () => { st.hideDone = !st.hideDone; if (N().SubUI) N().SubUI.hideDone = st.hideDone; renderSubs(); N().renderTodo(); }); // one setting for the sheet and the list
     $('qsSubNew').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); addSub(); } });
     $('qsSubNew').addEventListener('blur', () => { if ($('qsSubNew').value.trim()) addSub(); });
     dragSubs();
@@ -521,7 +521,9 @@
     });
     swipe();
     if (window.visualViewport) { visualViewport.addEventListener('resize', kb); visualViewport.addEventListener('scroll', kb); }
-    window.SandyQuickSheet = { open, openEdit, close, layout: kb, get isOpen() { return st.open; }, get editing() { return !!st.edit; }, state: st };
+    // a sub-task ticked in the list while this to-do is open (tablet pane): follow it without re-saving
+    const subToggled = (id, key, done) => { if (!st.edit || st.edit.id !== id) return; const x = st.subs.find(s => s.key === key); if (!x) return; x.done = done; renderSubs(); st.sig = sig(); };
+    window.SandyQuickSheet = { subToggled, open, openEdit, close, layout: kb, get isOpen() { return st.open; }, get editing() { return !!st.edit; }, state: st };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

@@ -321,6 +321,15 @@
   const saveTodoUI = () => { try { localStorage.setItem('sandy.todoUI', JSON.stringify(todoUI)); } catch (_) {} };
   const SUBS = window.SandySubs || null;
   const SUB_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M6 4v9a3 3 0 0 0 3 3h9M14.5 12.5 18 16l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const CHEV_SVG = '<svg class="td-chev" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  // sub-tasks under the parent (Todoist project view): folded parents + "Hide completed" remembered on this device
+  const SubUI = {
+    FK: 'sandy.todo.folded.v1', HK: 'sandy.todo.subsHideDone',
+    folded() { try { return new Set(JSON.parse(localStorage.getItem(this.FK) || '[]')); } catch (_) { return new Set(); } },
+    setFolded(id, on) { const f = this.folded(); on ? f.add(id) : f.delete(id); try { localStorage.setItem(this.FK, JSON.stringify([...f].slice(-500))); } catch (_) {} },
+    get hideDone() { try { return localStorage.getItem(this.HK) === '1'; } catch (_) { return false; } },
+    set hideDone(v) { try { v ? localStorage.setItem(this.HK, '1') : localStorage.removeItem(this.HK); } catch (_) {} },
+  };
   async function todoItems() {
     const a = A(); const now = a.nowWall(); const today = a.startOfDay(now);
     const dueAt = (ev, o) => ev.allDay ? a.addDays(a.startOfDay(o.start), 1) : (o.end && o.end > o.start ? o.end : o.start);
@@ -371,6 +380,11 @@
       else done = it.subs.filter(x => x.done).length;
       return { done, total: it.subs.length };
     };
+    const folded = SubUI.folded(), hideDone = SubUI.hideDone;
+    const subDone = it => {
+      if (it.type === 'task' && a.Store.checks.available) { const ks = SUBS.doneKeys(checksAll, a.noteKeyFor(it.ev, it.key)); return x => ks.has(x.key); }
+      return x => x.done;
+    };
     const calendars = a.calendars();
     // filter chips
     const chips = [['all', 'All', null], ['inbox', 'Inbox', null], ...calendars.map(c => [c.id, c.short || c.name, c.color])];
@@ -417,21 +431,68 @@
         if (c && todoUI.group !== 'calendar') meta.push(`<span class="td-cal"><span class="dot" style="background:${esc(c.color)}"></span>${esc(c.short || c.name)}</span>`);
         if (cat && todoUI.group !== 'category') meta.push(`<span class="td-cat" style="--c:${esc(cat.color)}">${esc(cat.name)}</span>`);
         const pr = it.type === 'task' ? it.ev.priority : (it.priority || (it.item && it.item.priority));
-        const sc = subCount(it); if (sc) meta.push(`<span class="td-subs${sc.done === sc.total ? ' all' : ''}" title="Sub-tasks: ${sc.done} of ${sc.total} done" aria-label="Sub-tasks ${sc.done} of ${sc.total} done">${SUB_SVG}${sc.done}/${sc.total}</span>`);
+        const sc = subCount(it), fid = it.type === 'task' ? it.ev.id : it.item.id, isFolded = !!sc && folded.has(fid);
+        if (sc) meta.push(`<button type="button" class="td-subs td-fold${sc.done === sc.total ? ' all' : ''}" aria-expanded="${!isFolded}" title="${isFolded ? 'Show' : 'Hide'} sub-tasks" aria-label="${isFolded ? 'Show' : 'Hide'} sub-tasks, ${sc.done} of ${sc.total} done">${SUB_SVG}<span class="td-subs-n">${sc.done}/${sc.total}</span>${CHEV_SVG}</button>`);
+        let subHtml = '';
+        if (sc) {
+          const isDone = subDone(it);
+          subHtml = `<div class="td-subwrap${isFolded ? ' folded' : ''}"><ul class="td-sublist" aria-label="Sub-tasks of ${esc(it.title)}">${it.subs.map(x => { const d = isDone(x); return `<li class="td-sub${d ? ' done' : ''}" data-sk="${esc(x.key)}"${d && hideDone ? ' hidden' : ''}><button type="button" class="td-sub-check" role="checkbox" aria-checked="${d}" aria-label="${d ? 'Mark not done' : 'Mark done'}: ${esc(x.text)}"${isFolded ? ' tabindex="-1"' : ''}><span></span></button><span class="td-sub-text">${esc(x.text)}</span></li>`; }).join('')}</ul></div>`;
+        }
         if (pr >= 1 && pr <= 3) meta.push(`<span class="td-pri td-p${pr}" title="Priority ${pr}"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M5 21V4h11l-1.5 4L16 12H5" fill="currentColor"/></svg>P${pr}</span>`);
         const id = it.type === 'task' ? `data-ev="${esc(it.ev.id)}" data-key="${esc(it.key)}"` : `data-inbox="${esc(it.item.id)}"`;
         const checkC = pr === 1 ? '#d1453b' : pr === 2 ? '#eb8909' : pr === 3 ? '#246fe0' : '#b0b0b0';
         const descHtml = it.desc ? `<p class="td-desc">${esc(it.desc)}</p>` : '';
         return `<li class="todo-row${it.done ? ' done' : ''}${it.overdue ? ' overdue' : ''}${it.note ? ' note' : ''}${pr >= 1 && pr <= 3 ? ' td-has-p' + pr : ''}" ${id} style="--c:${esc(c ? c.color : '#9ca3af')};--check:${checkC}">
           ${it.note ? '<span class="td-note" aria-hidden="true">📝</span>' : `<button type="button" class="td-check" role="checkbox" aria-checked="${it.done}" aria-label="${it.done ? 'Mark not done' : 'Mark done'}: ${esc(it.title)}"><span></span></button>`}
-          <div class="td-main"><button type="button" class="td-title">${esc(it.title)}</button>${descHtml}<div class="td-meta">${meta.join('')}</div></div>
+          <div class="td-main"><button type="button" class="td-title">${esc(it.title)}</button>${descHtml}<div class="td-meta">${meta.join('')}</div>${subHtml}</div>
           ${catSel(it)}</li>`;
       }).join('')}</ul></section>`;
     }).join('');
     if (!avail && sbc()) listEl.insertAdjacentHTML('afterbegin', '<p class="todo-note muted small">Quick jots and categories turn on after the database update.</p>');
   }
+  function foldToggle(row, btn) {
+    const wrap = row.querySelector('.td-subwrap'); if (!wrap) return;
+    const open = btn.getAttribute('aria-expanded') !== 'true';
+    btn.setAttribute('aria-expanded', String(open)); wrap.classList.toggle('folded', !open);
+    const n = btn.querySelector('.td-subs-n').textContent.split('/');
+    btn.title = (open ? 'Hide' : 'Show') + ' sub-tasks'; btn.setAttribute('aria-label', `${open ? 'Hide' : 'Show'} sub-tasks, ${n[0]} of ${n[1]} done`);
+    wrap.querySelectorAll('.td-sub-check').forEach(b => { if (open) b.removeAttribute('tabindex'); else b.tabIndex = -1; });
+    SubUI.setFolded(row.dataset.ev || row.dataset.inbox, !open);
+  }
+  function paintSubCount(row) {
+    const all = [...row.querySelectorAll('.td-sub-check')], done = all.filter(b => b.getAttribute('aria-checked') === 'true').length;
+    const btn = row.querySelector('.td-fold'); if (!btn) return;
+    btn.querySelector('.td-subs-n').textContent = `${done}/${all.length}`; btn.classList.toggle('all', done === all.length);
+    btn.setAttribute('aria-label', `${btn.getAttribute('aria-expanded') === 'true' ? 'Hide' : 'Show'} sub-tasks, ${done} of ${all.length} done`);
+  }
+  /** tick a sub-task right from the list (same storage as the task view) */
+  async function toggleSub(row, li) {
+    const a = A(), k = li.dataset.sk, btn = li.querySelector('.td-sub-check'), v = btn.getAttribute('aria-checked') !== 'true';
+    const set = on => { btn.setAttribute('aria-checked', String(on)); li.classList.toggle('done', on); btn.setAttribute('aria-label', `${on ? 'Mark not done' : 'Mark done'}: ${li.querySelector('.td-sub-text').textContent}`); paintSubCount(row); };
+    set(v); li.classList.add('ticking'); setTimeout(() => li.classList.remove('ticking'), 260);
+    const id = row.dataset.ev || row.dataset.inbox;
+    try {
+      if (row.dataset.ev) {
+        const ev = await a.Store.get(row.dataset.ev); if (!ev) throw new Error('To-do not found');
+        if (a.Store.checks.available) {
+          const nk = a.noteKeyFor(ev, row.dataset.key || null); const cur = new Set(await a.Store.checks.get(nk.eventId, nk.date));
+          v ? cur.add(k) : cur.delete(k); await a.Store.checks.set(nk.eventId, nk.date, [...cur]);
+        } else { const ps = SUBS.parse(ev.notes); ps.subs.forEach(x => { if (x.key === k) x.done = v; }); await a.Store.save({ ...ev, notes: SUBS.compose(ps.desc, ps.subs, true) }); }
+      } else {
+        const it = (Inbox.cache || []).find(x => x.id === row.dataset.inbox); if (!it) throw new Error('To-do not found');
+        const raw = String(it.body || ''), nl = raw.indexOf('\n'), title = nl < 0 ? raw : raw.slice(0, nl);
+        const ps = SUBS.parse(nl < 0 ? '' : raw.slice(nl + 1)); ps.subs.forEach(x => { if (x.key === k) x.done = v; });
+        const rest = SUBS.compose(ps.desc, ps.subs, true); const body = rest ? title + '\n' + rest : title;
+        const saved = await Inbox.save({ ...it, body }); Object.assign(it, saved || { body });
+      }
+      if (window.SandyQuickSheet && SandyQuickSheet.subToggled) SandyQuickSheet.subToggled(id, k, v);
+      if (v && SubUI.hideDone) { li.classList.add('td-sub-leaving'); setTimeout(() => { li.hidden = true; li.classList.remove('td-sub-leaving'); }, reduceMotion() ? 0 : 260); }
+    } catch (err) { set(!v); toast('Could not save: ' + err.message); }
+  }
   async function todoClick(e) {
     const a = A(); const row = e.target.closest('.todo-row'); if (!row) return;
+    { const f = e.target.closest('.td-fold'); if (f) { foldToggle(row, f); return; } }
+    { const sc = e.target.closest('.td-sub-check'); if (sc) { toggleSub(row, sc.closest('.td-sub')); return; } }
     if (e.target.closest('.td-check')) {
       const btn = e.target.closest('.td-check'); const v = btn.getAttribute('aria-checked') !== 'true';
       btn.setAttribute('aria-checked', String(v)); row.classList.toggle('checking', v); row.classList.toggle('done', v);
@@ -441,7 +502,7 @@
       } catch (err) { toast('Could not save: ' + err.message); }
       setTimeout(renderTodo, reduceMotion() ? 0 : 380); return;
     }
-    if (e.target.closest('.td-title, .td-desc, .td-main') && !e.target.closest('.td-check, .cat-pick, select')) {
+    if (e.target.closest('.td-title, .td-desc, .td-main') && !e.target.closest('.td-check, .cat-pick, select, .td-fold, .td-sub-check')) {
       // Prefer the quick-add sheet in edit mode (same options as create). Fall back to the full editor/inbox dialog.
       if (window.SandyQuickSheet && SandyQuickSheet.openEdit) {
         if (row.dataset.ev) SandyQuickSheet.openEdit({ type: 'task', id: row.dataset.ev, key: row.dataset.key });
@@ -1190,5 +1251,5 @@
     wire(); setDark(document.documentElement.classList.contains('dark'));
     const poll = setInterval(() => { const a = A(); if (a && a.calendar && a.Store) { clearInterval(poll); start(); } }, 50);
   });
-  window.SandyNav = { go, get tab() { return tab; }, renderTodo, parseQuick, saveQuick, saveEdit, deleteTodoTarget, fmtTime, todoUI, renderToday, renderSearch, setDark, Inbox, Cats };
+  window.SandyNav = { SubUI, go, get tab() { return tab; }, renderTodo, parseQuick, saveQuick, saveEdit, deleteTodoTarget, fmtTime, todoUI, renderToday, renderSearch, setDark, Inbox, Cats };
 })();

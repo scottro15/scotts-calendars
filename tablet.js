@@ -100,7 +100,7 @@
       list.dataset.ttWired = '1';
       list.addEventListener('click', e => {
         const row = e.target.closest('.todo-row');
-        if (row && e.target.closest('.td-title, .td-desc, .td-main') && !e.target.closest('.td-check, .cat-pick, select')) markRow(row);
+        if (row && e.target.closest('.td-title, .td-desc, .td-main') && !e.target.closest('.td-check, .cat-pick, select, .td-fold, .td-sub-check')) markRow(row);
       });
     }
     // clear the highlight when the pane closes

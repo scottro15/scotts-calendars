@@ -807,6 +807,8 @@ html.dark { color-scheme: dark; --bg: #0b1220; --panel: #111a2b; --text: #e5e7eb
   --fc-button-bg-color: #1e293b; --fc-button-border-color: #334155; --fc-button-hover-bg-color: #273449; --fc-button-hover-border-color: #475569; --fc-button-active-bg-color: #334155; --fc-button-active-border-color: #64748b; --fc-neutral-text-color: #94a3b8; }
 html.dark body { background: var(--bg); }
 html.dark button { background: var(--panel); color: var(--text); border-color: var(--line); }
+html.dark .td-check { background: none; border-color: var(--check, var(--c, #6b7280)); } /* keep Todoist priority ring (P1 red / P2 orange / P3 blue) in dark */
+html.dark .td-check[aria-checked=true] { background: var(--check, var(--c, #6b7280)); border-color: var(--check, var(--c, #6b7280)); }
 html.dark button.primary { background: #e5e7eb; color: #0b1220; border-color: #e5e7eb; }
 html.dark button.primary.danger { background: #dc2626; color: #fff; border-color: #dc2626; }
 html.dark button.danger, html.dark .danger { color: #f87171; }
@@ -2353,3 +2355,29 @@ html.dark .qs-editing .qs-del:hover, html.dark .qs-editing .qs-del:focus-visible
 .qs-editing .qs-desc { color: var(--text); }
 .qs-editing .qs-proj { flex: 0 1 auto; min-width: 0; }
 .qs-editing .qs-del, .qs-editing .qs-x { flex: none; }
+/* sub-tasks under the parent in the list (Todoist project view; Scott 2026-10-31): fold arrow on the count, tick in place */
+button.td-fold { display: inline-flex; align-items: center; gap: 3px; border: 0; background: transparent; padding: 3px 6px; margin: -3px -2px; min-height: 26px; border-radius: 7px; font: inherit; font-size: 12px; font-weight: 500; color: var(--muted); cursor: pointer; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
+html.dark button.td-fold { background: transparent; color: var(--muted); }
+button.td-fold.all { color: #058527; } html.dark button.td-fold.all { color: #4ade80; }
+button.td-fold:hover, button.td-fold:focus-visible { background: var(--chip, rgba(100, 116, 139, .12)); }
+.td-chev { flex: none; transition: transform .22s ease; }
+.td-fold[aria-expanded=false] .td-chev { transform: rotate(-90deg); }
+.td-subwrap { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .24s cubic-bezier(.2, .9, .25, 1), opacity .2s ease; }
+.td-subwrap.folded { grid-template-rows: 0fr; opacity: 0; }
+.td-sublist, .todo-group .td-sublist { min-height: 0; overflow: hidden; list-style: none; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; }
+.td-sublist::before { content: ""; display: block; height: 6px; }
+.td-sub { display: flex; align-items: flex-start; gap: 9px; padding: 6px 0; border-top: 1px solid var(--line); cursor: pointer; transition: opacity .22s ease, transform .22s ease; }
+.td-sub[hidden] { display: none; }
+.td-sub-check { flex: none; width: 18px; height: 18px; min-height: 18px; margin-top: 1px; padding: 0; border-radius: 50%; border: 1.6px solid #b0b0b0; background: transparent; position: relative; cursor: pointer; transition: background-color .2s, border-color .2s, transform .15s; }
+html.dark .td-sub-check { background: transparent; border: 1.6px solid #6b7280; }
+.td-sub-check::before { content: ""; position: absolute; inset: -12px; } /* 42px touch target */
+.td-sub-check:active { transform: scale(.86); }
+.td-sub-check[aria-checked=true], html.dark .td-sub-check[aria-checked=true] { background: #9ca3af; border-color: #9ca3af; }
+html.dark .td-sub-check[aria-checked=true] { background: #6b7280; border-color: #6b7280; }
+.td-sub-check[aria-checked=true] span::after { content: ""; position: absolute; left: 4.5px; top: 1px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.td-sub-text { flex: 1; min-width: 0; font-size: 14px; line-height: 1.35; color: var(--text); overflow-wrap: anywhere; }
+.td-sub.done .td-sub-text { text-decoration: line-through; color: var(--muted); }
+.td-sub.ticking .td-sub-check { transform: scale(1.15); }
+.td-sub-leaving { opacity: 0; transform: translateX(10px); }
+@media (prefers-reduced-motion: reduce) { .td-subwrap, .td-chev, .td-sub, .td-sub-check { transition: none; } }
+html.reduce-motion .td-subwrap, html.reduce-motion .td-chev, html.reduce-motion .td-sub { transition: none; }
