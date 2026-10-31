@@ -84,7 +84,7 @@ const json = (r, body, status = 200) => r.fulfill({ status, contentType: 'applic
       ok(await p.$eval('#authReconnect', e => getComputedStyle(e).animationName) === 'onb-in', `${tag}: reconnect state eases in`);
       ok(!!(await p.evaluate(k => localStorage.getItem(k), KEY)), `${tag}: saved sign-in not removed by the network error`);
       await p.waitForTimeout(400); await p.screenshot({ path: `${SHOTS}/${tag}-2-reconnecting.png` });
-      st.token = 'ok'; await p.click('#authRetry'); await signedIn(p);
+      st.token = 'ok'; await p.click('#authRetry'); await p.waitForFunction(() => document.getElementById('authGate').hidden && window.__app && window.__app.Store, null, { timeout: 40000 });
       ok((await p.evaluate(k => JSON.parse(localStorage.getItem(k)).refresh_token, KEY)) === 'r-renewed', `${tag}: back online -> renewed and into the app, no code needed`);
       await ctx.close();
       // 4. server rejects the refresh token: normal sign-in (with guidance)

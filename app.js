@@ -233,7 +233,7 @@
         const setMsg = () => { msg.textContent = navigator.onLine === false ? 'You\'re still signed in. SANDY will reconnect as soon as you\'re back online.' : 'You\'re still signed in. Reconnecting…'; };
         const done = v => { clearInterval(timer); window.removeEventListener('online', attempt); document.removeEventListener('visibilitychange', onVis); recon.hidden = true; resolve(v); };
         async function attempt() {
-          if (busy) return; busy = true; tries++; setMsg();
+          if (busy) { msg.textContent = 'Trying again…'; return; } busy = true; tries++; setMsg();
           let u = null; try { u = await Store.auth.user(); } catch (_) {}
           busy = false;
           if (u) return done(u);
