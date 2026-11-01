@@ -228,7 +228,7 @@ const SEED = async () => {
       await p.evaluate(() => window.SandyNavBar.set(false)); await toTop(p);
     }
     // ---------------- dialog sits above the bar
-    await go(p, 'home'); await p.click('#newEventBtn, .topbar .primary').catch(() => {}); await p.waitForTimeout(500);
+    await go(p, 'home'); await p.click('#todoFab').catch(() => {}); await p.waitForTimeout(500);
     const dlg = await p.evaluate(() => { const d = [...document.querySelectorAll('dialog')].find(x => x.open); if (!d) return null; const r = document.getElementById('bottomNav').getBoundingClientRect(); const el = document.elementFromPoint(195, r.top + 20); return { navHit: !!(el && el.closest('#bottomNav')) }; });
     assert(dlg && !dlg.navHit, `${tag}: an open dialog/sheet sits above the bar`);
     await p.keyboard.press('Escape'); await p.waitForTimeout(400);
