@@ -416,9 +416,14 @@
     if (todoUI.group === 'calendar') keys.sort((x, y) => (x === '~inbox' ? -1 : y === '~inbox' ? 1 : calendars.findIndex(c => c.id === x) - calendars.findIndex(c => c.id === y)));
     else if (todoUI.group === 'category') keys.sort((x, y) => (x === '~none' ? 1 : y === '~none' ? -1 : cats.findIndex(c => c.id === x) - cats.findIndex(c => c.id === y)));
     else keys.sort();
-    const sortItems = l => l.sort((x, y) => (x.done - y.done) || (y.overdue - x.overdue) || ((x.date ? 0 : 1) - (y.date ? 0 : 1)) || ((x.date || 0) - (y.date || 0)) || String(x.title).localeCompare(y.title));
+    // inside each group: done last (as before), then P1 → P2 → P3 → none, dated by earliest date/time, undated A–Z
+    const ord = it => ({ priority: it.type === 'task' ? it.ev.priority : (it.priority || (it.item && it.item.priority)), date: it.date, title: it.title });
+    const sortItems = l => l.sort((x, y) => (x.done - y.done) || a.todoCompare(ord(x), ord(y)));
     const catSel = it => cats.length || it.categoryId ? `<select class="cat-pick" aria-label="Category for ${esc(it.title)}"><option value="">＋ Category</option>${cats.map(c => `<option value="${esc(c.id)}"${c.id === it.categoryId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select>` : '';
     const listEl = $('todoList');
+    // re-sorts glide: remember where each row was (FLIP), then slide rows from there after the repaint
+    const rowId = r => r.dataset.inbox ? 'i:' + r.dataset.inbox : 'e:' + r.dataset.ev + '|' + r.dataset.key;
+    const was = new Map(); if (listEl.offsetParent) listEl.querySelectorAll('.todo-row').forEach(r => was.set(rowId(r), r.getBoundingClientRect().top));
     if (!vis.length) { listEl.innerHTML = `<p class="todo-empty">${items.length ? 'Nothing here with this filter.' : '🎉 All clear. Jot something above or add a to-do with a date.'}</p>`; return; }
     listEl.innerHTML = keys.map(k => {
       const g = groups.get(k);
@@ -449,6 +454,10 @@
       }).join('')}</ul></section>`;
     }).join('');
     if (!avail && sbc()) listEl.insertAdjacentHTML('afterbegin', '<p class="todo-note muted small">Quick jots and categories turn on after the database update.</p>');
+    if (was.size && !reduceMotion()) listEl.querySelectorAll('.todo-row').forEach(r => {
+      const t0 = was.get(rowId(r)); if (t0 == null) return; const d = t0 - r.getBoundingClientRect().top;
+      if (Math.abs(d) > 1 && r.animate) r.animate([{ transform: `translateY(${Math.round(d)}px)` }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+    });
   }
   function foldToggle(row, btn) {
     const wrap = row.querySelector('.td-subwrap'); if (!wrap) return;

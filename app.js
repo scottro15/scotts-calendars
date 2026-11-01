@@ -982,6 +982,13 @@
     const s = e.target.dataset.scope; if (!s) return;
     settings.taskScope = s; saveSettings(); renderTasks();
   });
+  // To-Do order (Scott 2026-11-01), shared by the To-Do list (inside each group) and By period: P1, P2, P3, then no
+  // priority; same priority → dated first by earliest date/time, then undated A–Z (case-insensitive).
+  const prioRank = p => (p >= 1 && p <= 3 ? p : 4);
+  function todoCompare(x, y) {
+    return prioRank(x.priority) - prioRank(y.priority) || ((x.date ? 0 : 1) - (y.date ? 0 : 1)) || ((x.date || 0) - (y.date || 0))
+      || String(x.title || '').localeCompare(String(y.title || ''), undefined, { sensitivity: 'base' });
+  }
   async function renderTasks() {
     const scope = settings.taskScope;
     for (const b of scopeTabs.querySelectorAll('button')) b.classList.toggle('active', b.dataset.scope === scope);
@@ -1005,7 +1012,7 @@
       const missed = occurrences(ev, back, addDays(today, 1)).filter(o => !isDone(ev, o.key) && dueAt(ev, o) <= now);
       for (const o of isRecurring(ev) ? missed.slice(-1) : missed) add(ev, o);
     }
-    items.sort((a, b) => (a.overdue === b.overdue ? 0 : a.overdue ? -1 : 1) || a.date - b.date);
+    items.sort((a, b) => todoCompare({ priority: a.ev.priority, date: a.date, title: a.ev.title }, { priority: b.ev.priority, date: b.date, title: b.ev.title }));
     const open = items.filter(i => !isDone(i.ev, i.key)).length;
     document.getElementById('taskCount').textContent = items.length ? `(${open} open)` : '';
     taskListEl.innerHTML = items.length ? '' : `<li class="empty">No ${SCOPE_LABEL[scope].toLowerCase()}-scope tasks for this ${scope === 'season' ? 'season' : scope === 'day' ? 'day' : scope}.</li>`;
@@ -1779,7 +1786,7 @@
   function scheduleRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 250); }
   async function refresh() { renderToggles(await Store.list()); calendar.refetchEvents(); renderTasks(); renderBriefing(); renderReview(); window.dispatchEvent(new Event('sandy:refresh')); }
   refresh();
-  window.__app = { reviewState: () => ({ scope: rv.scope, ref: ymd(rv.ref), cals: [...rv.cals], event: rv.event, q: rv.q }), reviewRange, noteKeyFor, calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList, openEditor, moveEvent, detachOccurrence, refresh, isRecurring, isDone, toast, calendars: () => CALENDARS, useCalendars, timeZone: () => TZ, setTZ,
+  window.__app = { todoCompare, reviewState: () => ({ scope: rv.scope, ref: ymd(rv.ref), cals: [...rv.cals], event: rv.event, q: rv.q }), reviewRange, noteKeyFor, calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList, openEditor, moveEvent, detachOccurrence, refresh, isRecurring, isDone, toast, calendars: () => CALENDARS, useCalendars, timeZone: () => TZ, setTZ,
     setDone, overdueText, fmtDay, startOfDay, addDays, isClientKey, occurrenceStart, saveSettings, renderTasks, renderBriefing, firstVisibleCal,
     settings: () => settings, cal: id => CAL[id], VIEWS, user: () => signedInUser }; // handy for debugging / tests
 
