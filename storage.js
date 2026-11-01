@@ -319,11 +319,20 @@
     }
     // notes / checks / links: an error keeps the last good list (retried after 20 s) instead of caching []
     function keeper(kind, load, filter) {
-      const k = { data: null, dirty: false, failAt: 0, available: true, error: null };
-      k.get = async () => {
-        if (k.data && !(k.dirty && Date.now() - k.failAt > 20000)) return k.data;
+      const k = { data: null, dirty: false, failAt: 0, available: true, error: null, gen: 0, flight: null };
+      // callers asking at the same moment share one request (t174u: a Home open sent 3 note and 6 identical link
+      // requests that queued behind each other); a stale() while one is in flight starts a fresh one for later callers
+      k.get = () => {
+        if (k.data && !(k.dirty && Date.now() - k.failAt > 20000)) return Promise.resolve(k.data);
+        if (k.flight && k.flight.gen === k.gen) return k.flight.p;
+        const f = { gen: k.gen, p: null };
+        f.p = k.load(f.gen).finally(() => { if (k.flight === f) k.flight = null; });
+        k.flight = f; return f.p;
+      };
+      k.load = async g => {
         try {
           let rows = (await load()) || []; if (filter) rows = filter(rows);
+          if (g !== k.gen && k.data) return k.data; // went stale while loading: a newer request has (or will have) the fresh list
           k.data = rows; k.dirty = false; k.available = true; k.error = null;
           if (remote && kind !== 'links') snapSave(kind, rows);
         } catch (e) {
@@ -334,7 +343,7 @@
         }
         return k.data;
       };
-      k.stale = () => { if (k.data) { k.dirty = true; k.failAt = 0; } }; // refetch next time, show the old list meanwhile
+      k.stale = () => { k.gen++; if (k.data) { k.dirty = true; k.failAt = 0; } }; // refetch next time, show the old list meanwhile
       return k;
     }
     // Profile: every Sandy Intelligence card reads its prefs from it; one request per ~10 s instead of one per card

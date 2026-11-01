@@ -694,9 +694,9 @@
   }
   async function noteSet() { return new Set((await Store.notes.all()).map(n => `${n.eventId}|${n.date}`)); }
   async function buildFcEvents(rs, re) {
-    const all = await Store.list();
-    const noted = await noteSet();
-    const links = new Map((await Store.links.all()).map(l => [`${l.eventId}|${l.date}`, l.url]));
+    // events, day notes and Notion links load side by side, not one after another (t174u: Home showed ~1 s after Today)
+    const [all, noted, linkRows] = await Promise.all([Store.list(), noteSet(), Store.links.all()]);
+    const links = new Map(linkRows.map(l => [`${l.eventId}|${l.date}`, l.url]));
     const out = [];
     for (const ev of all) {
       if (!settings.visible[ev.calendar]) continue;
