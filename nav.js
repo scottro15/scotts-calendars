@@ -547,7 +547,7 @@
   // Turn an inbox jot into a dated to-do: open the editor prefilled; when it's saved, the jot is removed.
   async function schedule(it) {
     const a = A(); const before = new Set((await a.Store.list()).map(e => e.id)); const today = a.ymd(a.nowWall());
-    await a.openEditor(null, null, { kind: 'task', title: it.body.split('\n')[0].slice(0, 200), notes: it.body.includes('\n') ? it.body : '', calendar: it.calendar && a.cal(it.calendar) ? it.calendar : a.firstVisibleCal(), allDay: true, start: today, end: today, todoCategoryId: it.categoryId });
+    await a.openEditor(null, null, { kind: 'task', title: it.body.split('\n')[0].slice(0, 200), notes: it.body.split('\n').slice(1).join('\n').trim(), calendar: it.calendar && a.cal(it.calendar) ? it.calendar : a.firstVisibleCal(), allDay: true, start: today, end: today, todoCategoryId: it.categoryId });
     const dlg = $('eventDialog');
     dlg.addEventListener('close', async () => {
       setTimeout(async () => {
@@ -608,7 +608,12 @@
       const start = time ? `${date}T${time}` : date;
       const ev = { id: uid(), kind: 'task', title: (p.title || o.raw.trim()).slice(0, 200), calendar: o.calendar && a.cal(o.calendar) ? o.calendar : a.firstVisibleCal(), allDay: !time, start, end: start, recurrence: { freq: 'none', interval: 1 }, location: '', notes: desc, todoCategoryId: categoryId, reminders: o.reminders || [] };
       if (priority !== 4) ev.priority = priority;
-      await a.Store.save(ev); if (a.refresh) a.refresh();
+      await a.Store.save(ev);
+      if (o.subsDone && o.subsDone.length) { // sub-tasks ticked while creating: tick them on its first date; all or nothing
+        try { const nk = a.noteKeyFor(ev, a.isRecurring(ev) ? date : null); await a.Store.checks.set(nk.eventId, nk.date, o.subsDone); }
+        catch (err) { try { await a.Store.remove(ev.id); } catch (_) {} if (a.refresh) a.refresh(); throw err; }
+      }
+      if (a.refresh) a.refresh();
       return { sel: `[data-ev="${CSS.escape(ev.id)}"]`, msg: `Added “${ev.title}” · ${a.fmtDay(a.parseLocal(date))}${time ? ' ' + fmtTime(time) : ''}`, ev };
     }
     const body = (o.kind === 'note' ? o.raw.trim() : (p.title || o.raw.trim())) + (desc ? '\n' + desc : '');

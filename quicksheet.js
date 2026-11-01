@@ -31,7 +31,7 @@
   };
   const PRI = { 1: '#d1453b', 2: '#eb8909', 3: '#246fe0', 4: '' };
   const REM = [['', 'No reminder'], ['0', 'At time of task'], ['10', '10 minutes before'], ['30', '30 minutes before'], ['60', '1 hour before'], ['1440', '1 day before']];
-  const st = { open: false, edit: null, disabled: new Set(), prev: new Set(), date: undefined, priority: 4, cat: '', rem: '', kind: 'todo', cal: '', subs: [], hideDone: false, saving: Promise.resolve(), sig: '' };
+  const st = { open: false, edit: null, disabled: new Set(), prev: new Set(), date: undefined, priority: 4, cat: '', rem: '', kind: 'todo', cal: '', subs: [], subsOpen: false, hideDone: false, saving: Promise.resolve(), sig: '' };
   const SUBS = () => window.SandySubs;
 
   function build() {
@@ -51,6 +51,7 @@
           <label class="qs-chip" id="qsPriChip">${ICON.flag}<span id="qsPriLbl">Priority</span><select id="qsPri" aria-label="Priority">${[1, 2, 3, 4].map(n => `<option value="${n}">Priority ${n}</option>`).join('')}</select></label>
           <label class="qs-chip" id="qsCatChip">${ICON.tag}<span id="qsCatLbl">Category</span><select id="qsCat" aria-label="Category"></select></label>
           <label class="qs-chip" id="qsRemChip">${ICON.alarm}<span id="qsRemLbl">Reminders</span><select id="qsRem" aria-label="Reminders">${REM.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>
+          <button type="button" class="qs-chip" id="qsSubChip" aria-expanded="false" aria-controls="qsSubs">${ICON.sub}<span id="qsSubLbl">Sub-tasks</span></button>
           <label class="qs-chip qs-more" id="qsMoreChip"><span aria-hidden="true">•••</span><select id="qsMore" aria-label="More options"><option value="">More…</option><option value="todo">To-do</option><option value="note">Quick note (no date)</option><option value="full">Open the full editor…</option></select></label>
         </div>
         <section id="qsSubs" class="qs-subs" hidden aria-label="Sub-tasks">
@@ -160,7 +161,8 @@
     sh.classList.toggle('qs-editing', editing);
     sh.setAttribute('aria-label', editing ? 'Edit to-do' : 'Quick add');
     const del = $('qsDelete'); if (del) del.hidden = !editing;
-    $('qsClose').hidden = !editing; $('qsSubs').hidden = !editing || st.kind === 'note';
+    $('qsClose').hidden = !editing; $('qsSubs').hidden = st.kind === 'note' || (!editing && !st.subsOpen && !st.subs.length);
+    paintSubChip();
     $('qsCheck').hidden = !editing || st.kind === 'note';
     { const o = $('qsMore').querySelector('option[value=full]'); if (o) { o.hidden = o.disabled = !!(editing && st.edit.type === 'inbox'); } }
     const send = $('qsSend'); send.hidden = editing; // the task view saves as you go (Todoist), no Save button
@@ -180,7 +182,7 @@
     document.body.classList.add('qs-open');
     if (focus) $('qsText').focus({ preventScroll: true }); else if (st.edit) sh.focus({ preventScroll: true });
     sh.scrollTop = 0; { const c = sh.querySelector('.qs-chips'); if (c) c.scrollLeft = 0; }
-    paint(); kb(); syncEditChrome(); if (st.edit) renderSubs();
+    paint(); kb(); syncEditChrome(); renderSubs();
     if (reduce()) { sh.classList.add('open'); bd.classList.add('open'); }
     else { void sh.offsetWidth; sh.classList.add('open'); bd.classList.add('open'); }
     clearTimeout(st.hideT);
@@ -188,7 +190,7 @@
   function open() {
     if (st.open && !st.edit) { $('qsText').focus(); return; }
     if (st.open && st.edit) { close(); }
-    st.edit = null; reset();
+    st.edit = null; reset(); st.hideDone = !!(N().SubUI && N().SubUI.hideDone);
     const f = N().todoUI && N().todoUI.filter; st.cal = f && f !== 'all' && f !== 'inbox' && A().cal(f) ? f : '';
     showSheet(true);
   }
@@ -257,26 +259,32 @@
     if (!wasEdit) $('todoFab').focus({ preventScroll: true });
   }
   function reset() {
-    $('qsText').value = ''; $('qsDesc').value = ''; st.subs = []; st.origDate = null; st.disabled.clear(); st.date = undefined; st.priority = 4; st.cat = ''; st.rem = ''; st.kind = 'todo'; st._editTime = null; $('qsDate').value = '~';
+    $('qsText').value = ''; $('qsDesc').value = ''; st.subs = []; st.subsOpen = false; st.origDate = null; st.disabled.clear(); st.date = undefined; st.priority = 4; st.cat = ''; st.rem = ''; st.kind = 'todo'; st._editTime = null; $('qsDate').value = '~';
   }
 
   // ---------- submit (Enter or the send arrow); create keeps the sheet open, edit saves & closes
   async function submit(e) {
     if (e) e.preventDefault();
     const raw = $('qsText').value.trim(); if (!raw) return;
+    if (!st.edit) commitSubInputs(); // the send arrow doesn't take focus: keep a half-typed sub-task / rename
     const p = parsed(); const ef = effective(p);
     // In edit mode, prefer an explicit time captured from the existing event when the title didn't parse one
     let time = ef.time;
     if (st.edit && !time && st._editTime && ef.date) time = st._editTime;
+    // sub-tasks go in the same single write as the task: '- [ ]' lines in its notes / jot body (jots keep ticks inline);
+    // a dated to-do's ticks go to occurrence_checks, which saveQuick writes and rolls back with the task (no half saves)
+    const subs = st.kind === 'note' ? [] : st.subs.map(x => ({ ...x }));
+    const ticksInChecks = !!(ef.date && st.kind !== 'note' && A().Store.checks && A().Store.checks.available);
     const opts = { raw, parsed: p, kind: st.kind, categoryId: ef.catId, calendar: st.cal || null, priority: ef.priority,
-      reminders: ef.date && st.rem !== '' ? [+st.rem] : [], description: $('qsDesc').value, date: ef.date, time };
+      reminders: ef.date && st.rem !== '' ? [+st.rem] : [], description: SUBS().compose($('qsDesc').value, subs, !ticksInChecks), date: ef.date, time,
+      subsDone: ticksInChecks ? subs.filter(x => x.done).map(x => x.key) : [] };
     if (st.edit) { // Enter in the task view: save now, put the keyboard away (Todoist)
       const ae = document.activeElement; if (ae && ae.blur) ae.blur();
       await persist(); return;
     }
-    const undo = { text: $('qsText').value, desc: $('qsDesc').value, date: st.date, priority: st.priority, cat: st.cat, rem: st.rem };
+    const undo = { text: $('qsText').value, desc: $('qsDesc').value, date: st.date, priority: st.priority, cat: st.cat, rem: st.rem, subs, subsOpen: st.subsOpen || subs.length > 0 };
     // clear at once (before the network) so the next task can be typed straight away - rapid entry never loses text
-    reset(); paint(); $('qsText').focus({ preventScroll: true });
+    reset(); paint(); syncEditChrome(); renderSubs(); $('qsText').focus({ preventScroll: true });
     try {
       const r = await N().saveQuick(opts);
       A().toast(r.msg);
@@ -285,7 +293,7 @@
       if (row) { row.classList.add('just-added'); const rb = row.getBoundingClientRect(), sb = $('qsSheet').getBoundingClientRect(); if (rb.bottom > sb.top || rb.top < 60) row.scrollIntoView({ block: 'center', behavior: reduce() ? 'auto' : 'smooth' }); }
       document.dispatchEvent(new CustomEvent('sandy:quickadded', { detail: r }));
     } catch (err) {
-      if (!$('qsText').value) { $('qsText').value = undo.text; $('qsDesc').value = undo.desc; Object.assign(st, { date: undo.date, priority: undo.priority, cat: undo.cat, rem: undo.rem }); paint(); }
+      if (!$('qsText').value) { $('qsText').value = undo.text; $('qsDesc').value = undo.desc; Object.assign(st, { date: undo.date, priority: undo.priority, cat: undo.cat, rem: undo.rem, subs: undo.subs, subsOpen: undo.subsOpen }); paint(); syncEditChrome(); renderSubs(); }
       A().toast('Could not save: ' + err.message);
     }
   }
@@ -341,6 +349,27 @@
       <button type="button" class="qs-sub-drag" aria-label="Move ${esc(x.text)} (drag, or use the arrow keys)">${ICON.grip}</button>
       <button type="button" class="qs-sub-del" aria-label="Delete sub-task ${esc(x.text)}">${ICON.x}</button></li>`).join('');
     ul.querySelectorAll('.qs-sub-text').forEach(growSub);
+    paintSubChip();
+  }
+  // create sheet: the "Sub-tasks" chip reveals the section (Todoist's quick add); it shows the count once there are some
+  function paintSubChip() {
+    const c = $('qsSubChip'); if (!c) return; const n = st.subs.length;
+    c.hidden = !!st.edit || st.kind === 'note'; c.classList.toggle('set', n > 0);
+    $('qsSubLbl').textContent = n ? `Sub-tasks ${n}` : 'Sub-tasks';
+    c.setAttribute('aria-expanded', String(!$('qsSubs').hidden));
+  }
+  function showSubs() {
+    if (st.edit) return;
+    if (st.subsOpen && !st.subs.length && !$('qsSubNew').value.trim()) { st.subsOpen = false; syncEditChrome(); $('qsText').focus({ preventScroll: true }); return; } // tap again: hide the empty section
+    st.subsOpen = true; $('qsSubs').classList.remove('collapsed'); $('qsSubsToggle').setAttribute('aria-expanded', 'true');
+    syncEditChrome(); renderSubs(); kb();
+    const inp = $('qsSubNew'); inp.focus({ preventScroll: true });
+    requestAnimationFrame(() => { const sh = $('qsSheet'), r = inp.getBoundingClientRect(), b = sh.getBoundingClientRect(); if (r.bottom > b.bottom - 8) sh.scrollTop += r.bottom - b.bottom + 56; });
+  }
+  function commitSubInputs() {
+    const ae = document.activeElement;
+    if (ae && ae.classList && ae.classList.contains('qs-sub-text')) renameSub(ae);
+    if ($('qsSubNew').value.trim()) addSub();
   }
   function growSub(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
   function subAt(el) { const li = el.closest('.qs-sub'); return li ? { li, i: +li.dataset.i } : null; }
@@ -473,6 +502,7 @@
     $('qsDelete').addEventListener('click', removeEdit);
     $('qsClose').addEventListener('click', close);
     $('qsCheck').addEventListener('click', completeEdit);
+    $('qsSubChip').addEventListener('click', showSubs);
     $('qsSubsToggle').addEventListener('click', () => { const ex = $('qsSubsToggle').getAttribute('aria-expanded') !== 'true'; $('qsSubsToggle').setAttribute('aria-expanded', String(ex)); $('qsSubs').classList.toggle('collapsed', !ex); });
     $('qsSubsHide').addEventListener('click', () => { st.hideDone = !st.hideDone; if (N().SubUI) N().SubUI.hideDone = st.hideDone; renderSubs(); N().renderTodo(); }); // one setting for the sheet and the list
     $('qsSubNew').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); addSub(); } });
@@ -508,14 +538,14 @@
     $('qsCal').addEventListener('change', e => { st.cal = e.target.value; paint(); if (st.edit) persist(); });
     $('qsMore').addEventListener('change', async e => {
       const v = e.target.value; e.target.value = '';
-      if (v === 'todo' || v === 'note') { st.kind = v; paint(); if (st.edit) { syncEditChrome(); persist(); } else inp.focus(); return; }
+      if (v === 'todo' || v === 'note') { st.kind = v; paint(); syncEditChrome(); if (st.edit) persist(); else inp.focus(); return; }
       if (v === 'full' && st.edit && st.edit.type === 'task') { // the task already exists: open IT in the full editor (no copy)
         const ed = st.edit; close(); await st.saving; await A().openEditor(ed.id, ed.key); return;
       }
       if (v === 'full') {
-        const p = parsed(), ef = effective(p), a = A(); const d = ef.date || today(); const raw = inp.value.trim();
+        commitSubInputs(); const p = parsed(), ef = effective(p), a = A(); const d = ef.date || today(); const raw = inp.value.trim();
         close();
-        await a.openEditor(null, null, { kind: 'task', title: (p.title || raw).slice(0, 200), notes: $('qsDesc').value, calendar: st.cal && a.cal(st.cal) ? st.cal : a.firstVisibleCal(), allDay: !ef.time, start: ef.time ? `${d}T${ef.time}` : d, end: ef.time ? `${d}T${ef.time}` : d, todoCategoryId: ef.catId, reminders: st.rem !== '' ? [+st.rem] : [] });
+        await a.openEditor(null, null, { kind: 'task', title: (p.title || raw).slice(0, 200), notes: SUBS().compose($('qsDesc').value, st.subs, true), calendar: st.cal && a.cal(st.cal) ? st.cal : a.firstVisibleCal(), allDay: !ef.time, start: ef.time ? `${d}T${ef.time}` : d, end: ef.time ? `${d}T${ef.time}` : d, todoCategoryId: ef.catId, reminders: st.rem !== '' ? [+st.rem] : [] });
         reset();
       }
     });

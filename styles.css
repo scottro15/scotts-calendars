@@ -2381,3 +2381,20 @@ html.dark .td-sub-check[aria-checked=true] { background: #6b7280; border-color: 
 .td-sub-leaving { opacity: 0; transform: translateX(10px); }
 @media (prefers-reduced-motion: reduce) { .td-subwrap, .td-chev, .td-sub, .td-sub-check { transition: none; } }
 html.reduce-motion .td-subwrap, html.reduce-motion .td-chev, html.reduce-motion .td-sub { transition: none; }
+
+/* Sub-tasks while creating (Scott 2026-11-01): "Sub-tasks" chip in the quick-add chip row + the full editor's add row */
+button.qs-chip { font: inherit; font-size: 13px; font-weight: 500; background: transparent; min-height: 32px; }
+html.dark button.qs-chip { background: transparent; color: var(--qs-chip-ink); border-color: var(--qs-line); }
+button.qs-chip:focus-visible { outline: none; box-shadow: 0 0 0 2px #93c5fd; }
+#qsSubChip.set { font-weight: 600; }
+#qsSubChip[aria-expanded=true] { border-color: var(--qs-ph); }
+.checklist-add { display: flex; align-items: center; gap: 8px; padding: 2px 4px; }
+.checklist-add[hidden] { display: none; }
+.checklist-add-plus { flex: none; width: 20px; text-align: center; font-size: 18px; line-height: 1; color: #0284c7; }
+dialog .checklist-add input { flex: 1; min-width: 0; border: 0; border-bottom: 1px solid #cbd5e1; border-radius: 0; background: transparent; padding: 6px 2px; font-size: 16px; color: inherit; box-shadow: none; }
+dialog .checklist-add input:focus { outline: none; border-bottom-color: #0284c7; }
+html.dark .checklist-add-plus { color: #38bdf8; }
+html.dark dialog .checklist-add input { border-bottom-color: #2a3852; background: transparent; }
+html.dark dialog .checklist-add input:focus { border-bottom-color: #38bdf8; }
+.checklist-items li.ck-in { animation: qs-fade-in .2s ease both; }
+@media (prefers-reduced-motion: reduce) { .checklist-items li.ck-in { animation: none; } }

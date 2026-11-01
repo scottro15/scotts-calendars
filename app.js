@@ -1187,6 +1187,7 @@
 
   function syncFormUI() {
     const isTask = kind() === 'task';
+    try { if (ckCtx) renderChecklist(); } catch (_) { /* before the checklist block has initialised */ }
     document.getElementById('taskFields').hidden = !isTask;
     document.getElementById('startLabel').textContent = isTask ? 'Due / date' : 'Start';
     const allDay = f('allDay').checked;
@@ -1276,7 +1277,12 @@
   }
   async function setupChecklist(ev, occKey) {
     ckCtx = null; ckStatus.textContent = '';
-    if (!ev || (isRecurring(ev) && !occKey)) { ckBox.hidden = true; return; }
+    if (!ev) { // a new event / to-do: sub-tasks can be added and ticked before it exists; they save with it (draft)
+      const on = []; for (const line of String(f('event-notes').value || '').split('\n')) { const m = line.match(/^\s*[-*]\s*\[(x|X)\]\s*(.+?)\s*$/); if (m) on.push(ckKey(m[2])); }
+      ckCtx = { draft: true, checked: on }; document.getElementById('checklistDate').textContent = '';
+      renderChecklist(); return;
+    }
+    if (isRecurring(ev) && !occKey) { ckBox.hidden = true; return; }
     const nk = noteKeyFor(ev, occKey);
     ckCtx = { ...nk, checked: await Store.checks.get(nk.eventId, nk.date) };
     document.getElementById('checklistDate').textContent = fmtNoteDay(nk.date);
@@ -1284,7 +1290,11 @@
   }
   function renderChecklist() {
     const items = ckCtx ? parseChecklist(f('event-notes').value) : [];
-    ckBox.hidden = !items.length; if (!items.length) return;
+    const isTask = kind() === 'task';
+    document.getElementById('checklistTitle').textContent = isTask ? 'Sub-tasks' : 'Checklist';
+    document.getElementById('checklistAdd').hidden = !(ckCtx && isTask);
+    ckBox.hidden = !items.length && !(ckCtx && isTask);
+    if (ckBox.hidden) return;
     const on = new Set(ckCtx.checked), ok = Store.checks.available;
     ckList.innerHTML = '';
     for (const it of items) {
@@ -1294,8 +1304,8 @@
       lb.append(cb, sp); li.append(lb); ckList.append(li);
     }
     const done = items.filter(i => on.has(i.key)).length;
-    if (!ckStatus.textContent || /done$/.test(ckStatus.textContent)) ckStatus.textContent = `${done}/${items.length} done`;
-    document.getElementById('checklistHelp').textContent = ok
+    if (!ckStatus.textContent || /done$/.test(ckStatus.textContent)) ckStatus.textContent = items.length ? `${done}/${items.length} done` : '';
+    document.getElementById('checklistHelp').textContent = ckCtx.draft ? 'Saved together with the ' + (isTask ? 'to-do' : 'event') + (f('freq').value !== 'none' ? '; ticks count for its first date.' : '.') : ok
       ? 'Ticks save right away, for this date only. Add items as "- [ ] item" lines in Notes.'
       : 'Checklist ticks need a one-time database update before they can save (see README → Checklists).';
   }
@@ -1303,11 +1313,23 @@
     const c = ckCtx; if (!c) return;
     const prev = c.checked;
     c.checked = on ? [...new Set([...prev, key])] : prev.filter(k => k !== key);
+    if (c.draft) { renderChecklist(); return; } // not saved yet: goes in with the new to-do
     ckStatus.textContent = 'Saving…';
     try { await Store.checks.set(c.eventId, c.date, c.checked); ckStatus.textContent = 'Saved'; setTimeout(() => { if (ckCtx === c) { ckStatus.textContent = ''; renderChecklist(); } }, 900); }
     catch (err) { c.checked = prev; ckStatus.textContent = 'Not saved'; renderChecklist(); fail(err); }
   }
   f('event-notes').addEventListener('input', () => { if (ckCtx) renderChecklist(); });
+  // "+ Add sub-task": appends a '- [ ] item' line to Notes (the same storage the To-Do sheet uses)
+  function addChecklistItem() {
+    const inp = document.getElementById('checklistNew'), text = inp.value.replace(/\s+/g, ' ').trim(); if (!text) return;
+    const notes = f('event-notes');
+    if (parseChecklist(notes.value).some(i => i.key === ckKey(text))) { toast('That sub-task is already on the list'); return; }
+    notes.value = notes.value.replace(/\s+$/, '') + (notes.value.trim() ? '\n' : '') + '- [ ] ' + text; inp.value = '';
+    notes.dispatchEvent(new Event('input', { bubbles: true }));
+    const li = ckList.lastElementChild; if (li && !matchMedia('(prefers-reduced-motion: reduce)').matches) li.classList.add('ck-in');
+  }
+  document.getElementById('checklistNew').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); addChecklistItem(); } });
+  document.getElementById('checklistNew').addEventListener('blur', addChecklistItem);
 
   // ---------- Today's Note (day-specific note; separate storage, never edits the event) ----------
   const dayBox = document.getElementById('dayNoteBox'), dayTa = document.getElementById('dayNote'), dayStatus = document.getElementById('dayNoteStatus');
@@ -1486,7 +1508,14 @@
         if (isRecurring(ev)) { const set = new Set(ev.completedDates || []); f('done').checked ? set.add(key) : set.delete(key); ev.completedDates = [...set]; delete ev.done; }
         else ev.done = f('done').checked;
       } else { delete ev.scope; delete ev.done; delete ev.completedDates; }
+      // a new to-do / event with sub-tasks ticked before saving: notes keep '- [ ]' lines, ticks go on its first date
+      const draftTicks = !existing && ckCtx && ckCtx.draft ? ckCtx.checked.filter(k => parseChecklist(ev.notes).some(i => i.key === k)) : [];
+      if (!existing && ckCtx && ckCtx.draft && Store.checks.available) ev.notes = String(ev.notes || '').replace(/^(\s*[-*]\s*)\[(x|X)\]/gm, '$1[ ]');
       await Store.save(ev);
+      if (draftTicks.length && Store.checks.available) { // all or nothing: undo the new row if its ticks can't save
+        try { const nk = noteKeyFor(ev, isRecurring(ev) ? ymd(parseLocal(ev.start)) : null); await Store.checks.set(nk.eventId, nk.date, draftTicks); }
+        catch (err) { try { await Store.remove(ev.id); } catch (_) {} throw err; }
+      }
       dlg.close(); toast(scope === 'all' && editing.recurring ? 'Saved all events in the series' : 'Saved'); refresh();
       afterReminders(v.reminders);
     } catch (err) { fail(err); showEvErr('Could not save: ' + (err && err.message ? err.message : err) + '. Your changes are still here, so tap Save to try again.'); }
