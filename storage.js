@@ -118,10 +118,29 @@
   const isMissingTable = e => e && (e.code === 'PGRST205' || e.code === '42P01' || /could not find the table|does not exist/i.test(e.message || ''));
   // categories are unique per (owner, calendar, name) after the step 2 migration; plain insert + ignore duplicates works for both
   const CAT_CONFLICT = 'owner_id,calendar,name';
+  // early.js started the first reads before the app code ran: use each once if it's the same GET with the same token
+  // (and < 30 s old); otherwise (or if it failed / came back not-ok) make the normal request.
+  function earlyFetch(input, init) {
+    const E = window.__sandyEarly;
+    try {
+      const u = typeof input === 'string' ? input : (input && input.url) || String(input);
+      const p = E && E.map[u];
+      if (p) {
+        delete E.map[u];
+        const h = new Headers((init && init.headers) || (input && input.headers) || undefined);
+        const m = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+        if (m === 'GET' && h.get('authorization') === 'Bearer ' + E.token && Date.now() - E.t0 < 30000 && !/vnd\.pgrst/.test(h.get('accept') || '')) {
+          return p.then(r => { if (r && r.ok) { E.hits.push(u.split('/rest/v1/')[1].split('?')[0]); return r; } return fetch(input, init); });
+        }
+      }
+    } catch (_) { /* fall through */ }
+    return fetch(input, init);
+  }
   function SupabaseAdapter(url, anonKey) {
     if (!window.supabase || !window.supabase.createClient) throw new Error('vendor/supabase.min.js did not load');
     const sb = window.supabase.createClient(url, anonKey, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+      global: { fetch: earlyFetch },
     });
     const must = ({ data, error }) => { if (error) throw new Error(error.message || String(error)); return data; };
     return {

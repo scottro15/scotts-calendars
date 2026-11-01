@@ -495,9 +495,10 @@
   <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
   <!-- Both load here, just before the app scripts that use them, not in <head>: the top bar and the loading skeleton
        paint while these ~500 KB download instead of after (t174u load-time checkup). Order is unchanged for the app. -->
+  <script src="config.js"></script>
+  <script src="early.js?v=20261101-edit-save"></script>
   <script src="vendor/fullcalendar.min.js"></script>
   <script src="vendor/supabase.min.js"></script>
-  <script src="config.js"></script>
   <script src="storage.js?v=20261101-edit-save"></script>
   <script src="places.js?v=20261101-edit-save"></script>
   <script src="titleac.js?v=20261101-edit-save"></script>

@@ -25,10 +25,10 @@ let n = 0; const errs = []; const ok = (c, m) => { if (c) n++; else errs.push(m)
     const st = await p.evaluate(() => {
       const head = [...document.head.querySelectorAll('script[src]')].map(s => s.getAttribute('src'));
       const body = [...document.body.querySelectorAll('script[src]')].map(s => s.getAttribute('src').split('?')[0]);
-      return { head, i: [body.indexOf('vendor/fullcalendar.min.js'), body.indexOf('vendor/supabase.min.js'), body.indexOf('config.js'), body.indexOf('storage.js'), body.indexOf('app.js')], fc: !!window.FullCalendar, sb: !!(window.supabase && supabase.createClient), today: !!document.querySelector('#todayBody .tc-summary') };
+      return { head, i: [body.indexOf('config.js'), body.indexOf('early.js'), body.indexOf('vendor/fullcalendar.min.js'), body.indexOf('vendor/supabase.min.js'), body.indexOf('storage.js'), body.indexOf('app.js')], fc: !!window.FullCalendar, sb: !!(window.supabase && supabase.createClient), today: !!document.querySelector('#todayBody .tc-summary') };
     });
     ok(st.head.length === 0, `${name}: no external scripts left in <head> (${st.head})`);
-    ok(st.i[0] >= 0 && st.i[0] < st.i[1] && st.i[1] < st.i[2] && st.i[2] < st.i[3] && st.i[3] < st.i[4], `${name}: FullCalendar, supabase, config, storage, app in that order ${st.i}`);
+    ok(st.i[0] >= 0 && st.i[0] < st.i[1] && st.i[1] < st.i[2] && st.i[2] < st.i[3] && st.i[3] < st.i[4] && st.i[4] < st.i[5], `${name}: config, early (data reads start), FullCalendar, supabase, storage, app in that order ${st.i}`);
     ok(st.fc && st.sb && st.today, `${name}: libraries loaded and Today shows`);
     await p.click('#bottomNav [data-tab="home"]').catch(() => {}); await p.waitForSelector('#calendar .fc-event', { timeout: 15000 }).catch(() => {});
     ok(await p.evaluate(() => !!document.querySelector('#calendar .fc-event')), `${name}: Home calendar renders events`);
