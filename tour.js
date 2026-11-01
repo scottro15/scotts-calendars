@@ -112,9 +112,9 @@
     {
       id: 'todo',
       title: 'To-Do',
-      body: 'On To-Do, tap + to quick-add. Type naturally — “meeting next Friday at 3pm” — and set a priority when it matters.',
+      body: 'On To-Do, tap + to quick-add. Type naturally — “meeting next Friday at 3pm” — and set a priority when it matters. The search bar at the top finds any to-do or note.',
       tab: 'todo',
-      target: () => document.getElementById('todoFab') || document.getElementById('quickAdd') || document.getElementById('page-todo'),
+      target: () => document.getElementById('todoFab') || document.getElementById('todoSearchBox') || document.getElementById('page-todo'),
       prepare: async () => { if (window.SandyNav) SandyNav.go('todo'); await new Promise(r => setTimeout(r, 150)); },
     },
     {

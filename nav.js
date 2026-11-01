@@ -316,9 +316,12 @@
   }
 
   // ------------------------------------------------------------------ To-Do
-  const todoUI = { filter: 'all', group: 'calendar', showDone: false };
+  const todoUI = { filter: 'all', group: 'calendar', showDone: false, q: '' }; // q: the search box (not saved)
   try { Object.assign(todoUI, JSON.parse(localStorage.getItem('sandy.todoUI') || '{}')); } catch (_) {}
-  const saveTodoUI = () => { try { localStorage.setItem('sandy.todoUI', JSON.stringify(todoUI)); } catch (_) {} };
+  todoUI.q = '';
+  const saveTodoUI = () => { try { const { q, ...keep } = todoUI; localStorage.setItem('sandy.todoUI', JSON.stringify(keep)); } catch (_) {} };
+  let todoSeq = 0;
+  let lastTodoQ = ''; // rows only glide on re-sorts, not while the search filter is changing
   const SUBS = window.SandySubs || null;
   const SUB_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M6 4v9a3 3 0 0 0 3 3h9M14.5 12.5 18 16l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const CHEV_SVG = '<svg class="td-chev" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -368,6 +371,7 @@
   }
   async function renderTodo() {
     const a = A(); if (!a) return;
+    const seq = ++todoSeq, q0 = todoUI.q;
     Inbox.list().catch(() => {}); // start it alongside categories (shared via the 3 s memo)
     let cats = []; try { cats = (await Cats.list()).sort((x, y) => (x.sort - y.sort) || x.name.localeCompare(y.name)); } catch (e) { console.warn(e); }
     const catOf = id => cats.find(c => c.id === id);
@@ -390,14 +394,23 @@
     const chips = [['all', 'All', null], ['inbox', 'Inbox', null], ...calendars.map(c => [c.id, c.short || c.name, c.color])];
     $('todoFilter').innerHTML = chips.map(([id, label, color]) => `<button type="button" data-f="${esc(id)}" aria-pressed="${todoUI.filter === id}" title="${esc(label)}"${color ? ` style="--c:${esc(color)}"` : ''}>${color ? '<span class="dot"></span>' : ''}<span class="chip-lbl">${esc(label)}</span></button>`).join('');
     $('todoGroup').value = todoUI.group; $('todoShowDone').checked = todoUI.showDone;
-    $('qaCat').innerHTML = '<option value="">Category</option>' + cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
     const avail = Inbox.available && Cats.available;
-    if ($('qaText').value) qaPaint();
-    $('qaText').disabled = $('qaAdd').disabled = !Inbox.available;
-    $('qaText').placeholder = Inbox.available ? 'Jot a to-do or note…' : 'Quick jots turn on after the database update';
-    const vis = items.filter(it => todoUI.filter === 'all' || (todoUI.filter === 'inbox' ? !it.calendar : it.calendar === todoUI.filter));
+    const qWords = String(todoUI.q || '').toLowerCase().replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+    const hay = it => [it.title, it.desc, ...(it.subs || []).map(x => x.text)].join('\n').toLowerCase();
+    const hit = (text, w) => String(text || '').toLowerCase().includes(w);
+    const hl = text => { // escaped text with the search words marked
+      text = String(text == null ? '' : text); if (!qWords.length) return esc(text);
+      const lo = text.toLowerCase(), marks = [];
+      for (const w of qWords) { let i = 0; while ((i = lo.indexOf(w, i)) >= 0) { marks.push([i, i + w.length]); i += w.length; } }
+      if (!marks.length) return esc(text);
+      marks.sort((x, y) => x[0] - y[0]); const m = []; for (const r of marks) { const l = m[m.length - 1]; if (l && r[0] <= l[1]) l[1] = Math.max(l[1], r[1]); else m.push([...r]); }
+      let o = '', last = 0; for (const [x, y] of m) { o += esc(text.slice(last, x)) + '<mark class="td-hit">' + esc(text.slice(x, y)) + '</mark>'; last = y; }
+      return o + esc(text.slice(last));
+    };
+    const filtered = items.filter(it => todoUI.filter === 'all' || (todoUI.filter === 'inbox' ? !it.calendar : it.calendar === todoUI.filter));
+    const vis = qWords.length ? filtered.filter(it => { const h = hay(it); return qWords.every(w => h.includes(w)); }) : filtered;
     const open = items.filter(it => !it.done && !it.note).length, od = items.filter(it => it.overdue).length;
-    $('todoCount').textContent = `${open} open${od ? ` · ${od} overdue` : ''}`;
+    $('todoCount').textContent = qWords.length ? `${vis.length} match${vis.length === 1 ? '' : 'es'}` : `${open} open${od ? ` · ${od} overdue` : ''}`;
     setBadge(od);
     // groups
     const groups = new Map(); const add = (k, label, it, color) => { if (!groups.has(k)) groups.set(k, { label, color, items: [] }); groups.get(k).items.push(it); };
@@ -421,10 +434,17 @@
     const sortItems = l => l.sort((x, y) => (x.done - y.done) || a.todoCompare(ord(x), ord(y)));
     const catSel = it => cats.length || it.categoryId ? `<select class="cat-pick" aria-label="Category for ${esc(it.title)}"><option value="">＋ Category</option>${cats.map(c => `<option value="${esc(c.id)}"${c.id === it.categoryId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select>` : '';
     const listEl = $('todoList');
+    if (seq !== todoSeq && todoUI.q !== q0) return; // a newer keystroke's render will paint
     // re-sorts glide: remember where each row was (FLIP), then slide rows from there after the repaint
     const rowId = r => r.dataset.inbox ? 'i:' + r.dataset.inbox : 'e:' + r.dataset.ev + '|' + r.dataset.key;
-    const was = new Map(); if (listEl.offsetParent) listEl.querySelectorAll('.todo-row').forEach(r => was.set(rowId(r), r.getBoundingClientRect().top));
-    if (!vis.length) { listEl.innerHTML = `<p class="todo-empty">${items.length ? 'Nothing here with this filter.' : '🎉 All clear. Jot something above or add a to-do with a date.'}</p>`; return; }
+    const qSame = String(todoUI.q || '') === lastTodoQ; lastTodoQ = String(todoUI.q || '');
+    const was = new Map(); if (qSame && listEl.offsetParent) listEl.querySelectorAll('.todo-row').forEach(r => was.set(rowId(r), r.getBoundingClientRect().top));
+    if (!vis.length) {
+      listEl.innerHTML = qWords.length
+        ? `<div class="todo-empty todo-nomatch" role="status"><p>No to-dos or notes match “${esc(String(todoUI.q).trim())}”.</p><p class="muted small">${(() => { const t = [todoUI.filter !== 'all' && 'All', !todoUI.showDone && 'Show done'].filter(Boolean); return t.length ? `Not here? Try ${t.join(' or ')}.` : 'Search looks at titles, descriptions and sub-tasks.'; })()}</p></div>`
+        : `<p class="todo-empty">${items.length ? 'Nothing here with this filter.' : '🎉 All clear. Tap + to add a to-do.'}</p>`;
+      return;
+    }
     listEl.innerHTML = keys.map(k => {
       const g = groups.get(k);
       return `<section class="todo-group"><h3>${g.color ? `<span class="dot" style="background:${esc(g.color)}"></span>` : ''}${esc(g.label)} <span class="muted small">${g.items.filter(i => !i.done && !i.note).length || ''}</span></h3><ul>${sortItems(g.items).map(it => {
@@ -436,24 +456,24 @@
         if (c && todoUI.group !== 'calendar') meta.push(`<span class="td-cal"><span class="dot" style="background:${esc(c.color)}"></span>${esc(c.short || c.name)}</span>`);
         if (cat && todoUI.group !== 'category') meta.push(`<span class="td-cat" style="--c:${esc(cat.color)}">${esc(cat.name)}</span>`);
         const pr = it.type === 'task' ? it.ev.priority : (it.priority || (it.item && it.item.priority));
-        const sc = subCount(it), fid = it.type === 'task' ? it.ev.id : it.item.id, isFolded = !!sc && folded.has(fid);
+        const sc = subCount(it), fid = it.type === 'task' ? it.ev.id : it.item.id, isFolded = !!sc && folded.has(fid) && !(qWords.length && it.subs.some(x => qWords.some(w => hit(x.text, w)))); // a matching sub-task shows
         if (sc) meta.push(`<button type="button" class="td-subs td-fold${sc.done === sc.total ? ' all' : ''}" aria-expanded="${!isFolded}" title="${isFolded ? 'Show' : 'Hide'} sub-tasks" aria-label="${isFolded ? 'Show' : 'Hide'} sub-tasks, ${sc.done} of ${sc.total} done">${SUB_SVG}<span class="td-subs-n">${sc.done}/${sc.total}</span>${CHEV_SVG}</button>`);
         let subHtml = '';
         if (sc) {
           const isDone = subDone(it);
-          subHtml = `<div class="td-subwrap${isFolded ? ' folded' : ''}"><ul class="td-sublist" aria-label="Sub-tasks of ${esc(it.title)}">${it.subs.map(x => { const d = isDone(x); return `<li class="td-sub${d ? ' done' : ''}" data-sk="${esc(x.key)}"${d && hideDone ? ' hidden' : ''}><button type="button" class="td-sub-check" role="checkbox" aria-checked="${d}" aria-label="${d ? 'Mark not done' : 'Mark done'}: ${esc(x.text)}"${isFolded ? ' tabindex="-1"' : ''}><span></span></button><span class="td-sub-text">${esc(x.text)}</span></li>`; }).join('')}</ul></div>`;
+          subHtml = `<div class="td-subwrap${isFolded ? ' folded' : ''}"><ul class="td-sublist" aria-label="Sub-tasks of ${esc(it.title)}">${it.subs.map(x => { const d = isDone(x); return `<li class="td-sub${d ? ' done' : ''}" data-sk="${esc(x.key)}"${d && hideDone && !(qWords.length && qWords.some(w => hit(x.text, w))) ? ' hidden' : ''}><button type="button" class="td-sub-check" role="checkbox" aria-checked="${d}" aria-label="${d ? 'Mark not done' : 'Mark done'}: ${esc(x.text)}"${isFolded ? ' tabindex="-1"' : ''}><span></span></button><span class="td-sub-text">${hl(x.text)}</span></li>`; }).join('')}</ul></div>`;
         }
         if (pr >= 1 && pr <= 3) meta.push(`<span class="td-pri td-p${pr}" title="Priority ${pr}"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M5 21V4h11l-1.5 4L16 12H5" fill="currentColor"/></svg>P${pr}</span>`);
         const id = it.type === 'task' ? `data-ev="${esc(it.ev.id)}" data-key="${esc(it.key)}"` : `data-inbox="${esc(it.item.id)}"`;
         const checkC = pr === 1 ? '#d1453b' : pr === 2 ? '#eb8909' : pr === 3 ? '#246fe0' : '#b0b0b0';
-        const descHtml = it.desc ? `<p class="td-desc">${esc(it.desc)}</p>` : '';
+        const descHtml = it.desc ? `<p class="td-desc">${hl(it.desc)}</p>` : '';
         return `<li class="todo-row${it.done ? ' done' : ''}${it.overdue ? ' overdue' : ''}${it.note ? ' note' : ''}${pr >= 1 && pr <= 3 ? ' td-has-p' + pr : ''}" ${id} style="--c:${esc(c ? c.color : '#9ca3af')};--check:${checkC}">
           ${it.note ? '<span class="td-note" aria-hidden="true">📝</span>' : `<button type="button" class="td-check" role="checkbox" aria-checked="${it.done}" aria-label="${it.done ? 'Mark not done' : 'Mark done'}: ${esc(it.title)}"><span></span></button>`}
-          <div class="td-main"><button type="button" class="td-title">${esc(it.title)}</button>${descHtml}<div class="td-meta">${meta.join('')}</div>${subHtml}</div>
+          <div class="td-main"><button type="button" class="td-title">${hl(it.title)}</button>${descHtml}<div class="td-meta">${meta.join('')}</div>${subHtml}</div>
           ${catSel(it)}</li>`;
       }).join('')}</ul></section>`;
     }).join('');
-    if (!avail && sbc()) listEl.insertAdjacentHTML('afterbegin', '<p class="todo-note muted small">Quick jots and categories turn on after the database update.</p>');
+    if (!avail && sbc()) listEl.insertAdjacentHTML('afterbegin', '<p class="todo-note muted small">Inbox to-dos and categories turn on after the database update.</p>');
     if (was.size && !reduceMotion()) listEl.querySelectorAll('.todo-row').forEach(r => {
       const t0 = was.get(rowId(r)); if (t0 == null) return; const d = t0 - r.getBoundingClientRect().top;
       if (Math.abs(d) > 1 && r.animate) r.animate([{ transform: `translateY(${Math.round(d)}px)` }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.2, .8, .2, 1)' });
@@ -567,43 +587,14 @@
     }, { once: true });
   }
   // ---- Smart quick add (Todoist-style): recognized dates, times and categories show as blue chips while typing.
-  const qa = { disabled: new Set(), parsed: null, prev: new Set() };
   const fmtTime = hm => { if (window.SandyTime) return SandyTime.fmtHM(hm, { compact: true }); const [h, m] = hm.split(':').map(Number); return `${(h % 12) || 12}${m ? ':' + String(m).padStart(2, '0') : ''} ${h < 12 ? 'AM' : 'PM'}`; };
-  // shared by the inline quick add and the To-Do "+" sheet (quicksheet.js)
+  // used by the To-Do "+" sheet (quicksheet.js)
   function parseQuick(text, kind = 'todo', disabled = new Set()) {
     const a = A();
     if (!window.SandyParse || !a) return { tokens: [], date: null, time: null, category: null, priority: null, title: text.trim() };
     const p = window.SandyParse.parse(text, { now: a.nowWall(), categories: Cats.available ? (Cats.cache || []) : [], disabled, h24: !!(window.SandyTime && SandyTime.is24()) });
     if (kind === 'note') { p.tokens = p.tokens.filter(t => t.kind === 'category'); p.date = p.time = null; p.priority = null; p.title = text.trim(); }
     return p;
-  }
-  const qaParse = () => parseQuick($('qaText').value, $('qaKind').value, qa.disabled);
-  function qaPaint() {
-    const inp = $('qaText'), hl = $('qaHl'), text = inp.value;
-    // forget tapped-off chips once their words are gone
-    if (qa.disabled.size) for (const k of [...qa.disabled]) if (!text.toLowerCase().replace(/\s+/g, ' ').includes(k.slice(k.indexOf(':') + 1))) qa.disabled.delete(k);
-    const p = qa.parsed = qaParse();
-    let h = '', last = 0;
-    for (const t of p.tokens) { h += esc(text.slice(last, t.start)) + `<span class="qa-chip qa-${t.kind}${qa.prev.has(t.key) ? '' : ' qa-new'}" data-key="${esc(t.key)}">${esc(text.slice(t.start, t.end))}</span>`; last = t.end; }
-    h += esc(text.slice(last));
-    qa.prev = new Set(p.tokens.map(t => t.key));
-    hl.innerHTML = h + '\u200b';
-    $('quickAdd').classList.toggle('has-text', !!text);
-    hl.scrollLeft = inp.scrollLeft;
-    const pv = $('qaPreview'); const a = A();
-    if (!p.tokens.length || !a) { pv.hidden = true; pv.innerHTML = ''; return; }
-    const parts = [];
-    if (p.date) parts.push(['date', '📅 ' + a.fmtDay(a.parseLocal(p.date)) + (p.time ? ' · ' + fmtTime(p.time) : '')]);
-    if (p.category) parts.push(['category', '# ' + p.category.name]);
-    pv.innerHTML = `<span class="muted small">${p.date ? 'Adds a to-do' : 'Adds to Inbox'}${p.title ? ` “${esc(p.title)}”` : ''}:</span> ` + parts.map(([k, l]) => `<button type="button" class="qa-pv qa-${k}" data-kind="${k}" title="Tap to keep as plain text">${esc(l)} <span aria-hidden="true">✕</span><span class="sr-only"> (remove)</span></button>`).join('');
-    pv.hidden = false;
-  }
-  function qaUnrecognize(keys) { for (const k of keys) qa.disabled.add(k); qaPaint(); }
-  function qaTapInput() {
-    // Tap on an inline chip (caret lands inside it, nothing selected) → keep those words as plain text.
-    const inp = $('qaText'); const p = qa.parsed; if (!p || inp.selectionStart !== inp.selectionEnd) return;
-    const pos = inp.selectionStart; const t = p.tokens.find(x => pos > x.start && pos < x.end);
-    if (t) qaUnrecognize([t.key]);
   }
   // One save path for quick adds. Dated → a scheduled to-do (event kind 'task'); undated → an Inbox jot (to-do or note).
   // opts: { raw, parsed, kind, categoryId, calendar, priority (1-4), reminders [min], description, date, time }
@@ -699,19 +690,6 @@
     else await Inbox.remove(ed.id);
   }
 
-  async function quickAdd(e) {
-    e.preventDefault();
-    const raw = $('qaText').value.trim(); if (!raw) { $('qaText').focus(); return; }
-    const calFilter = todoUI.filter !== 'all' && todoUI.filter !== 'inbox' ? todoUI.filter : null;
-    $('qaAdd').disabled = true;
-    try {
-      const r = await saveQuick({ raw, parsed: qaParse(), kind: $('qaKind').value, categoryId: $('qaCat').value || null, calendar: calFilter });
-      if (r.ev) toast(r.msg);
-      $('qaText').value = ''; qa.disabled.clear(); qaPaint();
-      await renderTodo(); const row = document.querySelector(r.sel); if (row) row.classList.add('just-added');
-    } catch (err) { toast('Could not save: ' + err.message); }
-    $('qaAdd').disabled = false; $('qaText').focus();
-  }
   async function manageCats() {
     let cats = []; try { cats = await Cats.list(); } catch (e) { toast(e.message); return; }
     if (!Cats.available) { toast('Categories turn on after the database update.'); return; }
@@ -1055,14 +1033,14 @@
     $('bottomNav').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) go(b.dataset.tab); });
     // Today icon shows today's date
     // To-Do
-    $('quickAdd').addEventListener('submit', quickAdd);
-    $('qaText').addEventListener('input', qaPaint);
-    $('qaText').addEventListener('scroll', () => { $('qaHl').scrollLeft = $('qaText').scrollLeft; });
-    $('qaText').addEventListener('keyup', () => { $('qaHl').scrollLeft = $('qaText').scrollLeft; });
-    $('qaText').addEventListener('click', () => setTimeout(qaTapInput, 0));
-    $('qaKind').addEventListener('change', qaPaint);
-    $('qaPreview').addEventListener('pointerdown', e => { if (e.target.closest('.qa-pv')) e.preventDefault(); }); // keep the iPhone keyboard up
-    $('qaPreview').addEventListener('click', e => { const b = e.target.closest('.qa-pv'); if (!b || !qa.parsed) return; const k = b.dataset.kind; qaUnrecognize(qa.parsed.tokens.filter(t => k === 'date' ? t.kind !== 'category' : t.kind === k).map(t => t.key)); const i = $('qaText'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
+    // search (replaced the one-line jot box, Scott 2026-11-01): filters the list live, matches highlighted
+    { const inp = $('todoSearch'), x = $('todoSearchClear'); let t = null;
+      const run = () => { clearTimeout(t); todoUI.q = inp.value; x.hidden = !inp.value; $('todoSearchBox').classList.toggle('has-q', !!inp.value.trim()); t = setTimeout(renderTodo, 90); };
+      inp.addEventListener('input', run);
+      inp.addEventListener('keydown', e => { if (e.key === 'Escape' && inp.value) { e.preventDefault(); e.stopPropagation(); inp.value = ''; run(); } else if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+      x.addEventListener('pointerdown', e => e.preventDefault()); // keep the keyboard up
+      x.addEventListener('click', () => { inp.value = ''; run(); inp.focus({ preventScroll: true }); });
+    }
     $('todoList').addEventListener('click', todoClick);
     $('todoList').addEventListener('change', todoCatChange);
     $('todoFilter').addEventListener('click', e => { const b = e.target.closest('[data-f]'); if (!b) return; todoUI.filter = b.dataset.f; saveTodoUI(); renderTodo(); });
@@ -1226,6 +1204,8 @@
       if (mqP.addEventListener) mqP.addEventListener('change', f); else if (mqP.addListener) mqP.addListener(f); }
     // keyboard: Cmd/Ctrl+K opens Search
     document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); go('search', { focus: true }); } });
+    // "/" on the To-Do page jumps to its search bar (when not typing somewhere)
+    document.addEventListener('keydown', e => { if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return; const t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return; if ($('page-todo').hidden || document.querySelector('dialog[open], .qs-sheet.open')) return; e.preventDefault(); $('todoSearch').focus(); });
     const day = document.querySelector('#bottomNav .nav-day'); if (day) day.textContent = String(new Date().getDate());
   }
   // Called once the app is ready (window.__app exists)

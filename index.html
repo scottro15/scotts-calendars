@@ -99,15 +99,11 @@
     <!-- Bottom-nav tabs (2026-10-24). Home + Today use the calendar above; these are full pages. -->
     <section id="page-todo" class="tab-page" aria-labelledby="todoH" hidden>
       <div class="page-head"><h1 id="todoH">To-Do</h1><span id="todoCount" class="muted small"></span></div>
-      <form id="quickAdd" class="quick-add" autocomplete="off">
-        <div class="qa-field"><div id="qaHl" class="qa-hl" aria-hidden="true"></div><input id="qaText" name="task-jot" maxlength="2000" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" placeholder="Jot a to-do or note…" aria-label="Jot a to-do or note" enterkeyhint="done"></div>
-        <div class="qa-opts">
-          <select id="qaKind" aria-label="Type"><option value="todo">To-do</option><option value="note">Note</option></select>
-          <select id="qaCat" aria-label="Category"><option value="">Category</option></select>
-          <button class="primary" id="qaAdd">Add</button>
-        </div>
-      </form>
-      <div id="qaPreview" class="qa-preview" aria-live="polite" hidden></div>
+      <div id="todoSearchBox" class="todo-search" role="search">
+        <svg class="todo-search-ic" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="todoSearch" type="search" name="todo-search" placeholder="Search to-dos" aria-label="Search to-dos and notes" aria-controls="todoList" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search" maxlength="200">
+        <button type="button" id="todoSearchClear" class="todo-search-x" aria-label="Clear search" hidden><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+      </div>
       <div class="todo-bar">
         <div class="chips" id="todoFilter" role="group" aria-label="Filter by calendar"></div>
         <label class="small">Group by <select id="todoGroup"><option value="calendar">Calendar</option><option value="category">Category</option><option value="date">Date</option></select></label>

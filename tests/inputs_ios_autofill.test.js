@@ -43,7 +43,7 @@ let n = 0; const ok = (c, m) => { assert(c, m); n++; };
         const fs = parseFloat(getComputedStyle(el).fontSize);
         return { sel, fs, tag: el.tagName, name: el.getAttribute('name'), ac: el.getAttribute('autocomplete') };
       };
-      return ['#qsText', '#qsDesc', '#qaText', '#qsDate', '#qsPri', '#qsCat', '#qsRem', '#qsCal'].map(take);
+      return ['#qsText', '#qsDesc', '#todoSearch', '#qsDate', '#qsPri', '#qsCat', '#qsRem', '#qsCal'].map(take);
     });
     for (const s of sizes) {
       ok(!!s, `found ${s && s.sel}`);

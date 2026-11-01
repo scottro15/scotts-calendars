@@ -115,7 +115,7 @@ let n = 0; const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); n++
           descFs: parseFloat(d.fontSize),
           tPh: document.querySelector('#qsText').placeholder,
           dPh: document.querySelector('#qsDesc').placeholder,
-          jot: !!document.querySelector('#qaText'),
+          search: !!document.querySelector('#todoSearch'),
         };
       });
       assert(sheet.titleFs >= 19, `${tag}: qs title >= 19px (got ${sheet.titleFs})`);
@@ -123,13 +123,12 @@ let n = 0; const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); n++
       assert(sheet.descFs >= 16, `${tag}: qs desc >= 16px (got ${sheet.descFs})`);
       assert(sheet.titleFs > sheet.descFs, `${tag}: title > desc`);
       assert(sheet.tPh === 'Task name' && sheet.dPh === 'Description', `${tag}: placeholders`);
-      assert(sheet.jot, `${tag}: jot present`);
+      assert(sheet.search, `${tag}: To-Do search bar present (replaced the jot box)`);
       await p.screenshot({ path: `${SHOTS}/${tag}_sheet.png` });
 
       await p.evaluate(() => { const b = document.querySelector('.qs-backdrop'); if (b) b.click(); });
       await p.waitForTimeout(150);
-      await p.fill('#qaText', 'meeting next Friday at 3pm');
-      const parsed = await p.evaluate(() => SandyParse.parse(document.querySelector('#qaText').value));
+      const parsed = await p.evaluate(() => SandyParse.parse('meeting next Friday at 3pm'));
       assert(parsed && (parsed.date || parsed.title), `${tag}: NL jot parse`);
       await ctx.close();
     }

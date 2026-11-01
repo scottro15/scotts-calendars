@@ -145,11 +145,6 @@ html.lay-tablet .brief-item { flex-direction: row; gap: 10px; }
 html.lay-tablet .fc .fc-button { font-size: .9em; }
 html.lay-tablet .fc .fc-toolbar-title { font-size: 1.35em; }
 html.lay-wide body:not(.tab-today) #briefing .brief-item { flex-direction: column; gap: 2px; }
-/* list column narrows while the details pane is open: stack the quick-add row */
-html.lay-tablet.qs-pane-open .quick-add { flex-wrap: wrap; }
-html.lay-tablet.qs-pane-open .quick-add .qa-field { flex-basis: 100%; }
-html.lay-tablet.qs-pane-open .qa-opts { width: 100%; }
-html.lay-tablet.qs-pane-open .qa-opts select { flex: 1 1 0; min-width: 0; }
 /* capsule mode: the details pane stops above the floating bar so Save / Delete stay reachable */
 html.lay-tablet:not(.lay-rail) body.tab-todo .qs-sheet { bottom: calc(var(--nav-h) + var(--nav-lift, 10px) + env(safe-area-inset-bottom) + 14px) !important; border-bottom: 1px solid var(--qs-line, var(--line)); border-bottom-left-radius: 16px; }
 /* dark: Today's inline links (stats line, Now/Next, Show more) are text links, not filled buttons */
