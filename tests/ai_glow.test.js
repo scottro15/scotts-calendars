@@ -1,4 +1,4 @@
-// AI button glow (Scott 2026-11-01): a subtle pulsing border in the update pill's colours (#1E2A4A light, white dark),
+// AI button glow (Scott 2026-11-01): a subtle pulsing border (soft periwinkle #C7D2FE light, white dark),
 // distinct from the update pill (pulse only, no travelling ring), steady under reduced motion. 4 devices x light/dark.
 //   node tests/ai_glow.test.js http://127.0.0.1:8814/ /tmp/shots [device]
 const PW = process.env.PW || '/usr/local/lib/pnpm/5/.pnpm/playwright-core@1.59.1/node_modules/playwright-core';
@@ -24,7 +24,7 @@ let n = 0;
       const p = await ctx.newPage();
       p.on('pageerror', e => { if (!/ResizeObserver loop/.test(e.message)) errs.push(tag + ': page error ' + e.message); });
       await p.goto(BASE); await p.waitForFunction(() => window.__app && window.SandyNav); await p.waitForTimeout(500);
-      const want = dark ? 'rgb(255, 255, 255)' : 'rgb(30, 42, 74)';
+      const want = dark ? 'rgb(255, 255, 255)' : 'rgb(199, 210, 254)';
       const st = await p.evaluate(() => { const b = document.getElementById('aiBtn'), cs = getComputedStyle(b), bf = getComputedStyle(b, '::before'); return { name: cs.animationName, dur: parseFloat(cs.animationDuration), iter: cs.animationIterationCount, ring: bf.content !== 'none' && bf.content !== '' && bf.animationName !== 'none' }; });
       ok(st.name === 'aiGlow' && st.iter === 'infinite', `AI button pulses (${st.name})`, tag);
       ok(st.dur >= 2.5 && st.dur <= 5, `slow, subtle pulse (${st.dur}s)`, tag);

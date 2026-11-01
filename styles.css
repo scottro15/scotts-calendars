@@ -2416,11 +2416,11 @@ dialog .checklist-items label, html.dark dialog .checklist-items label { align-i
 .checklist-items label > input { margin-top: 1px; }
 .checklist-items label > span { flex: 1; min-width: 0; line-height: 22px; white-space: normal; overflow-wrap: anywhere; }
 .td-sub-text { white-space: normal; }
-/* AI button glow (Scott 2026-11-01): a soft pulsing border in the update pill's colours (--update-glow: deep navy
-   #1E2A4A in light, white in dark). Only a pulse, slower and smaller than the update pill (no travelling ring),
+/* AI button glow (Scott 2026-11-01): a soft pulsing border. Dark: white (like the update pill). Light: soft
+   periwinkle #C7D2FE, because the update pill's navy #1E2A4A disappears on the near-black #111827 top bar. Only a pulse, slower and smaller than the update pill (no travelling ring),
    so the two never look alike. Reduced motion: a steady faint ring. */
-/* same colours as --update-glow, as rgb triples for the alpha steps */
-:root { --ai-glow-rgb: 30, 42, 74; }
+/* glow colour as rgb triples for the alpha steps */
+:root { --ai-glow-rgb: 199, 210, 254; } /* light: soft periwinkle — navy vanished on the #111827 bar */
 html.dark { --ai-glow-rgb: 255, 255, 255; }
 .topbar .ai-btn { border-color: color-mix(in srgb, var(--update-glow) 55%, #374151); animation: aiGlow 3.4s ease-in-out infinite; }
 @keyframes aiGlow {
