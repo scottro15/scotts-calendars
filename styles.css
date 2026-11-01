@@ -1501,7 +1501,7 @@ body:not(.tab-profile) .todo-fab { display: flex; animation: fab-in .22s cubic-b
 @keyframes fab-in { from { opacity: 0; transform: scale(.6); } }
 #addBtn[hidden] { display: none !important; }
 /* room under the last card so the + never sits on top of it */
-body.tab-today #page-home, body.tab-search #page-search { padding-bottom: 72px; }
+body.tab-home #page-home, body.tab-today #page-home, body.tab-search #page-search { padding-bottom: 72px; } /* room so the + never sits on the last row */
 .todo-fab:hover { background: var(--fab-press); }
 button.todo-fab:active:not(:disabled), button.todo-fab.pressed { transform: scale(.9); background: var(--fab-press); box-shadow: 0 3px 8px rgba(220, 76, 62, .3); }
 .todo-fab:focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; }
