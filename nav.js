@@ -286,6 +286,7 @@
       const keepLeave = (leaveStarted || late) && $('tcLeave');
       if (keepLeave) keepLeave.remove();
       el.innerHTML = phone ? h + tail + body(partial) : h + body(partial) + tail;
+      if (window.SandySkel) SandySkel.ready('today'); // first real Today paint ends the loading skeleton
       if (keepLeave) { const nu = $('tcLeave'); if (nu) { nu.replaceWith(keepLeave); const sec = keepLeave.closest('.tc-heads'); if (sec && keepLeave.querySelector('li')) sec.hidden = false; } }
       if (fade) el.querySelectorAll('.tc-clash, .tc-weather, .tc-suggestions, .tc-weekly').forEach(x => x.classList.add('tc-fadein'));
       if (window.SandySimple) { try { SandySimple.bind(el); } catch (e) { console.warn('simple:', e); } }
@@ -443,6 +444,7 @@
       listEl.innerHTML = qWords.length
         ? `<div class="todo-empty todo-nomatch" role="status"><p>No to-dos or notes match “${esc(String(todoUI.q).trim())}”.</p><p class="muted small">${(() => { const t = [todoUI.filter !== 'all' && 'All', !todoUI.showDone && 'Show done'].filter(Boolean); return t.length ? `Not here? Try ${t.join(' or ')}.` : 'Search looks at titles, descriptions and sub-tasks.'; })()}</p></div>`
         : `<p class="todo-empty">${items.length ? 'Nothing here with this filter.' : '🎉 All clear. Tap + to add a to-do.'}</p>`;
+      if (window.SandySkel) SandySkel.ready('todo');
       return;
     }
     listEl.innerHTML = keys.map(k => {
@@ -473,6 +475,7 @@
           ${catSel(it)}</li>`;
       }).join('')}</ul></section>`;
     }).join('');
+    if (window.SandySkel) SandySkel.ready('todo');
     if (!avail && sbc()) listEl.insertAdjacentHTML('afterbegin', '<p class="todo-note muted small">Inbox to-dos and categories turn on after the database update.</p>');
     if (was.size && !reduceMotion()) listEl.querySelectorAll('.todo-row').forEach(r => {
       const t0 = was.get(rowId(r)); if (t0 == null) return; const d = t0 - r.getBoundingClientRect().top;

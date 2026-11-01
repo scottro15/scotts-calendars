@@ -68,6 +68,7 @@
   let cur = null;
   function show({ user, onClose } = {}) {
     if (cur) return cur.root;
+    if (window.SandySkel) SandySkel.ready('any');
     const prevFocus = document.activeElement;
     const back = document.createElement('div'); back.className = 'wl-backdrop';
     const root = document.createElement('div');

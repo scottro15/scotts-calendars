@@ -197,6 +197,7 @@
     emailEl.value = localStorage.getItem('sandy.lastEmail') || '';
     const showFor = user => {
       gate.hidden = false;
+      if (window.SandySkel) SandySkel.ready('any');
       formEl.hidden = !!user; outBtn.hidden = !user; document.getElementById('authCodeForm').hidden = true;
       msg.textContent = user ? `Signed in as ${user.email}, which doesn't have access to these calendars.` : 'Sign in with your email. We\'ll email you an 8-digit code. Type it here to sign in.';
     };
@@ -375,6 +376,7 @@
     eventTimeFormat: fcEventFmt(), slotLabelFormat: fcSlotFmt(),
     events: async (info, ok, fail) => {
       try { ok(await buildFcEvents(info.start, info.end)); } catch (err) { console.error(err); fail(err); }
+      if (window.SandySkel) SandySkel.ready('home'); // Home's first events (or an error) end the loading skeleton
     },
     eventClick: info => { info.jsEvent.preventDefault(); openEditor(info.event.extendedProps.sourceId, info.event.extendedProps.occKey); },
     select: info => {

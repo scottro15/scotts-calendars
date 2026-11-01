@@ -19,6 +19,33 @@
   <title>SANDY — the scheduling app</title>
   <link rel="stylesheet" href="styles.css?v=20261101-ai-glow">
   <link rel="stylesheet" href="tablet.css?v=20261101-ai-glow" media="(min-width: 768px)">
+  <!-- Skeleton loading screen (Scott 2026-11-01, t174u): shimmering blocks shaped like Today / Home / To-Do, painted from
+       this inline CSS + the inline script after the top bar, before any app JS runs. Only on a first open (no saved copy on
+       this device); with saved data the app paints it straight away as before. Cross-fades out as the real page fills in. -->
+  <style>
+    .skel { position: fixed; left: 0; right: 0; bottom: 0; top: 56px; z-index: 65; overflow: hidden; background: var(--bg, #f8fafc);
+      padding: 14px 14px 0; pointer-events: none; animation: skel-in .18s ease-out both; transition: opacity .24s ease; }
+    .skel.skel-out { opacity: 0; }
+    .skel .sk { display: block; border-radius: 8px; background: #e5e7eb; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0, rgba(255,255,255,.65) 50%, rgba(255,255,255,0) 100%);
+      background-size: 200% 100%; background-repeat: no-repeat; animation: skel-sh 1.3s ease-in-out infinite; }
+    .skel .sk-card { background: var(--panel, #fff); border: 1px solid var(--line, #e5e7eb); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+    .skel .sk-row { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+    .skel .sk-col { flex: 1; min-width: 0; }
+    .skel .sk-h { height: 22px; width: 55%; } .skel .sk-t { height: 12px; margin-top: 8px; } .skel .sk-dot { width: 22px; height: 22px; border-radius: 50%; flex: none; }
+    .skel .sk-time { width: 64px; height: 14px; flex: none; } .skel .sk-pill { height: 30px; flex: 1; border-radius: 15px; }
+    .skel .sk-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 12px; } .skel .sk-cell { height: 70px; border-radius: 6px; }
+    .skel .sk-cols { display: flex; gap: 14px; } .skel .sk-cols > div { flex: 1; min-width: 0; }
+    .skel .sk-nav { position: absolute; left: 14px; right: 14px; bottom: calc(10px + env(safe-area-inset-bottom)); height: 60px; border-radius: 30px; }
+    @media (min-width: 768px) {
+      .skel { padding: 20px 24px 0 calc(92px + 24px); }
+      .skel .sk-nav { left: 0; right: auto; top: 0; bottom: 0; width: 92px; height: auto; border-radius: 0; animation: none; }
+    }
+    html.dark .skel .sk { background-color: #1c2638; background-image: linear-gradient(90deg, rgba(148,163,184,0) 0, rgba(148,163,184,.16) 50%, rgba(148,163,184,0) 100%); }
+    html.dark .skel { background: var(--bg, #0b1220); } html.dark .skel .sk-card { background: var(--panel, #111a2b); border-color: var(--line, #243047); }
+    @keyframes skel-sh { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+    @keyframes skel-in { from { opacity: 0; } to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .skel, .skel .sk { animation: none; transition: none; } }
+  </style>
   <!-- FullCalendar v6 is vendored locally (vendor/) so the app works offline and on GitHub Pages. -->
   <script src="vendor/fullcalendar.min.js"></script>
   <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
@@ -62,6 +89,49 @@
          "new event" action that the + , the tablet rail's New and the home-screen "New event" shortcut all click. -->
     <button id="addBtn" class="primary" hidden tabindex="-1" aria-hidden="true">+ New</button>
   </header>
+  <script>
+  // Skeleton (t174u): which page will open, and is there a saved copy here? (saved copy → no skeleton: the app paints it at once)
+  (function () {
+    try {
+      var ls = localStorage, has = false;
+      for (var i = 0; i < ls.length; i++) { var lk = ls.key(i) || ''; if (lk.indexOf('sandy.snap.v1.') === 0 || lk === 'scottcal.events.v1') { has = true; break; } }
+      var q = new URLSearchParams(location.search), t = q.get('tab'), st = null;
+      try { st = sessionStorage.getItem('sandy.tab'); } catch (_) {}
+      var tab = /^(home|today|todo|search|profile)$/.test(t || '') ? t : (st && /^(today|todo)$/.test(st) ? st : 'home');
+      if (has || q.get('review') || !/^(home|today|todo)$/.test(tab)) return;
+      var tb = document.querySelector('.topbar'), wide = innerWidth >= 768;
+      var sk = function (c, st) { return '<i class="sk ' + c + '"' + (st ? ' style="' + st + '"' : '') + '></i>'; };
+      var rows = function (n) { var h = ''; for (var j = 0; j < n; j++) h += '<div class="sk-row">' + sk('sk-time') + '<div class="sk-col">' + sk('sk-t', 'width:' + (78 - j * 9) + '%;margin:0') + sk('sk-t', 'width:' + (44 - j * 4) + '%') + '</div></div>'; return h; };
+      var card = function (inner) { return '<div class="sk-card">' + inner + '</div>'; };
+      var html;
+      if (tab === 'today') {
+        var head = card(sk('sk-h') + sk('sk-t', 'width:32%') + sk('sk-t', 'width:62%;margin-top:16px') + rows(2));
+        html = wide ? head + '<div class="sk-cols"><div>' + card(sk('sk-t', 'width:40%;margin:0') + rows(3)) + '</div><div>' + card(sk('sk-t', 'width:40%;margin:0') + rows(3)) + '</div></div>'
+                    : head + card(sk('sk-t', 'width:30%;margin:0') + rows(3)) + card(sk('sk-t', 'width:36%;margin:0') + rows(2));
+      } else if (tab === 'todo') {
+        var tr = ''; for (var k = 0; k < 5; k++) tr += '<div class="sk-row">' + sk('sk-dot') + '<div class="sk-col">' + sk('sk-t', 'width:' + (70 - k * 8) + '%;margin:0') + sk('sk-t', 'width:30%') + '</div></div>';
+        html = sk('sk-h', 'width:30%;height:28px') + sk('sk-pill', 'height:44px;margin-top:14px;border-radius:12px') + '<div class="sk-row">' + sk('sk-pill') + sk('sk-pill') + sk('sk-pill') + sk('sk-pill') + '</div>' + card(sk('sk-t', 'width:34%;margin:0') + tr);
+      } else {
+        var cells = ''; for (var c = 0; c < 35; c++) cells += sk('sk-cell');
+        html = wide ? card(sk('sk-t', 'width:22%;margin:0') + '<div class="sk-row">' + sk('sk-pill') + sk('sk-pill') + sk('sk-pill') + sk('sk-pill') + '</div>' + rows(2)) +
+                      card(sk('sk-h', 'width:30%;margin:0 auto') + '<div class="sk-grid">' + cells + '</div>')
+                    : '<div class="sk-row" style="margin:0">' + sk('sk-pill', 'flex:none;width:76px') + sk('sk-h', 'width:auto;flex:1;margin:0 10px') + sk('sk-pill', 'flex:none;width:120px') + '</div>' +
+                      card(sk('sk-t', 'width:40%;margin:0') + rows(3)) + card(sk('sk-t', 'width:40%;margin:0') + rows(3));
+      }
+      var el = document.createElement('div'); el.id = 'skel'; el.className = 'skel'; el.setAttribute('aria-hidden', 'true'); el.dataset.tab = tab;
+      el.innerHTML = html + sk('sk-nav');
+      if (tb) el.style.top = tb.offsetHeight + 'px';
+      document.body.appendChild(el); document.documentElement.classList.add('skel-on');
+      var gone = false;
+      // the app calls SandySkel.ready('today'|'home'|'todo') once that page shows real data; anything else (sign-in, a dialog) just ends it
+      window.SandySkel = { tab: tab, ready: function (what) { if (gone || (what && what !== tab && what !== 'any')) return; gone = true;
+        document.documentElement.classList.remove('skel-on'); var e = document.getElementById('skel'); if (!e) return;
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) { e.remove(); return; }
+        e.classList.add('skel-out'); setTimeout(function () { e.remove(); }, 260); } };
+      setTimeout(function () { window.SandySkel.ready('any'); }, 12000); // never stuck
+    } catch (_) {}
+  })();
+  </script>
 
   <div class="layout">
 
