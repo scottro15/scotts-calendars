@@ -69,7 +69,7 @@ let n = 0; const ok = (c, m) => { assert(c, m); n++; };
     ok(await p.locator('#qsCatChip').isVisible(), 'category chip');
     ok(await p.locator('#qsRemChip').isVisible(), 'reminders chip');
     ok(await p.locator('#qsDelete').isVisible(), 'Delete button');
-    ok(await p.locator('#qsSend').isHidden(), 'task view saves as you go: no Save button (Todoist)');
+    ok(await p.locator('#qsSend').isVisible() && (await p.locator('#qsSend').innerText()).trim() === 'Save', 'task view shows a Save button (Scott 2026-11-01; still autosaves)');
     ok(await p.locator('#qsClose').isVisible(), 'close button');
     ok(await p.locator('#qsSubs').isVisible(), 'sub-tasks section');
     ok(await p.locator('#qsCheck').isVisible(), 'complete circle');

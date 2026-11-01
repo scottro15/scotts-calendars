@@ -125,7 +125,7 @@
     inp.placeholder = st.kind === 'note' ? 'Note' : 'Task name';
     $('qsSend').disabled = !text.trim();
     $('qsCheck').style.setProperty('--p', PRI[e.priority] || 'var(--qs-ph)'); $('qsCheck').classList.toggle('pri', e.priority < 4);
-    if (st.edit) { $('qsSend').setAttribute('aria-label', 'Save'); }
+    if (st.edit) markDirty();
     else $('qsSend').setAttribute('aria-label', st.kind === 'note' ? 'Add note' : 'Add task');
   }
   // the description grows with its text (line breaks allowed, like Todoist); quick add caps it, the task view shows it all
@@ -165,13 +165,16 @@
     paintSubChip();
     $('qsCheck').hidden = !editing || st.kind === 'note';
     { const o = $('qsMore').querySelector('option[value=full]'); if (o) { o.hidden = o.disabled = !!(editing && st.edit.type === 'inbox'); } }
-    const send = $('qsSend'); send.hidden = editing; // the task view saves as you go (Todoist), no Save button
+    // Edit mode: a visible Save pill in the header (Scott 2026-11-01: "no save button"). It still autosaves as you go
+    // (blur / chip change / close / app hidden); the pill fills in once something changed and saves + closes when tapped.
+    const send = $('qsSend'); send.hidden = false;
     if (editing) {
-      send.innerHTML = 'Save'; send.classList.add('qs-save');
+      if (send.textContent !== 'Save') send.innerHTML = 'Save'; // don't swap the node under a finger (WebKit drops the tap)
+      send.classList.add('qs-save');
       send.setAttribute('aria-label', 'Save');
-      send.disabled = !$('qsText').value.trim();
+      send.disabled = !$('qsText').value.trim(); markDirty();
     } else {
-      send.innerHTML = ICON.send; send.classList.remove('qs-save');
+      send.innerHTML = ICON.send; send.classList.remove('qs-save', 'qs-dirty');
       send.setAttribute('aria-label', st.kind === 'note' ? 'Add note' : 'Add task');
     }
   }
@@ -200,7 +203,7 @@
     const a = A(), n = N(), S = SUBS();
     if (st.open && st.edit) { await persist(); } // switching rows (tablet pane): keep what was typed
     let edit = { type: target.type, id: target.id, key: target.key || null, ev: null, item: null };
-    reset();
+    reset(); st.savedAny = false;
     if (target.type === 'task') {
       const ev = await a.Store.get(target.id); if (!ev) { a.toast('To-do not found'); return; }
       edit.ev = ev;
@@ -245,8 +248,8 @@
       st._editTime = null;
     }
     st.edit = edit; st.hideDone = !!(n.SubUI && n.SubUI.hideDone);
-    if (st.open) { fillSelects(); syncEditChrome(); paint(); renderSubs(); kb(); st.sig = sig(); $('qsSheet').scrollTop = 0; $('qsSheet').querySelector('.qs-chips').scrollLeft = 0; $('qsSheet').focus({ preventScroll: true }); return; }
-    showSheet(false); st.sig = sig();
+    if (st.open) { fillSelects(); syncEditChrome(); paint(); renderSubs(); kb(); setSig(sig()); $('qsSheet').scrollTop = 0; $('qsSheet').querySelector('.qs-chips').scrollLeft = 0; $('qsSheet').focus({ preventScroll: true }); return; }
+    showSheet(false); setSig(sig());
   }
   function close() {
     if (!st.open) return;
@@ -279,9 +282,14 @@
     const opts = { raw, parsed: p, kind: st.kind, categoryId: ef.catId, calendar: st.cal || null, priority: ef.priority,
       reminders: ef.date && st.rem !== '' ? [+st.rem] : [], description: SUBS().compose($('qsDesc').value, subs, !ticksInChecks), date: ef.date, time,
       subsDone: ticksInChecks ? subs.filter(x => x.done).map(x => x.key) : [] };
-    if (st.edit) { // Enter in the task view: save now, put the keyboard away (Todoist)
+    if (st.edit) { // Enter in the task view: save now, put the keyboard away (Todoist). The Save pill also closes.
+      const viaSave = !!(e && ((e.submitter && e.submitter.id === 'qsSend') || st.saveTap)); st.saveTap = false;
+      const s0 = st.sig; st.saveErr = false;
+      if (viaSave) commitSubInputs();
       const ae = document.activeElement; if (ae && ae.blur) ae.blur();
-      await persist(); return;
+      await persist();
+      if (viaSave && !st.saveErr && st.edit && st.open) { if (st.savedAny || st.sig !== s0) A().toast('Saved'); close(); }
+      return;
     }
     const undo = { text: $('qsText').value, desc: $('qsDesc').value, date: st.date, priority: st.priority, cat: st.cat, rem: st.rem, subs, subsOpen: st.subsOpen || subs.length > 0 };
     // clear at once (before the network) so the next task can be typed straight away - rapid entry never loses text
@@ -311,6 +319,13 @@
       date: ef.date, time, origDate: st.origDate || null, toTask, ticksInChecks, done: subs.filter(x => x.done).map(x => x.key) };
   }
   function sig() { const o = editOpts(); return o ? JSON.stringify([o.raw, o.kind, o.categoryId, o.calendar, o.priority, o.reminders, o.description, o.date, o.time, o.done]) : ''; }
+  function setSig(v) { st.sig = v; markDirty(); }
+  function markDirty() { // the Save pill fills in when the task view differs from what's saved
+    const b = $('qsSend'); if (!b) return;
+    const d = !!(st.edit && st.open && sig() !== st.sig);
+    if (b.classList.contains('qs-dirty') !== d) b.classList.toggle('qs-dirty', d);
+    b.setAttribute('aria-label', st.edit ? (d ? 'Save changes' : 'Save') : b.getAttribute('aria-label'));
+  }
   function persist(closing) {
     const run = async () => {
       const ed = st.edit; if (!ed) return null;
@@ -319,7 +334,7 @@
       const a = A();
       try {
         const r = await N().saveEdit({ ...o, edit: ed });
-        st.sig = sg;
+        setSig(sg); st.savedAny = true;
         if (r.ev) { ed.type = 'task'; ed.id = r.ev.id; ed.ev = r.ev; ed.item = null; if (!a.isRecurring(r.ev)) ed.key = null; st.origDate = o.date; }
         else if (r.item) { ed.type = 'inbox'; ed.id = r.item.id; ed.item = r.item; ed.ev = null; ed.key = null; st.origDate = null; }
         if (r.ev && o.ticksInChecks && (st.subs.length || ed.hadTicks)) {
@@ -329,7 +344,7 @@
         if (!closing && st.open) { syncEditChrome(); N().renderTodo().then(() => markSelected(ed)); }
         document.dispatchEvent(new CustomEvent('sandy:quickedited', { detail: r }));
         return r;
-      } catch (err) { a.toast('Could not save: ' + err.message); return null; }
+      } catch (err) { st.saveErr = true; a.toast('Could not save: ' + err.message); return null; }
     };
     return (st.saving = st.saving.then(run, run));
   }
@@ -339,7 +354,8 @@
     const row = document.querySelector(ed.type === 'task' ? `[data-ev="${CSS.escape(ed.id)}"]` : `[data-inbox="${CSS.escape(ed.id)}"]`); if (row) row.classList.add('td-selected');
   }
   // ---------- sub-tasks (add, rename, tick, drag / arrow-key reorder, delete)
-  function renderSubs(animKey) {
+  function renderSubs(animKey) { renderSubs0(animKey); markDirty(); }
+  function renderSubs0(animKey) {
     const ul = $('qsSubList'); if (!ul) return;
     const done = st.subs.filter(x => x.done).length, total = st.subs.length;
     $('qsSubsCount').textContent = total ? `${done}/${total}` : '';
@@ -439,7 +455,7 @@
       if (t.classList.contains('qs-sub-text') && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); t.blur(); return; }
       if (t.classList.contains('qs-sub-drag') && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); const i = subAt(t).i; moveSub(i, i + (e.key === 'ArrowUp' ? -1 : 1)); }
     });
-    ul.addEventListener('input', e => { if (e.target.classList.contains('qs-sub-text')) growSub(e.target); });
+    ul.addEventListener('input', e => { if (e.target.classList.contains('qs-sub-text')) { growSub(e.target); markDirty(); } });
     ul.addEventListener('focusout', e => { if (e.target.classList.contains('qs-sub-text')) renameSub(e.target); });
   }
   async function completeEdit() {
@@ -449,7 +465,7 @@
     try {
       if (ed.type === 'task') await a.setDone(ed.id, ed.key, true);
       else { const it = (N().Inbox.cache || []).find(x => x.id === ed.id) || ed.item; if (it) await N().Inbox.save({ ...it, done: true }); }
-      st.sig = sig(); // nothing left to save
+      setSig(sig()); // nothing left to save
       a.toast('Completed');
     } catch (err) { a.toast('Could not save: ' + err.message); }
     setTimeout(() => { $('qsCheck').setAttribute('aria-checked', 'false'); $('qsCheck').classList.remove('ticking'); close(); }, reduce() ? 0 : 260);
@@ -457,7 +473,7 @@
   async function removeEdit() {
     if (!st.edit) return;
     if (!window.confirm('Delete this to-do?')) return;
-    st.sig = sig(); // don't autosave what's being deleted
+    setSig(sig()); // don't autosave what's being deleted
     try {
       await st.saving;
       await N().deleteTodoTarget(st.edit);
@@ -525,7 +541,11 @@
     dragSubs();
     $('qsText').addEventListener('blur', () => { if (st.edit) persist(); });
     $('qsDesc').addEventListener('blur', () => { if (st.edit) persist(); });
-    $('qsDesc').addEventListener('input', () => { growDesc(); kb(); });
+    $('qsDesc').addEventListener('input', () => { growDesc(); kb(); markDirty(); });
+    // the app going to the background (home swipe, app switch, tab close) never loses an unsaved edit
+    const flush = () => { if (st.open && st.edit) persist(); };
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
+    window.addEventListener('pagehide', flush);
     $('qsForm').addEventListener('submit', submit);
     inp.addEventListener('input', paint);
     inp.addEventListener('scroll', () => { $('qsHl').scrollTop = inp.scrollTop; });
@@ -538,7 +558,8 @@
     // Enter = new line in the description (Todoist); Cmd/Ctrl+Enter still adds
     $('qsDesc').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.isComposing) { e.preventDefault(); submit(); } });
     // the send arrow must not steal focus (keeps the keyboard up for the next task)
-    $('qsSend').addEventListener('pointerdown', e => e.preventDefault());
+    $('qsSend').addEventListener('pointerdown', e => { if (!st.edit) e.preventDefault(); }); // edit Save: a normal tap (WebKit drops the click otherwise)
+    $('qsSend').addEventListener('click', () => { st.saveTap = !!st.edit; setTimeout(() => { st.saveTap = false; }, 0); }); // old Safari has no e.submitter
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && st.open) { e.preventDefault(); close(); } });
     $('qsDate').addEventListener('change', e => {
       const v = e.target.value;
@@ -567,7 +588,7 @@
     swipe();
     if (window.visualViewport) { visualViewport.addEventListener('resize', kb); visualViewport.addEventListener('scroll', kb); }
     // a sub-task ticked in the list while this to-do is open (tablet pane): follow it without re-saving
-    const subToggled = (id, key, done) => { if (!st.edit || st.edit.id !== id) return; const x = st.subs.find(s => s.key === key); if (!x) return; x.done = done; renderSubs(); st.sig = sig(); };
+    const subToggled = (id, key, done) => { if (!st.edit || st.edit.id !== id) return; const x = st.subs.find(s => s.key === key); if (!x) return; x.done = done; renderSubs(); setSig(sig()); };
     window.SandyQuickSheet = { subToggled, open, openEdit, close, layout: kb, get isOpen() { return st.open; }, get editing() { return !!st.edit; }, state: st };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();

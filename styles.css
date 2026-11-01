@@ -1566,7 +1566,16 @@ html.dark .qs-send { background: var(--fab); color: #fff; }
 .qs-del { border: 0; background: none; color: #dc2626; font: 600 14px/1 system-ui, sans-serif; padding: 8px 10px; border-radius: 10px; cursor: pointer; margin-left: auto; }
 .qs-del:hover, .qs-del:focus-visible { background: rgba(220, 38, 38, .1); }
 html.dark .qs-del { color: #f87171; }
-.qs-editing .qs-send { margin-left: 0; }
+.qs-editing .qs-send { margin-left: 0; flex: none; }
+/* Task view Save pill (Scott 2026-11-01): always visible; soft until something changed, then filled with a small pop */
+.qs-editing .qs-send.qs-save { height: 36px; min-height: 36px; background: transparent; color: var(--text); box-shadow: inset 0 0 0 1.5px var(--qs-line); }
+html.dark .qs-editing .qs-send.qs-save { background: transparent; color: var(--text); }
+.qs-editing .qs-send.qs-save.qs-dirty { box-shadow: none; }
+.qs-editing .qs-send.qs-save.qs-dirty, html.dark .qs-editing .qs-send.qs-save.qs-dirty { background: var(--fab); color: #fff; animation: qsSavePop .24s cubic-bezier(.2, .9, .3, 1.3); }
+.qs-editing .qs-send.qs-save:disabled, html.dark .qs-editing .qs-send.qs-save:disabled { background: var(--qs-line); color: var(--qs-ph); animation: none; }
+@keyframes qsSavePop { from { transform: scale(.86); } to { transform: scale(1); } }
+@media (max-width: 400px) { .qs-editing .qs-del > span { display: none; } .qs-editing .qs-send.qs-save { padding: 0 14px; } }
+@media (prefers-reduced-motion: reduce) { .qs-editing .qs-send.qs-save.qs-dirty { animation: none; } }
 
 .td-pri { display: inline-flex; align-items: center; gap: 2px; font-weight: 600; font-size: 12px; color: var(--muted); }
 .td-pri svg { color: var(--p); } .td-p1 { --p: #d1453b; } .td-p2 { --p: #eb8909; } .td-p3 { --p: #246fe0; }
