@@ -44,7 +44,8 @@ const CONTRAST = `window.__cr = (fg, bg) => { const P = s => s.match(/[\\d.]+/g)
     const tag = dark ? 'dark' : 'light';
     const { ctx, p, errs } = await open({ dark });
     // ---- only on To-Do
-    for (const t of ['home', 'today', 'search', 'profile']) { await go(p, t); assert(!(await geo(p)).vis, `${tag}: no FAB on ${t}`); }
+    for (const t of ['home', 'today', 'search']) { await go(p, t); assert((await geo(p)).vis, `${tag}: FAB on ${t} too`); }
+    await go(p, 'profile'); assert(!(await geo(p)).vis, `${tag}: no FAB on profile`);
     await go(p, 'todo');
     let g = await geo(p);
     assert(g.vis && Math.abs(g.w - 56) < 1 && Math.abs(g.h - 56) < 1 && parseFloat(g.radius) >= 28, `${tag}: FAB is a 56px circle (${g.w}x${g.h}, radius ${g.radius})`);
@@ -175,7 +176,7 @@ const CONTRAST = `window.__cr = (fg, bg) => { const P = s => s.match(/[\\d.]+/g)
     await T('touchStart', top + 8); for (let i = 1; i <= 3; i++) { await T('touchMove', top + 8 + i * 8); await p.waitForTimeout(40); } await T('touchEnd'); await p.waitForTimeout(450);
     assert(!(await sheet(p)).hidden, `${tag}: a small drag snaps back (stays open)`);
     await p.keyboard.press('Escape'); await p.waitForTimeout(400);
-    await go(p, 'home'); assert(!(await geo(p)).vis, `${tag}: FAB gone again on Home`);
+    await go(p, 'profile'); assert(!(await geo(p)).vis, `${tag}: FAB gone again on Profile`);
     assert(!errs.length, `${tag}: no page errors ${errs.join(' | ')}`);
     await ctx.close();
   }

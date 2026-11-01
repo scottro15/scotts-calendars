@@ -58,7 +58,9 @@
   <header class="topbar">
     <h1 data-app-name>SANDY</h1>
     <button id="aiBtn" class="icon-btn ai-btn" aria-label="AI assistant" title="AI assistant">✨ AI</button>
-    <button id="addBtn" class="primary">+ New</button>
+    <!-- "+ New" left the top bar (Scott 2026-11-01): the floating + does it on every page but Profile. The hidden button stays as the one
+         "new event" action that the + , the tablet rail's New and the home-screen "New event" shortcut all click. -->
+    <button id="addBtn" class="primary" hidden tabindex="-1" aria-hidden="true">+ New</button>
   </header>
 
   <div class="layout">

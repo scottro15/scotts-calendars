@@ -52,7 +52,7 @@ const PHOTON = { features: ['Maryville University|650 Maryville University Dr|To
       const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
       await p.goto(BASE); await p.waitForSelector('.fc', { state: 'attached' }); await p.waitForTimeout(900);
       const D = await p.evaluate(() => { const a = __app, t = a.nowWall(), d = n => { const x = new Date(t); x.setUTCDate(x.getUTCDate() + n); return a.ymd(x); }; return { today: d(0), tom: d(1), other: d(9) }; });
-      const newBtn = async () => ((await p.$('#railNew')) && await p.$eval('#railNew', e => !!e.offsetParent)) ? '#railNew' : '#addBtn';
+      const newBtn = async () => ((await p.$('#railNew')) && await p.$eval('#railNew', e => !!e.offsetParent)) ? '#railNew' : '#todoFab';
       const openNew = async () => { await p.tap(await newBtn()); await p.waitForSelector('#eventDialog[open]'); await p.waitForTimeout(450); };
       const mine = re => p.evaluate(async src => (await __app.Store.list()).filter(e => new RegExp(src).test(e.title)).map(e => ({ id: e.id, t: e.title, s: e.start, loc: e.location })), re.source);
       const saveHit = () => p.evaluate(() => { const b = document.querySelector('#eventForm button[type=submit]'); const r = b.getBoundingClientRect(); const e = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return e === b && r.bottom <= visualViewport.height + 1; });

@@ -50,7 +50,7 @@ const SEED = d => [
     const list = () => p.$$eval('#titleAcList li .ac-main', a => a.map(x => x.textContent));
     const shown = () => p.$eval('#titleAcPop', e => !e.hidden && !e.classList.contains('tac-leaving'));
     const gone = async () => { await p.waitForTimeout(220); return p.$eval('#titleAcPop', e => e.hidden); };
-    const newBtn = async () => ((await p.$('#railNew')) && await p.$eval('#railNew', e => !!e.offsetParent)) ? '#railNew' : '#addBtn';
+    const newBtn = async () => ((await p.$('#railNew')) && await p.$eval('#railNew', e => !!e.offsetParent)) ? '#railNew' : '#todoFab';
     const openNew = async (date) => {
       if (date) await p.evaluate(dt => __app.openEditor(null, null, { start: dt + 'T09:00', end: dt + 'T10:00' }), date);
       else await p.tap(await newBtn());

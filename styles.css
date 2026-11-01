@@ -1497,7 +1497,11 @@ html.dark { --qs-bg: #1f2430; --qs-line: #374151; --qs-chip-ink: #d1d5db; --qs-p
   transition: transform .18s cubic-bezier(.2, .8, .3, 1.2), background-color .15s ease, box-shadow .18s ease, opacity .2s ease;
   -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 html.dark .todo-fab { background: var(--fab); color: #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, .55), 0 2px 6px rgba(0, 0, 0, .4); }
-body.tab-todo .todo-fab { display: flex; }
+body:not(.tab-profile) .todo-fab { display: flex; animation: fab-in .22s cubic-bezier(.2, .8, .3, 1.2); } /* every page but Profile (2026-11-01) */
+@keyframes fab-in { from { opacity: 0; transform: scale(.6); } }
+#addBtn[hidden] { display: none !important; }
+/* room under the last card so the + never sits on top of it */
+body.tab-today #page-home, body.tab-search #page-search { padding-bottom: 72px; }
 .todo-fab:hover { background: var(--fab-press); }
 button.todo-fab:active:not(:disabled), button.todo-fab.pressed { transform: scale(.9); background: var(--fab-press); box-shadow: 0 3px 8px rgba(220, 76, 62, .3); }
 .todo-fab:focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; }
@@ -1506,7 +1510,7 @@ button.todo-fab:active:not(:disabled), button.todo-fab.pressed { transform: scal
 body.qs-open button.todo-fab.todo-fab { opacity: 0; pointer-events: none; transform: scale(.6); }
 /* the last to-do row can scroll clear of the FAB */
 body.tab-todo #page-todo { padding-bottom: 72px; }
-body.tab-todo .toast { bottom: calc(env(safe-area-inset-bottom) + var(--nav-lift, 10px) + var(--nav-h) + 84px); }
+body:not(.tab-profile) .toast { bottom: calc(env(safe-area-inset-bottom) + var(--nav-lift, 10px) + var(--nav-h) + 84px); }
 body.qs-open .toast { bottom: calc(var(--qs-kb, 0px) + var(--qs-h, 220px) + 12px); z-index: 120; }
 
 .qs-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(15, 23, 42, .4); opacity: 0; transition: opacity .25s ease; -webkit-tap-highlight-color: transparent; }
@@ -1566,7 +1570,7 @@ html.dark .qs-del { color: #f87171; }
 
 .td-pri { display: inline-flex; align-items: center; gap: 2px; font-weight: 600; font-size: 12px; color: var(--muted); }
 .td-pri svg { color: var(--p); } .td-p1 { --p: #d1453b; } .td-p2 { --p: #eb8909; } .td-p3 { --p: #246fe0; }
-@media (prefers-reduced-motion: reduce) { .todo-fab, .qs-backdrop, .qs-sheet, .qs-send { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { .todo-fab, .qs-backdrop, .qs-sheet, .qs-send { transition: none !important; } .todo-fab { animation: none !important; } }
 .qs-sheet.kb { padding-bottom: 10px; } /* the keyboard covers the home indicator */
 
 /* ===== Beta welcome sheet (Scott 2026-10-26, welcome; welcome.js) ===== */

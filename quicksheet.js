@@ -506,7 +506,11 @@
     // press feedback (CSS :active does the scale; .pressed keeps it for touch until the sheet is up)
     fab.addEventListener('pointerdown', () => fab.classList.add('pressed'));
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => fab.addEventListener(t, () => setTimeout(() => fab.classList.remove('pressed'), 120)));
-    fab.addEventListener('click', open);
+    // one floating + on every page but Profile (Scott 2026-11-01): To-Do → this sheet; elsewhere → the new event editor
+    // (#addBtn's handler starts it on the day Home is showing)
+    fab.addEventListener('click', () => { if (document.body.classList.contains('tab-todo')) open(); else { const b = $('addBtn'); if (b) b.click(); } });
+    const label = () => { const todo = document.body.classList.contains('tab-todo'); fab.setAttribute('aria-label', todo ? 'Add task' : 'New event'); fab.title = todo ? 'Add task' : 'New event'; };
+    label(); new MutationObserver(label).observe(document.body, { attributes: true, attributeFilter: ['class'] });
     $('qsBackdrop').addEventListener('click', close);
     $('qsDelete').addEventListener('click', removeEdit);
     $('qsClose').addEventListener('click', close);

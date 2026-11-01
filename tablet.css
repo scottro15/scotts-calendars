@@ -48,7 +48,7 @@ html.lay-rail .bottom-nav .rail-new[hidden] { display: none; }
 html.lay-rail #addBtn { display: none; } /* "+ New" lives in the rail */
 /* fixed bits re-centre on the content area and drop the capsule clearance */
 html.lay-rail .toast { left: calc(50% + var(--rail-w) / 2); bottom: calc(env(safe-area-inset-bottom) + 24px); }
-html.lay-rail body.tab-todo .toast { bottom: calc(env(safe-area-inset-bottom) + 96px); }
+html.lay-rail body:not(.tab-profile) .toast { bottom: calc(env(safe-area-inset-bottom) + 96px); }
 html.lay-rail .update-banner { left: calc(50% + var(--rail-w) / 2); bottom: calc(env(safe-area-inset-bottom) + 24px); }
 html.lay-rail .todo-fab { bottom: calc(env(safe-area-inset-bottom) + 24px); right: max(28px, calc(env(safe-area-inset-right) + 16px)); }
 html.lay-rail .tour-tip, html.lay-rail .tour-offer { bottom: calc(env(safe-area-inset-bottom) + 24px); }

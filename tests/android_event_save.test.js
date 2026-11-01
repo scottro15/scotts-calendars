@@ -29,7 +29,7 @@ const PROFILES = [
     await p.goto(BASE); await p.waitForSelector('.fc', { state: 'attached' }); await p.waitForTimeout(900);
     return { ctx, p };
   };
-  const newBtn = async p => ((await p.$('#railNew')) && await p.$eval('#railNew', e => !!e.offsetParent)) ? '#railNew' : '#addBtn';
+  const newBtn = async p => ((await p.$('#railNew')) && await p.$eval('#railNew', e => !!e.offsetParent)) ? '#railNew' : '#todoFab';
   const dates = p => p.evaluate(() => { const a = __app, t = a.nowWall(), d = n => { const x = new Date(t); x.setUTCDate(x.getUTCDate() + n); return a.ymd(x); }; return { today: d(0), tom: d(1), next7: d(7) }; });
   const mine = (p, re) => p.evaluate(async src => (await __app.Store.list()).filter(e => new RegExp(src).test(e.title)).map(e => ({ t: e.title, s: e.start })), re.source);
   const openNew = async p => { await p.tap(await newBtn(p)); await p.waitForSelector('#eventDialog[open]'); await p.waitForTimeout(450); };
