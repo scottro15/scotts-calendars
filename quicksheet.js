@@ -58,7 +58,7 @@
           <div class="qs-subs-head"><button type="button" id="qsSubsToggle" class="qs-subs-toggle" aria-expanded="true"><span class="qs-subs-chev">${ICON.chev}</span>Sub-tasks <span id="qsSubsCount" class="qs-subs-count"></span></button>
             <button type="button" id="qsSubsHide" class="qs-subs-hide" hidden>Hide completed</button></div>
           <ul id="qsSubList" class="qs-sublist" role="list"></ul>
-          <div class="qs-subadd"><span class="qs-subadd-plus" aria-hidden="true">+</span><input id="qsSubNew" class="qs-subnew" maxlength="200" placeholder="Add sub-task" aria-label="Add sub-task" autocomplete="off" autocapitalize="sentences" enterkeyhint="done"></div>
+          <div class="qs-subadd"><span class="qs-subadd-plus" aria-hidden="true">+</span><textarea id="qsSubNew" class="qs-subnew" rows="1" maxlength="200" placeholder="Add sub-task" aria-label="Add sub-task" autocomplete="off" autocapitalize="sentences" enterkeyhint="done"></textarea></div>
         </section>
         <div class="qs-foot">
           <label class="qs-proj" id="qsCalChip">${ICON.inbox}<span id="qsCalLbl">Inbox</span><span class="qs-caret" aria-hidden="true">▾</span><select id="qsCal" aria-label="Add to"></select></label>
@@ -185,6 +185,7 @@
     paint(); kb(); syncEditChrome(); renderSubs();
     if (reduce()) { sh.classList.add('open'); bd.classList.add('open'); }
     else { void sh.offsetWidth; sh.classList.add('open'); bd.classList.add('open'); }
+    fitSubs(); requestAnimationFrame(fitSubs);
     clearTimeout(st.hideT);
   }
   function open() {
@@ -371,13 +372,21 @@
     if (ae && ae.classList && ae.classList.contains('qs-sub-text')) renameSub(ae);
     if ($('qsSubNew').value.trim()) addSub();
   }
-  function growSub(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
+  // Sub-task text wraps (Scott 2026-11-01): every sub-task field is a 1-row textarea that grows to fit; Enter adds/commits
+  // (never a literal newline; a pasted one becomes a space). Re-fit when the sheet shows or changes width (hidden = 0 height).
+  function growSub(t) {
+    if (!t) return;
+    if (/[\r\n]/.test(t.value)) { const c = t.selectionStart; t.value = t.value.replace(/\r?\n|\r/g, ' '); try { t.setSelectionRange(c, c); } catch (_) {} }
+    if (!t.offsetParent && !t.getClientRects().length) return; // not laid out yet: fitSubs() runs when it shows
+    t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px';
+  }
+  function fitSubs() { document.querySelectorAll('#qsSheet .qs-sub-text, #qsSubNew').forEach(growSub); }
   function subAt(el) { const li = el.closest('.qs-sub'); return li ? { li, i: +li.dataset.i } : null; }
   function addSub() {
     const inp = $('qsSubNew'), text = inp.value.replace(/\s+/g, ' ').trim(); if (!text) return;
     const k = SUBS().key(text);
     if (st.subs.some(x => x.key === k)) { A().toast('That sub-task is already on the list'); return; }
-    st.subs.push({ text, key: k, done: false }); inp.value = '';
+    st.subs.push({ text, key: k, done: false }); inp.value = ''; growSub(inp);
     renderSubs(k); persist();
   }
   function renameSub(t) {
@@ -507,6 +516,8 @@
     $('qsSubsHide').addEventListener('click', () => { st.hideDone = !st.hideDone; if (N().SubUI) N().SubUI.hideDone = st.hideDone; renderSubs(); N().renderTodo(); }); // one setting for the sheet and the list
     $('qsSubNew').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); addSub(); } });
     $('qsSubNew').addEventListener('blur', () => { if ($('qsSubNew').value.trim()) addSub(); });
+    $('qsSubNew').addEventListener('input', () => { growSub($('qsSubNew')); kb(); });
+    if (window.ResizeObserver) { let w = 0; new ResizeObserver(es => { const nw = Math.round(es[0].contentRect.width); if (nw && nw !== w) { w = nw; fitSubs(); } }).observe($('qsSheet')); }
     dragSubs();
     $('qsText').addEventListener('blur', () => { if (st.edit) persist(); });
     $('qsDesc').addEventListener('blur', () => { if (st.edit) persist(); });

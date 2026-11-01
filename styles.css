@@ -2398,3 +2398,21 @@ html.dark dialog .checklist-add input { border-bottom-color: #2a3852; background
 html.dark dialog .checklist-add input:focus { border-bottom-color: #38bdf8; }
 .checklist-items li.ck-in { animation: qs-fade-in .2s ease both; }
 @media (prefers-reduced-motion: reduce) { .checklist-items li.ck-in { animation: none; } }
+
+/* Sub-task text never sticks on one line (Scott 2026-11-01): long text wraps and the field grows while typing and after.
+   The fields are 1-row textareas (JS fits the height; field-sizing where the browser has it); boxes align to line 1. */
+.qs-sheet textarea.qs-subnew, html.dark .qs-sheet textarea.qs-subnew { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; box-shadow: none; padding: 0; margin: 0; font: inherit; font-size: 16px; line-height: 22px; min-height: 22px; color: var(--text); border-radius: 0; resize: none; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; field-sizing: content; }
+.qs-sub-text { white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; field-sizing: content; display: block; }
+.qs-subadd { align-items: flex-start; }
+.qs-subadd-plus { line-height: 22px; }
+.qs-sub-drag, .qs-sub-del { align-self: flex-start; margin-top: -3px; }
+dialog .checklist-add textarea, html.dark dialog .checklist-add textarea { flex: 1; min-width: 0; border: 0; border-bottom: 1px solid #cbd5e1; border-radius: 0; background: transparent; padding: 6px 2px; font: inherit; font-size: 16px; line-height: 22px; min-height: 0; color: inherit; box-shadow: none; resize: none; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; field-sizing: content; }
+html.dark dialog .checklist-add textarea { border-bottom-color: #2a3852; }
+dialog .checklist-add textarea:focus { outline: none; border-bottom-color: #0284c7; }
+html.dark dialog .checklist-add textarea:focus { border-bottom-color: #38bdf8; }
+.checklist-add { align-items: flex-start; }
+.checklist-add-plus { line-height: 34px; }
+dialog .checklist-items label, html.dark dialog .checklist-items label { align-items: flex-start; }
+.checklist-items label > input { margin-top: 1px; }
+.checklist-items label > span { flex: 1; min-width: 0; line-height: 22px; white-space: normal; overflow-wrap: anywhere; }
+.td-sub-text { white-space: normal; }

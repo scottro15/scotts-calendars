@@ -1324,12 +1324,16 @@
     const inp = document.getElementById('checklistNew'), text = inp.value.replace(/\s+/g, ' ').trim(); if (!text) return;
     const notes = f('event-notes');
     if (parseChecklist(notes.value).some(i => i.key === ckKey(text))) { toast('That sub-task is already on the list'); return; }
-    notes.value = notes.value.replace(/\s+$/, '') + (notes.value.trim() ? '\n' : '') + '- [ ] ' + text; inp.value = '';
+    notes.value = notes.value.replace(/\s+$/, '') + (notes.value.trim() ? '\n' : '') + '- [ ] ' + text; inp.value = ''; inp.style.height = '';
     notes.dispatchEvent(new Event('input', { bubbles: true }));
     const li = ckList.lastElementChild; if (li && !matchMedia('(prefers-reduced-motion: reduce)').matches) li.classList.add('ck-in');
   }
   document.getElementById('checklistNew').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); addChecklistItem(); } });
   document.getElementById('checklistNew').addEventListener('blur', addChecklistItem);
+  // wraps + grows like the sheet's sub-task fields (2026-11-01); a pasted newline becomes a space
+  const growCk = t => { if (/[\r\n]/.test(t.value)) { const c = t.selectionStart; t.value = t.value.replace(/\r?\n|\r/g, ' '); try { t.setSelectionRange(c, c); } catch (_) {} } t.style.height = 'auto'; if (t.scrollHeight) t.style.height = t.scrollHeight + 'px'; };
+  document.getElementById('checklistNew').addEventListener('input', e => growCk(e.target));
+  window.__growCk = () => growCk(document.getElementById('checklistNew'));
 
   // ---------- Today's Note (day-specific note; separate storage, never edits the event) ----------
   const dayBox = document.getElementById('dayNoteBox'), dayTa = document.getElementById('dayNote'), dayStatus = document.getElementById('dayNoteStatus');
