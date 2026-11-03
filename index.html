@@ -65,6 +65,11 @@
     @keyframes skel-sh { from { background-position: 150% 0; } to { background-position: -50% 0; } }
     @keyframes skel-in { from { opacity: 0; } to { opacity: 1; } }
     @media (prefers-reduced-motion: reduce) { .skel, .skel .sk { animation: none; transition: none; } }
+    /* saved picture of Today/Home on a reopen (speed step C, snapview.js): inert, its own scroller, under the real top bar (z 30) + bottom nav */
+    .snap-view { position: fixed; inset: 0; z-index: 29; overflow: hidden; background: var(--bg, #f8fafc); pointer-events: auto; transition: opacity .12s ease; }
+    html.dark .snap-view { background: var(--bg, #0b1220); }
+    .snap-view.snap-out { opacity: 0; pointer-events: none; }
+    @media (prefers-reduced-motion: reduce) { .snap-view { transition: none; } }
   </style>
 </head>
 <body>
@@ -511,6 +516,49 @@
     <button type="button" data-tab="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg><span>Search</span></button>
     <button type="button" data-tab="profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1.2-4 4-5.8 7.5-5.8s6.3 1.8 7.5 5.8"/></svg><span>Profile</span></button>
   </nav>
+  <script>
+  // Saved picture (speed step C, snapview.js): on a reopen, draw Today/Home as they were at once, before the app code
+  // and data arrive; the app takes over underneath and the picture fades out once the live page is drawn. Only for the
+  // same signed-in user, build, day, window width, theme and tab; otherwise nothing happens here.
+  window.__snapViewOn = true; // ROLLBACK switch: scripts/snapview-switch.sh off (no picture drawn or saved), then bump the cache tag
+  (function () {
+    try {
+      if (!window.__snapViewOn) return;
+      var q = location.search; if (q && !/^\?tab=(today|home)$/.test(q)) return; // deep links (event, review, invite …) open as usual
+      var ls = localStorage, cfg = JSON.parse(ls.getItem('sandy.earlyCfg') || 'null'); if (!cfg || !cfg.url) return;
+      var ref = (/^https:\/\/([^.]+)\./.exec(cfg.url) || [])[1]; if (!ref) return;
+      var s = JSON.parse(ls.getItem('sb-' + ref + '-auth-token') || 'null'); if (s && s.currentSession) s = s.currentSession;
+      var uid = s && s.user && s.user.id; if (!uid || !s.refresh_token) return; // signed out: nothing to show
+      var t = new URLSearchParams(q).get('tab'), st = null; try { st = sessionStorage.getItem('sandy.tab'); } catch (_) {}
+      var tab = t || (st === 'today' ? 'today' : st === 'todo' ? 'todo' : 'home'); if (tab !== 'today' && tab !== 'home') return;
+      var v = JSON.parse(ls.getItem('sandy.snap.v1.view.' + tab + '.' + uid) || 'null'); if (!v || v.v !== 1 || v.uid !== uid || v.tab !== tab) return;
+      var l = document.querySelector('link[href*="styles.css"]'), tag = l ? (/[?&]v=([^&]+)/.exec(l.getAttribute('href')) || [])[1] : '';
+      var day = new Intl.DateTimeFormat('en-CA', { timeZone: v.tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+      var de = document.documentElement;
+      if (v.tag !== tag || v.day !== day || v.w !== innerWidth || Math.abs(v.h - innerHeight) > 160 || !!v.dark !== de.classList.contains('dark') || Date.now() - v.at > 864e5) return;
+      var fc = JSON.parse(ls.getItem('sandy.snap.v1.viewcss') || 'null'), fcCss = '';
+      if (tab === 'home' || /fc-/.test(v.html)) { if (!fc || fc.tag !== tag) return; fcCss = fc.css; }
+      // The picture lives in a shadow root: app code never finds it (no duplicate ids, no stray matches), and it gets
+      // this page's own CSS with html/body/:root pointed at two wrappers that carry the saved html/body classes.
+      var css = [], rw = function (t) { return t.replace(/(^|[\s>+~,(])(html|body)(?=[.\[:#\s>+~,){]|$)/g, '$1.s-$2').replace(/:root\b/g, '.s-html'); };
+      var walk = function (rs) { for (var i = 0; i < rs.length; i++) { var r = rs[i];
+        if (r.type === 1) css.push(rw(r.selectorText) + '{' + r.style.cssText + '}');
+        else if (r.type === 4 || r.type === 12) { css.push('@' + (r.type === 4 ? 'media ' + r.media.mediaText : 'supports ' + r.conditionText) + '{'); walk(r.cssRules); css.push('}'); } } };
+      for (var si = 0; si < document.styleSheets.length; si++) { var sh = document.styleSheets[si]; try { walk(sh.cssRules); } catch (_) { return; } }
+      var el = document.createElement('div'); el.id = 'snapView'; el.className = 'snap-view'; el.setAttribute('aria-hidden', 'true'); el.setAttribute('inert', '');
+      var root = el.attachShadow({ mode: 'open' });
+      root.innerHTML = '<style>' + rw(fcCss) + '\n' + css.join('\n') + '\n*,*::before,*::after{animation-duration:0s!important;animation-delay:0s!important;transition:none!important}.s-html,.s-body{margin:0;padding:0;min-height:0;height:auto;background:none;position:static}</style>'
+        + '<div class="s-html ' + (de.className || '') + ' ' + (v.html_ || []).join(' ') + '" style="' + ((v.vars || [])[0] || '').replace(/"/g, '') + '"><div class="s-body ' + v.body.join(' ') + '" style="' + ((v.vars || [])[1] || '').replace(/"/g, '') + '">' + v.html + '</div><i style="position:absolute;left:0;top:0;width:1px;height:' + (+v.sh || 0) + 'px"></i></div>'; // spacer: the page's full height, so the saved scroll fits
+      var c = root.querySelector('.s-body').firstElementChild; if (!c) return; c.style.position = 'absolute'; c.style.margin = '0'; c.style.left = v.left + 'px'; c.style.top = v.top + 'px'; c.style.width = v.width + 'px';
+      var nav = document.querySelectorAll('#bottomNav button');
+      for (var j = 0; j < nav.length; j++) { if (nav[j].getAttribute('data-tab') === tab) nav[j].setAttribute('aria-current', 'page'); else nav[j].removeAttribute('aria-current'); }
+      document.body.appendChild(el); de.classList.add('snap-on'); el.scrollTop = v.sy || 0; // Home's List opens at today: so does its picture
+      var sc = root.querySelectorAll('[data-snap-st]');
+      for (var k = 0; k < sc.length; k++) { var p = sc[k].getAttribute('data-snap-st').split(','); sc[k].scrollTop = +p[0]; sc[k].scrollLeft = +p[1]; sc[k].removeAttribute('data-snap-st'); }
+      window.__snapView = { el: el, tab: tab, sy: v.sy || 0, at: v.at, t0: performance.now(), drawnAt: Math.round(performance.now()) };
+    } catch (_) { var e = document.getElementById('snapView'); if (e) e.remove(); }
+  })();
+  </script>
   <!-- FullCalendar v6 is vendored locally (vendor/) so the app works offline and on GitHub Pages. -->
   <!-- supabase-js v2.118.0 UMD build, vendored too (only used when config.js has Supabase keys). -->
   <!-- Both load here, just before the app scripts that use them, not in <head>: the top bar and the loading skeleton

@@ -3,6 +3,7 @@ storage.js
 places.js
 titleac.js
 motion.js
+snapview.js
 account.js
 launch.js
 push.js
