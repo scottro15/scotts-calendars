@@ -570,7 +570,7 @@ dialog.closing::backdrop { animation: bd-out 200ms ease-in forwards; }
 @keyframes aiReplyIn { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes aiReplyOut { to { opacity: 0; transform: translateY(8px) scale(.97); } }
 @keyframes aiReplySwap { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
-.ai-quote { margin: -2px -2px 6px; padding: 5px 8px; border-left: 3px solid #c4b5fd; border-radius: 8px; background: rgba(255,255,255,.12); font-size: 14px; line-height: 1.3; opacity: .92;
+.ai-quote { margin: -2px -2px 6px; padding: 5px 8px 0; border-bottom: 5px solid transparent; border-left: 3px solid #c4b5fd; border-radius: 8px; background: rgba(255,255,255,.12); font-size: 14px; line-height: 1.3; opacity: .92;
   white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
 .ai-menu { position: absolute; z-index: 5; display: flex; gap: 2px; padding: 4px; border-radius: 12px; background: #fff; border: 1px solid #e5e7eb; box-shadow: 0 10px 28px rgba(0,0,0,.18); }
 .ai-menu button { font-size: 16px; min-height: 44px; padding: 8px 14px; border: 0; border-radius: 9px; background: transparent; color: #111827; }

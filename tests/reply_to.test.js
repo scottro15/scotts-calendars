@@ -81,6 +81,7 @@ const LONG = 'Long note. ' + 'This sentence repeats to make the message long. '.
 
       // 4. long-press the second answer -> menu (Reply, Copy) -> Reply
       await press(await bubble('lunch with Sam'));
+      await p.waitForFunction(() => { const m = document.querySelector('.ai-menu'); return !m || !m.getAnimations().some(x => x.playState === 'running'); }, null, { timeout: 3000 }).catch(() => {});
       let mu = await p.evaluate(() => { const m = document.querySelector('.ai-menu'); if (!m) return null; const r = m.getBoundingClientRect(); return { items: [...m.querySelectorAll('button')].map(b => b.textContent), anim: m.classList.contains('ai-menu-in') || matchMedia('(prefers-reduced-motion: reduce)').matches, inside: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, pressed: !!document.querySelector('.ai-msg.ai-pressed'), h: Math.min(...[...m.querySelectorAll('button')].map(b => b.getBoundingClientRect().height)) }; });
       ok(mu && mu.items.join('|') === '↩ Reply|Copy' && mu.anim && mu.inside && mu.pressed && mu.h >= 44, `${tag}: long-press → menu with Reply / Copy, on screen, 44px targets (${JSON.stringify(mu)})`);
       await p.evaluate(() => getSelection().removeAllRanges()); await p.screenshot({ path: `${SHOTS}/${tag}-3-menu.png` });
@@ -101,6 +102,8 @@ const LONG = 'Long note. ' + 'This sentence repeats to make the message long. '.
       await p.waitForFunction(() => document.getElementById("aiReply").hidden, null, { timeout: 1500 }).catch(() => {}); c = await chip(); ok(!c.shown, `${tag}: chip clears after sending`);
       const ub = await p.evaluate(() => { const u = [...document.querySelectorAll('#aiLog .ai-msg.user')].pop(); const q = u.querySelector('.ai-quote'); return { q: q && q.textContent, rest: u.lastChild.textContent }; });
       ok(ub.q === A1 && ub.rest === 'the second one please', `${tag}: sent bubble shows the quote above my text`);
+      const lq = await p.evaluate(() => { const u = [...document.querySelectorAll('#aiLog .ai-msg.user')].pop(); const q = u.querySelector('.ai-quote'); const k = q.cloneNode(true); k.textContent = 'word '.repeat(200); u.appendChild(k); const cs = getComputedStyle(k); const r = { h: k.clientHeight, lh: parseFloat(cs.lineHeight), pt: parseFloat(cs.paddingTop), pb: parseFloat(cs.paddingBottom) }; k.remove(); return r; });
+      ok(lq.h - lq.pt - lq.pb <= lq.lh * 3 + 1, `${tag}: a long quote in a bubble shows exactly 3 lines, no 4th-line sliver (${JSON.stringify(lq)})`);
       // the next plain message carries no quote
       body = await ask('thanks', { reply: 'Anytime!', proposals: [] });
       ok(!/^Replying to/.test(body.messages[body.messages.length - 1].content), `${tag}: next message has no quote`);
