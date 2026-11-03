@@ -68,6 +68,7 @@ const RUN = 'QA snapview ' + Date.now().toString(36);
     const wall = ms => { const d = new Date(Date.now() + ms); const f = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(d); return f.replace(' ', 'T'); };
     for (const dn of ONLY) for (const theme of ['light', 'dark']) {
       const d = DEV[dn], tag = `${dn}-${theme}`, T1 = `${RUN} ${tag}`, T2 = `${T1} renamed`;
+      await cleanup(); // each device+theme starts with only its own QA event (two same-time events can swap order between save and reopen)
       const ctx = await b.newContext({ viewport: d.viewport, userAgent: d.ua, isMobile: true, hasTouch: true, deviceScaleFactor: 1, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
       await ctx.addInitScript(({ k, sess, theme }) => { if (!localStorage.getItem('qa.init')) { localStorage.setItem('qa.init', '1'); localStorage.setItem(k, JSON.stringify(sess)); localStorage.setItem('sandy.welcome.off', '1'); localStorage.setItem('sandy.tour.off', '1'); localStorage.setItem('sandy.theme', theme); } }, { k: KEY, sess: A, theme });
       const open = async (url, wait = 'load') => { const p = await ctx.newPage(); p.on('pageerror', e => errs.push(tag + ': ' + e.message)); await p.goto(BASE + url, { waitUntil: wait }); return p; };
@@ -80,8 +81,9 @@ const RUN = 'QA snapview ' + Date.now().toString(36);
       await p.evaluate(async ({ t, s, e }) => { await __app.Store.save({ calendar: __app.calendars()[0].id, kind: 'event', category: 'Other', title: t, location: '', allDay: false, start: s, end: e, recurrence: null }); }, { t: T1, s: wall(2 * 3600e3), e: wall(2.5 * 3600e3) });
       await p.waitForFunction(t => document.getElementById('todayBody').textContent.includes(t), T1, { timeout: 15000 });
       assert(await saved(p, 'today'), `${tag}: Today's picture is saved after the live page settles`);
-      const meta = await p.evaluate(() => { const k = Object.keys(localStorage).find(k => k.indexOf('sandy.snap.v1.view.today.') === 0); const v = JSON.parse(localStorage.getItem(k)); return { len: localStorage.getItem(k).length, dark: v.dark, uidOk: k.endsWith(v.uid), hasScript: /<script|\son\w+=/i.test(v.html), hidden: /\shidden(=|\s|>)/.test(v.html) }; });
+      const meta = await p.evaluate(() => { const k = Object.keys(localStorage).find(k => k.indexOf('sandy.snap.v1.view.today.') === 0); const v = JSON.parse(localStorage.getItem(k)); return { len: localStorage.getItem(k).length, dark: v.dark, uidOk: k.endsWith(v.uid), hasScript: /<script|\son\w+=/i.test(v.html), hidden: /\shidden(=|\s|>)/.test(v.html), css: (v.css || '').length, aria: /\saria-(label|describedby)=/.test(v.html) }; });
       assert(meta.uidOk && meta.dark === (theme === 'dark') && !meta.hasScript && !meta.hidden && meta.len < 350000, `${tag}: picture is per user, records the theme, has no scripts/handlers or hidden pages (${meta.len} chars)`);
+      assert(meta.css > 1000 && meta.css < 90000 && !meta.aria, `${tag}: picture is light - only the CSS it uses (${meta.css} chars), no screen-reader attributes`);
       await p.close();
       // 2. reopen: picture first, then live; frames sampled through the handover
       p = await ctx.newPage(); p.on('pageerror', e => errs.push(tag + ': ' + e.message));
@@ -131,8 +133,16 @@ const RUN = 'QA snapview ' + Date.now().toString(36);
       assert(v && !v.on && (v.dropped === 'tab' || v.dropped === 'live'), `${tag}: switching tab removes the picture at once (${v && v.dropped})`);
       assert(await p.evaluate(() => !document.getElementById('page-todo').hidden && getComputedStyle(document.getElementById('page-todo')).display !== 'none'), `${tag}: the To-Do tab shows`);
       await p.close();
-      // 5. Home: List at today
+      // 5. Home: List at today. A big Home (a tablet's month / week grid) gets no picture: it would cost more than it saves.
       p = await open('?tab=home'); await up(p);
+      await p.waitForFunction(() => document.querySelector('#calendar .fc-view') && window.__app && __app.calendar, null, { timeout: 20000 }).catch(() => {}); await p.waitForTimeout(1500);
+      const big = await p.evaluate(() => document.querySelectorAll('#page-home *').length > 900 && !/^list/.test(__app.calendar.view.type));
+      if (big) {
+        await p.waitForTimeout(4500); const hk = await p.evaluate(() => Object.keys(localStorage).some(k => k.indexOf('sandy.snap.v1.view.home.') === 0)); await p.close();
+        p = await open('?tab=home', 'domcontentloaded'); const drewH = await p.evaluate(() => !!window.__snapView); await up(p);
+        const shows = await p.waitForFunction(() => !document.getElementById('page-home').hidden && document.querySelector('#calendar .fc-view'), null, { timeout: 20000 }).then(() => true, () => false);
+        assert(!hk && !drewH && shows, `${tag}: big Home (month/week grid) - no picture saved or drawn, Home opens as before`); await p.close();
+      } else {
       assert(await saved(p, 'home'), `${tag}: Home's picture is saved`); await p.close();
       p = await open('?tab=home', 'commit'); await p.waitForSelector('#snapView', { state: 'attached', timeout: 5000 }).catch(() => {});
       v = await view(p); const hpic = await p.screenshot(); fs.writeFileSync(`${SHOTS}/${tag}-home-picture.png`, hpic);
@@ -141,7 +151,7 @@ const RUN = 'QA snapview ' + Date.now().toString(36);
       v = await view(p); const hlive = await p.screenshot(); fs.writeFileSync(`${SHOTS}/${tag}-home-live.png`, hlive);
       const hd = await diff(hpic, hlive, [0, 70, Math.round(vp.width * 0.75), Math.round(vp.height * 0.7)]);
       assert(v.dropped === 'live' && hd.d < 0.03, `${tag}: Home picture hands over and matches the live List (${(hd.d * 100).toFixed(2)}% differ)`);
-      await p.close();
+      await p.close(); }
       // 6. no draw: deep link, other day, other build, other size, other theme, rollback switch
       const noDraw = async (m, prep, url = '?tab=today', route) => {
         const q = await ctx.newPage(); q.on('pageerror', e => errs.push(tag + ': ' + e.message));

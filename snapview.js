@@ -16,11 +16,27 @@
  */
 (function () {
   'use strict';
-  const PFX = 'sandy.snap.v1.view.', FCKEY = 'sandy.snap.v1.viewcss', MAX = 350000;
+  const PFX = 'sandy.snap.v1.view.', FCKEY = 'sandy.snap.v1.viewcss', MAX = 350000, MAXEL = 900;
   const tagNow = () => { const l = document.querySelector('link[href*="styles.css"]'); return l ? (new URL(l.href, location.href).searchParams.get('v') || '') : ''; };
   const ymdIn = tz => { try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); } catch (_) { return ''; } };
   const reduce = () => document.documentElement.classList.contains('reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches;
   const BODY_CLS = /^(tab-(today|home)|today-simple|tt-grid|tt-one)$/;
+  // the picture's CSS, worked out here (idle time, after the app is up) so the draw at startup does no CSS work: only the
+  // rules that match something in the saved page, @media/@supports that apply at this size flattened, and html / body /
+  // :root pointed at the picture's two wrappers. A selector we can't test is kept (never drop a rule by mistake).
+  const rw = t => t.replace(/(^|[\s>+~,(])(html|body)(?=[.\[:#\s>+~,){]|$)/g, '$1.s-$2').replace(/:root\b/g, '.s-html');
+  const STATE = /::?(before|after|first-line|first-letter|placeholder|selection|marker|backdrop|file-selector-button|-webkit-[\w-]+|-moz-[\w-]+)\b|:(hover|focus-visible|focus-within|focus|active|visited|link|target)\b/g;
+  function pictureCss(live) {
+    const de = document.documentElement, bd = document.body, out = [];
+    const used = sel => { const q = sel.replace(STATE, '').trim(); if (!q) return true;
+      try { return live.matches(q) || !!live.querySelector(q) || de.matches(q) || bd.matches(q); } catch (_) { return true; } };
+    const walk = rs => { for (const r of rs) {
+      if (r.type === 1) { if (used(r.selectorText)) out.push(rw(r.selectorText) + '{' + r.style.cssText + '}'); }
+      else if (r.type === 4) { try { if (matchMedia(r.media.mediaText).matches) walk(r.cssRules); } catch (_) {} }
+      else if (r.type === 12) { try { if (CSS.supports(r.conditionText)) walk(r.cssRules); } catch (_) {} } } };
+    for (const sh of document.styleSheets) { try { if (sh.media && sh.media.mediaText && !matchMedia(sh.media.mediaText).matches) continue; walk(sh.cssRules); } catch (_) { return null; } }
+    return out.join('\n');
+  }
 
   // ---------------------------------------------------------------- handover
   const V = window.__snapView; // set by the inline draw: { el, tab, css, t0 }
@@ -116,6 +132,11 @@
     scrolled.forEach(e => e.setAttribute('data-snap-st', e.scrollTop + ',' + e.scrollLeft));
     const c = live.cloneNode(true);
     scrolled.forEach(e => e.removeAttribute('data-snap-st'));
+    { const fold = innerHeight + 200, lw = document.createTreeWalker(live, 1), cw = document.createTreeWalker(c, 1), cut = [];
+      const skip = w => { while (!w.nextSibling()) if (!w.parentNode()) return null; return w.currentNode; };
+      let a = lw.nextNode(), b = cw.nextNode();
+      while (a && b) { if (a.getBoundingClientRect().top > fold && !/^(fixed|sticky)$/.test(getComputedStyle(a).position)) { cut.push(b); a = skip(lw); b = skip(cw); } else { a = lw.nextNode(); b = cw.nextNode(); } }
+      cut.forEach(e => e.remove()); }
     // form state lives in properties, not attributes
     const lf = live.querySelectorAll('input, select, textarea'), cf = c.querySelectorAll('input, select, textarea');
     lf.forEach((e, i) => { const k = cf[i]; if (!k) return; if (e.type === 'checkbox' || e.type === 'radio') { if (e.checked) k.setAttribute('checked', ''); else k.removeAttribute('checked'); } else if (e.tagName === 'TEXTAREA') k.textContent = e.value; else if (e.tagName !== 'SELECT') k.setAttribute('value', e.value); });
@@ -123,9 +144,16 @@
     c.querySelectorAll('img').forEach(e => { const s = e.getAttribute('src') || ''; if (!/^(data:|[\w./-]+\.(svg|png|webp|jpe?g)$)/i.test(s)) e.removeAttribute('src'); e.removeAttribute('srcset'); });
     for (const e of [c, ...c.querySelectorAll('*')]) for (const at of [...e.attributes]) if (/^on/i.test(at.name) || at.name === 'autofocus' || ((at.name === 'href' || at.name === 'src' || at.name === 'action') && /^\s*javascript:/i.test(at.value))) e.removeAttribute(at.name);
     c.setAttribute('aria-hidden', 'true');
+    // a big page (a tablet's month / week grid on Home) costs more to paint at startup than the picture saves: no picture
+    if (st.tab === 'home' && c.querySelectorAll('*').length > MAXEL) return null;
+    const css = pictureCss(live); if (css == null) return null;
+    // attributes that never change how the page looks (the picture is hidden from screen readers and takes no input)
+    const keep = new Set((css.match(/\[\s*[\w-]+|attr\(\s*[\w-]+/g) || []).map(x => x.replace(/^(\[|attr\()\s*/, '').toLowerCase()));
+    for (const e of c.querySelectorAll('*')) for (const at of [...e.attributes]) { const n = at.name; if ((/^(aria-|data-)/.test(n) || n === 'role' || n === 'title' || n === 'tabindex') && !keep.has(n) && n !== 'data-snap-st') e.removeAttribute(n); }
+    c.setAttribute('aria-hidden', 'true');
     const html = c.outerHTML;
-    if (html.length > MAX) return null;
-    return { v: 1, uid: null, tag: tagNow(), tab: st.tab, tz: st.tz, day: st.day, w: innerWidth, h: innerHeight, dark: document.documentElement.classList.contains('dark'),
+    if (html.length + css.length > MAX) return null;
+    return { v: 2, uid: null, css, tag: tagNow(), tab: st.tab, tz: st.tz, day: st.day, w: innerWidth, h: innerHeight, dark: document.documentElement.classList.contains('dark'),
       body: [...document.body.classList].filter(x => BODY_CLS.test(x)), html_: [...document.documentElement.classList].filter(x => /^lay-(tablet|wide|rail)$/.test(x)), top: Math.round(r.top + scrollY), left: Math.round(r.left), width: Math.round(r.width),
       sy: st.sy, sh: (document.scrollingElement || document.documentElement).scrollHeight,
       vars: [document.documentElement, document.body].map(e => [...e.style].filter(p => p.indexOf('--') === 0).map(p => p + ':' + e.style.getPropertyValue(p)).join(';')), /* sticky offsets etc. (syncStickyOffsets) */ at: Date.now(), html };
@@ -135,9 +163,7 @@
       const st = freshState(); if (!st) return; const uid = uidNow(); if (!uid) return;
       const v = capture(st); if (!v) { localStorage.removeItem(PFX + st.tab + '.' + uid); return; }
       v.uid = uid;
-      const fc = [...document.querySelectorAll('style[data-fullcalendar]')].map(s => { try { return s.textContent || [...s.sheet.cssRules].map(r => r.cssText).join('\n'); } catch (_) { return ''; } }).join('\n'); // FullCalendar adds its rules with insertRule
-      const old = JSON.parse(localStorage.getItem(FCKEY) || 'null');
-      if (fc && (!old || old.tag !== v.tag || old.css !== fc)) localStorage.setItem(FCKEY, JSON.stringify({ tag: v.tag, css: fc }));
+      localStorage.removeItem(FCKEY); // v1 kept FullCalendar's CSS apart; v2 pictures carry their own CSS
       localStorage.setItem(PFX + st.tab + '.' + uid, JSON.stringify(v));
       SandySnapView.savedAt = Date.now();
     } catch (_) { /* full storage etc.: the picture is optional; the data copy (sandy.snap.v1.events …) is never touched */ }

@@ -66,7 +66,7 @@
     @keyframes skel-in { from { opacity: 0; } to { opacity: 1; } }
     @media (prefers-reduced-motion: reduce) { .skel, .skel .sk { animation: none; transition: none; } }
     /* saved picture of Today/Home on a reopen (speed step C, snapview.js): inert, its own scroller, under the real top bar (z 30) + bottom nav */
-    .snap-view { position: fixed; inset: 0; z-index: 29; overflow: hidden; background: var(--bg, #f8fafc); pointer-events: auto; transition: opacity .12s ease; }
+    .snap-view { position: fixed; inset: 0; z-index: 29; overflow: hidden; contain: strict; background: var(--bg, #f8fafc); pointer-events: auto; transition: opacity .12s ease; }
     html.dark .snap-view { background: var(--bg, #0b1220); }
     .snap-view.snap-out { opacity: 0; pointer-events: none; }
     @media (prefers-reduced-motion: reduce) { .snap-view { transition: none; } }
@@ -520,7 +520,7 @@
   // Saved picture (speed step C, snapview.js): on a reopen, draw Today/Home as they were at once, before the app code
   // and data arrive; the app takes over underneath and the picture fades out once the live page is drawn. Only for the
   // same signed-in user, build, day, window width, theme and tab; otherwise nothing happens here.
-  window.__snapViewOn = false; // ROLLBACK switch: scripts/snapview-switch.sh off (no picture drawn or saved), then bump the cache tag
+  window.__snapViewOn = true; // ROLLBACK switch: scripts/snapview-switch.sh off (no picture drawn or saved), then bump the cache tag
   (function () {
     try {
       if (!window.__snapViewOn) return;
@@ -531,23 +531,16 @@
       var uid = s && s.user && s.user.id; if (!uid || !s.refresh_token) return; // signed out: nothing to show
       var t = new URLSearchParams(q).get('tab'), st = null; try { st = sessionStorage.getItem('sandy.tab'); } catch (_) {}
       var tab = t || (st === 'today' ? 'today' : st === 'todo' ? 'todo' : 'home'); if (tab !== 'today' && tab !== 'home') return;
-      var v = JSON.parse(ls.getItem('sandy.snap.v1.view.' + tab + '.' + uid) || 'null'); if (!v || v.v !== 1 || v.uid !== uid || v.tab !== tab) return;
+      var v = JSON.parse(ls.getItem('sandy.snap.v1.view.' + tab + '.' + uid) || 'null'); if (!v || v.v !== 2 || v.uid !== uid || v.tab !== tab || typeof v.css !== 'string') return;
       var l = document.querySelector('link[href*="styles.css"]'), tag = l ? (/[?&]v=([^&]+)/.exec(l.getAttribute('href')) || [])[1] : '';
       var day = new Intl.DateTimeFormat('en-CA', { timeZone: v.tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
       var de = document.documentElement;
       if (v.tag !== tag || v.day !== day || v.w !== innerWidth || Math.abs(v.h - innerHeight) > 160 || !!v.dark !== de.classList.contains('dark') || Date.now() - v.at > 864e5) return;
-      var fc = JSON.parse(ls.getItem('sandy.snap.v1.viewcss') || 'null'), fcCss = '';
-      if (tab === 'home' || /fc-/.test(v.html)) { if (!fc || fc.tag !== tag) return; fcCss = fc.css; }
-      // The picture lives in a shadow root: app code never finds it (no duplicate ids, no stray matches), and it gets
-      // this page's own CSS with html/body/:root pointed at two wrappers that carry the saved html/body classes.
-      var css = [], rw = function (t) { return t.replace(/(^|[\s>+~,(])(html|body)(?=[.\[:#\s>+~,){]|$)/g, '$1.s-$2').replace(/:root\b/g, '.s-html'); };
-      var walk = function (rs) { for (var i = 0; i < rs.length; i++) { var r = rs[i];
-        if (r.type === 1) css.push(rw(r.selectorText) + '{' + r.style.cssText + '}');
-        else if (r.type === 4 || r.type === 12) { css.push('@' + (r.type === 4 ? 'media ' + r.media.mediaText : 'supports ' + r.conditionText) + '{'); walk(r.cssRules); css.push('}'); } } };
-      for (var si = 0; si < document.styleSheets.length; si++) { var sh = document.styleSheets[si]; try { walk(sh.cssRules); } catch (_) { return; } }
+      // The picture lives in a shadow root: app code never finds it (no duplicate ids, no stray matches). Its CSS was worked
+      // out when it was saved (only the rules it uses, html/body/:root pointed at the two wrappers), so nothing is computed here.
       var el = document.createElement('div'); el.id = 'snapView'; el.className = 'snap-view'; el.setAttribute('aria-hidden', 'true'); el.setAttribute('inert', '');
       var root = el.attachShadow({ mode: 'open' });
-      root.innerHTML = '<style>' + rw(fcCss) + '\n' + css.join('\n') + '\n*,*::before,*::after{animation-duration:0s!important;animation-delay:0s!important;transition:none!important}.s-html,.s-body{margin:0;padding:0;min-height:0;height:auto;background:none;position:static}</style>'
+      root.innerHTML = '<style>' + v.css + '\n*,*::before,*::after{animation-duration:0s!important;animation-delay:0s!important;transition:none!important}.s-html,.s-body{margin:0;padding:0;min-height:0;height:auto;background:none;position:static}</style>'
         + '<div class="s-html ' + (de.className || '') + ' ' + (v.html_ || []).join(' ') + '" style="' + ((v.vars || [])[0] || '').replace(/"/g, '') + '"><div class="s-body ' + v.body.join(' ') + '" style="' + ((v.vars || [])[1] || '').replace(/"/g, '') + '">' + v.html + '</div><i style="position:absolute;left:0;top:0;width:1px;height:' + (+v.sh || 0) + 'px"></i></div>'; // spacer: the page's full height, so the saved scroll fits
       var c = root.querySelector('.s-body').firstElementChild; if (!c) return; c.style.position = 'absolute'; c.style.margin = '0'; c.style.left = v.left + 'px'; c.style.top = v.top + 'px'; c.style.width = v.width + 'px';
       var nav = document.querySelectorAll('#bottomNav button');
