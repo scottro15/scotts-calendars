@@ -473,7 +473,7 @@ html, body { overscroll-behavior-x: none; }
 .ai-x { background: none; border: 0; font-size: 20px; color: #111827; padding: 4px 8px; }
 .ai-quick { padding: 8px 14px 0; display: flex; gap: 8px; }
 .ai-quick button { font-size: 15px; padding: 8px 12px; border-radius: 999px; border: 1px solid #d1d5db; background: #f9fafb; color: #111827; }
-.ai-log { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; -webkit-overflow-scrolling: touch; }
+.ai-log { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; -webkit-overflow-scrolling: touch; }
 .ai-msg { max-width: 88%; padding: 10px 12px; border-radius: 14px; font-size: 16px; line-height: 1.4; color: #111827; white-space: pre-wrap; }
 .ai-msg.user { align-self: flex-end; background: #1f2937; color: #fff; }
 .ai-msg.assistant { align-self: flex-start; background: #f3f4f6; }
@@ -549,6 +549,44 @@ dialog.closing::backdrop { animation: bd-out 200ms ease-in forwards; }
 .ai-msg.typing .dot:nth-child(2) { animation-delay: .15s; } .ai-msg.typing .dot:nth-child(3) { animation-delay: .3s; }
 @keyframes aiDot { 0%, 60%, 100% { opacity: .35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .ai-msg.msg-in { animation: none !important; } .ai-msg.typing .dot { animation: none !important; opacity: .7; } }
+/* reply to one SI message (t179u item 4): swipe right or long-press → Reply; quote chip above the box */
+.ai-msg.assistant { position: relative; touch-action: pan-y; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; transition: transform 220ms cubic-bezier(.2,.9,.3,1.2), box-shadow 160ms ease; }
+.ai-msg.assistant.ai-swiping { transition: none; }
+.ai-msg.assistant::before { content: '↩'; position: absolute; left: -30px; top: 50%; width: 24px; height: 24px; margin-top: -12px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 14px; font-style: normal; color: #6d28d9; background: #ede9fe; opacity: var(--rp, 0); transform: scale(calc(.6 + .4 * var(--rp, 0))); pointer-events: none; }
+.ai-msg.assistant.ai-pressed { box-shadow: 0 0 0 2px #a78bfa, 0 6px 18px rgba(0,0,0,.12); transform: scale(.985); }
+.ai-msg.assistant.ai-replied { animation: aiReplied 650ms ease-out; }
+@keyframes aiReplied { 0% { box-shadow: 0 0 0 0 rgba(167,139,250,.0); } 25% { box-shadow: 0 0 0 3px rgba(167,139,250,.75); } 100% { box-shadow: 0 0 0 0 rgba(167,139,250,0); } }
+.ai-reply { display: flex; align-items: flex-start; gap: 8px; margin: 8px 12px 0; padding: 7px 6px 7px 10px; border-left: 3px solid #7c3aed; border-radius: 10px; background: #f5f3ff; color: #111827; }
+.ai-reply[hidden] { display: none; }
+.ai-reply-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ai-reply-lbl { font-size: 13px; font-weight: 600; color: #5b21b6; }
+.ai-reply-q { font-size: 14px; line-height: 1.35; color: #374151; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.ai-reply-x { flex: none; width: 36px; height: 36px; margin: -4px 0; border: 0; border-radius: 50%; background: transparent; color: #4b5563; font-size: 22px; line-height: 1; padding: 0; }
+.ai-reply-x:hover { background: rgba(0,0,0,.06); }
+.ai-reply.ai-reply-in { animation: aiReplyIn 200ms cubic-bezier(.2,.9,.3,1.15) both; transform-origin: 50% 100%; }
+.ai-reply.ai-reply-swap .ai-reply-q { animation: aiReplySwap 200ms ease-out both; }
+.ai-reply.ai-reply-out { animation: aiReplyOut 160ms ease-in both; pointer-events: none; }
+@keyframes aiReplyIn { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes aiReplyOut { to { opacity: 0; transform: translateY(8px) scale(.97); } }
+@keyframes aiReplySwap { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+.ai-quote { margin: -2px -2px 6px; padding: 5px 8px; border-left: 3px solid #c4b5fd; border-radius: 8px; background: rgba(255,255,255,.12); font-size: 14px; line-height: 1.3; opacity: .92;
+  white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+.ai-menu { position: absolute; z-index: 5; display: flex; gap: 2px; padding: 4px; border-radius: 12px; background: #fff; border: 1px solid #e5e7eb; box-shadow: 0 10px 28px rgba(0,0,0,.18); }
+.ai-menu button { font-size: 16px; min-height: 44px; padding: 8px 14px; border: 0; border-radius: 9px; background: transparent; color: #111827; }
+.ai-menu button:hover, .ai-menu button:focus-visible { background: #f3f4f6; }
+.ai-menu.ai-menu-in { animation: aiMenuIn 160ms cubic-bezier(.2,.9,.3,1.2) both; }
+.ai-menu.ai-menu-out { animation: aiMenuOut 120ms ease-in both; pointer-events: none; }
+@keyframes aiMenuIn { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes aiMenuOut { to { opacity: 0; transform: scale(.94); } }
+@media (prefers-reduced-motion: reduce) { .ai-msg.assistant { transition: none; } .ai-msg.assistant.ai-replied, .ai-reply.ai-reply-in, .ai-reply.ai-reply-swap .ai-reply-q, .ai-reply.ai-reply-out, .ai-menu.ai-menu-in, .ai-menu.ai-menu-out { animation: none; } }
+html.dark .ai-msg.assistant::before { color: #ddd6fe; background: #3b2a6b; }
+html.dark .ai-reply { background: #221a3d; color: #f1f5f9; border-left-color: #a78bfa; }
+html.dark .ai-reply-lbl { color: #c4b5fd; } html.dark .ai-reply-q { color: #cbd5e1; }
+html.dark .ai-reply-x { color: #cbd5e1; } html.dark .ai-reply-x:hover { background: rgba(255,255,255,.08); }
+html.dark .ai-menu { background: #1c2638; border-color: var(--line, #334155); box-shadow: 0 10px 28px rgba(0,0,0,.5); }
+html.dark .ai-menu button { color: #f1f5f9; background: transparent; } html.dark .ai-menu button:hover, html.dark .ai-menu button:focus-visible { background: #2a3650; }
+html.dark .ai-quote { border-left-color: #ddd6fe; background: rgba(255,255,255,.14); }
 
 /* ---------- Launch: time zone, feedback, invites (2026-10-24) ---------- */
 .launch-box { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }

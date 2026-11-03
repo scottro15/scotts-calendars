@@ -35,6 +35,7 @@
           <div class="ai-log" id="aiLog" aria-live="polite"></div>
           <div class="ai-hist" id="aiHistPanel" hidden role="region" aria-label="Chat history"></div>
         </div>
+        <div class="ai-reply" id="aiReply" hidden><div class="ai-reply-body"><span class="ai-reply-lbl">↩ Replying to Sandy Intelligence</span><span class="ai-reply-q" id="aiReplyQ"></span></div><button type="button" class="ai-reply-x" id="aiReplyX" aria-label="Cancel reply">×</button></div>
         <form class="ai-input" id="aiForm" autocomplete="off">
           <textarea id="aiText" name="ai-prompt" rows="1" placeholder="Ask or tell me… e.g. “Add film with Nick tomorrow 4pm”" autocomplete="off" autocapitalize="sentences" spellcheck="true" enterkeyhint="send"></textarea>
           <button type="button" id="aiMic" class="ai-mic" aria-label="Speak" hidden>🎤</button>
@@ -45,7 +46,7 @@
     const btn = document.getElementById('aiBtn');
     if (btn) btn.addEventListener('click', open);
     sheet.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', close));
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !sheet.hidden) close(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !sheet.hidden) { if (menu) { const el = menu.el; hideMenu(); el.focus && el.focus({ preventScroll: true }); return; } close(); } });
     document.getElementById('aiBrief').addEventListener('click', () => { addMsg('user', 'Brief me'); addMsg('assistant', null, briefHtml()); });
     const ta = document.getElementById('aiText');
     ta.addEventListener('input', fitAiText);
@@ -55,10 +56,10 @@
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!sheet.hidden) fitAiText(); });
     ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
     document.getElementById('aiForm').addEventListener('submit', e => { e.preventDefault(); send(); });
-    setupMic(ta);
+    setupMic(ta); setupReply();
     document.getElementById('aiNew').addEventListener('click', newChat);
     document.getElementById('aiHist').addEventListener('click', () => (document.getElementById('aiHistPanel').hidden ? showHistory() : hideHistory()));
-    window.SandyAI = { open, close, briefHtml, buildContext, applyProposal, renderProposal, seriesPlan, briefData, Chats, newChat, openChat, showHistory, hideHistory, current: () => ({ id: chatId, title: chatTitle, history: history.slice() }) };
+    window.SandyAI = { setReply: q => setReply(clip(q)), clearReply, replyQuote: () => replyQ, open, close, briefHtml, buildContext, applyProposal, renderProposal, seriesPlan, briefData, Chats, newChat, openChat, showHistory, hideHistory, current: () => ({ id: chatId, title: chatTitle, history: history.slice() }) };
   }
   // The message box (t148u item 3): text and placeholder always sit fully inside it. Grows with the text
   // (border included: the old code set height = scrollHeight under border-box, clipping 2px and the last
@@ -89,7 +90,7 @@
   let closeTok = 0;
   function close() {
     const s = document.getElementById('aiSheet'); if (s.hidden || s.classList.contains('ai-closing')) return;
-    stopMic(); const tok = ++closeTok;
+    stopMic(); hideMenu(true); const tok = ++closeTok;
     const fin = () => { if (tok !== closeTok) return; s.hidden = true; s.classList.remove('ai-closing'); document.body.classList.remove('ai-open'); };
     s.classList.remove('ai-anim');
     if (window.Motion && Motion.reduced()) { fin(); return; }
@@ -171,7 +172,7 @@
   }
   // the chat shows the short note; the copy sent to the model also carries the id, rule and end date
   const savedDetail = s => ` Saved as “${s.title}” [id ${s.id}]: ${s.rule}${s.time ? ', ' + s.time : ''}, from ${s.start}${s.until ? (s.until === 'none' ? ', no end date' : `, until ${s.until}`) : ''}.`;
-  const forModel = m => m.saved && /\)$/.test(m.content) ? m.content.slice(0, -1) + '.' + savedDetail(m.saved) + ')' : m.content;
+  const forModel = m => m.saved && /\)$/.test(m.content) ? m.content.slice(0, -1) + '.' + savedDetail(m.saved) + ')' : m.replyTo ? `Replying to: “${m.replyTo}”\n\n${m.content}` : m.content;
   async function confirmNote(summary, id) {
     const ev = id ? await A.Store.get(id) : null; const s = ev ? savedInfo(ev) : null;
     history.push({ role: 'user', content: `(I confirmed: ${summary})`, note: 1, ...(s ? { saved: s } : {}) }); persist();
@@ -194,7 +195,8 @@
     const ta = document.getElementById('aiText'); const text = ta.value.trim();
     if (!text || busy) return;
     stopMic(); ta.value = ''; fitAiText();
-    hideHistory(); addMsg('user', text); history.push({ role: 'user', content: text }); persist();
+    const q = replyQ; clearReply(); hideMenu(true);
+    hideHistory(); userMsg(text, q); history.push({ role: 'user', content: text, ...(q ? { replyTo: q } : {}) }); persist();
     if (!ENDPOINT) { addMsg('assistant', 'The assistant needs the online (signed-in) version of SANDY.'); return; }
     busy = true; setChatBtns(); const wait = addMsg('assistant thinking typing', null, '<span class="dot"></span><span class="dot"></span><span class="dot"></span>'); wait.setAttribute('aria-label', 'Sandy Intelligence is typing'); document.getElementById('aiSend').disabled = true;
     try {
@@ -211,6 +213,96 @@
   }
 
 
+  // ---------- reply to one SI message (t179u item 4): swipe it right, or long-press it → Reply ----------
+  // The quote (≤600 chars) shows as a chip above the box (× removes it), rides along as "Replying to: “…”" in the copy
+  // sent to the model, shows inside the sent bubble, and is kept in saved chats (message.replyTo).
+  const QMAX = 600;
+  const clip = t => { const s = String(t).replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim(); return s.length > QMAX ? s.slice(0, QMAX - 1).trimEnd() + '…' : s; };
+  let replyQ = null, menu = null;
+  const reduced = () => !!(window.Motion && Motion.reduced());
+  const replyable = el => !!el && el.classList.contains('ai-msg') && el.classList.contains('assistant') && !/\b(thinking|typing|error)\b/.test(el.className);
+  const quoteOf = el => { const t = el.querySelector('.ai-card-title'); return clip(t ? 'Suggestion: ' + t.textContent : (el.innerText || el.textContent || '')); };
+  function userMsg(text, q, still) {
+    const d = addMsg('user', text, null, still); if (!q) return d;
+    const b = document.createElement('div'); b.className = 'ai-quote'; b.textContent = q; d.prepend(b); d.classList.add('has-quote'); return d;
+  }
+  function setReply(q, el) {
+    const box = document.getElementById('aiReply'); clearTimeout(box._t);
+    const swap = !box.hidden && !box.classList.contains('ai-reply-out');
+    replyQ = q; document.getElementById('aiReplyQ').textContent = q;
+    box.classList.remove('ai-reply-out', 'ai-reply-in', 'ai-reply-swap'); box.hidden = false;
+    if (!reduced()) { void box.offsetWidth; box.classList.add(swap ? 'ai-reply-swap' : 'ai-reply-in'); }
+    if (el && !reduced()) { el.classList.remove('ai-replied'); void el.offsetWidth; el.classList.add('ai-replied'); setTimeout(() => el.classList.remove('ai-replied'), 700); }
+    document.getElementById('aiText').focus({ preventScroll: true }); requestAnimationFrame(fitAiText);
+  }
+  function clearReply(instant) {
+    const box = document.getElementById('aiReply'); replyQ = null; if (!box || box.hidden) return; clearTimeout(box._t);
+    box.classList.remove('ai-reply-in', 'ai-reply-swap');
+    const fin = () => { box.hidden = true; box.classList.remove('ai-reply-out'); document.getElementById('aiReplyQ').textContent = ''; };
+    if (instant || reduced()) return fin();
+    let done = false; const end = () => { if (done || !box.classList.contains('ai-reply-out')) return; done = true; clearTimeout(box._t); fin(); };
+    box.classList.add('ai-reply-out'); box.addEventListener('animationend', end, { once: true }); box._t = setTimeout(end, 220); // leave animation is 160ms
+  }
+  function showMenu(el) {
+    if (menu && menu.el === el) return; hideMenu(true);
+    const panel = el.closest('.ai-panel'); const m = document.createElement('div');
+    m.className = 'ai-menu'; m.setAttribute('role', 'menu'); m.setAttribute('aria-label', 'Message actions');
+    m.innerHTML = '<button type="button" role="menuitem" data-act="reply">↩ Reply</button><button type="button" role="menuitem" data-act="copy">Copy</button>';
+    panel.appendChild(m);
+    const pr = panel.getBoundingClientRect(), r = el.getBoundingClientRect(), mh = m.offsetHeight, mw = m.offsetWidth;
+    let top = r.bottom - pr.top + 6; if (r.bottom + mh + 6 > pr.bottom - 64) top = r.top - pr.top - mh - 6;
+    m.style.top = Math.max(52, Math.min(top, pr.height - mh - 64)) + 'px'; m.style.left = Math.max(8, Math.min(r.left - pr.left, pr.width - mw - 8)) + 'px';
+    el.classList.add('ai-pressed'); menu = { m, el };
+    if (!reduced()) m.classList.add('ai-menu-in');
+    if (navigator.vibrate) try { navigator.vibrate(10); } catch (e) {}
+    m.addEventListener('click', e => {
+      const b = e.target.closest('[data-act]'); if (!b) return;
+      if (b.dataset.act === 'reply') { hideMenu(); setReply(quoteOf(el), el); return; }
+      const t = (el.innerText || el.textContent || '').trim(); hideMenu();
+      if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => A.toast && A.toast('Copied', 1500), () => {});
+    });
+    m.querySelector('button').focus({ preventScroll: true });
+  }
+  function hideMenu(instant) {
+    if (!menu) return; const { m, el } = menu; menu = null; el.classList.remove('ai-pressed');
+    if (instant || reduced()) return m.remove();
+    m.classList.remove('ai-menu-in'); m.classList.add('ai-menu-out'); m.addEventListener('animationend', () => m.remove(), { once: true }); setTimeout(() => m.remove(), 200);
+  }
+  function setupReply() {
+    const log = document.getElementById('aiLog');
+    document.getElementById('aiReplyX').addEventListener('click', () => { clearReply(); document.getElementById('aiText').focus({ preventScroll: true }); });
+    const pick = e => { const el = e.target.closest && e.target.closest('.ai-msg'); return replyable(el) && !e.target.closest('button, a, input, textarea, select, summary') ? el : null; };
+    const SW = 56; let g = null; // the gesture in progress
+    const finish = ok => {
+      if (!g) return; clearTimeout(g.t); const { el, mode, dx } = g; g = null;
+      if (mode !== 'swipe') return;
+      el.classList.remove('ai-swiping'); el.style.transform = ''; el.style.removeProperty('--rp');
+      if (ok && dx >= SW) setReply(quoteOf(el), el);
+    };
+    log.addEventListener('pointerdown', e => {
+      if (e.button > 0 || busy) return; const el = pick(e); if (!el) return;
+      if (menu) hideMenu();
+      g = { el, id: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, mode: null };
+      g.t = setTimeout(() => { if (g && !g.mode) { g.mode = 'press'; showMenu(g.el); } }, 480);
+    });
+    log.addEventListener('pointermove', e => {
+      if (!g || e.pointerId !== g.id || g.mode === 'press') return; const dx = e.clientX - g.x, dy = e.clientY - g.y;
+      if (!g.mode) {
+        if (Math.abs(dy) > 10 && Math.abs(dy) >= Math.abs(dx)) return finish(false);       // a scroll
+        if (dx > 10 && dx > Math.abs(dy) * 1.4) { g.mode = 'swipe'; clearTimeout(g.t); g.el.classList.add('ai-swiping'); }
+        else if (dx < -10) return finish(false); else return;
+      }
+      g.dx = Math.max(0, Math.min(dx, 88)); g.el.style.transform = `translateX(${g.dx}px)`; g.el.style.setProperty('--rp', Math.min(1, g.dx / SW).toFixed(2));
+      if (g.dx >= SW && !g.hit) { g.hit = true; if (navigator.vibrate) try { navigator.vibrate(8); } catch (x) {} } else if (g.dx < SW) g.hit = false;
+      if (e.cancelable) e.preventDefault();
+    });
+    log.addEventListener('pointerup', e => { if (g && e.pointerId === g.id) finish(true); });
+    log.addEventListener('pointercancel', e => { if (g && e.pointerId === g.id) finish(false); });
+    log.addEventListener('contextmenu', e => { const el = pick(e); if (!el) return; e.preventDefault(); if (g) { clearTimeout(g.t); if (g.mode !== 'swipe') g = null; } showMenu(el); });
+    log.addEventListener('scroll', () => { if (menu) hideMenu(); }, { passive: true });
+    document.addEventListener('pointerdown', e => { if (menu && !menu.m.contains(e.target) && !menu.el.contains(e.target)) hideMenu(); }, true);
+  }
+
   // ---------- chat history (SI E): saved conversations + New chat. Pure storage: never calls the AI. ----------
   // Signed in: Supabase table ai_chats (owner-only RLS, migration-2026-10-25-ai-chats.sql). Until that migration is
   // applied, or in the local (not signed-in) version, chats are kept on this device (localStorage, per account).
@@ -220,7 +312,7 @@
   const missingTable = e => e && (e.code === 'PGRST205' || e.code === '42P01' || /could not find the table|does not exist|schema cache/i.test(e.message || ''));
   const titleOf = msgs => { const m = msgs.find(x => x.role === 'user' && !x.note && x.content.trim()); if (!m) return 'New chat'; const t = m.content.replace(/\s+/g, ' ').trim(); return t.length > 60 ? t.slice(0, 59).trimEnd() + '…' : t; };
   const clean = msgs => (Array.isArray(msgs) ? msgs : []).filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-    .slice(-MAX_MSGS).map(m => ({ role: m.role, content: m.content.slice(0, 8000), ...(m.note ? { note: 1 } : {}), ...(m.saved && typeof m.saved === 'object' && typeof m.saved.id === 'string' ? { saved: savedClean(m.saved) } : {}) }));
+    .slice(-MAX_MSGS).map(m => ({ role: m.role, content: m.content.slice(0, 8000), ...(m.note ? { note: 1 } : {}), ...(!m.note && m.role === 'user' && typeof m.replyTo === 'string' && m.replyTo.trim() ? { replyTo: clip(m.replyTo) } : {}), ...(m.saved && typeof m.saved === 'object' && typeof m.saved.id === 'string' ? { saved: savedClean(m.saved) } : {}) }));
   const savedClean = o => Object.fromEntries(['id', 'title', 'kind', 'rule', 'time', 'start', 'until', 'removed'].filter(k => o[k] != null).map(k => [k, typeof o[k] === 'string' ? o[k].slice(0, 200) : !!o[k]]));
   const Chats = {
     remote: true, // false once we learn the ai_chats table isn't there yet
@@ -279,7 +371,7 @@
   async function newChat() {
     if (busy) return;
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; await persist(true); }
-    stopMic(); hideHistory(); chatId = null; chatTitle = ''; chatCreated = null; history = [];
+    stopMic(); hideHistory(); clearReply(true); hideMenu(true); chatId = null; chatTitle = ''; chatCreated = null; history = [];
     document.getElementById('aiLog').innerHTML = ''; greet();
     const ta = document.getElementById('aiText'); ta.value = ''; fitAiText(); ta.focus({ preventScroll: true });
   }
@@ -291,7 +383,8 @@
     stopMic(); chatId = c.id; chatTitle = c.title; chatCreated = c.createdAt || null; history = c.messages.slice();
     const log = document.getElementById('aiLog'); log.innerHTML = '';
     addMsg('ai-resumed', null, `<span>${esc(c.title)}</span> · ${esc(whenLabel(c.updatedAt))}`, true);
-    for (const m of history) addMsg(m.note ? 'note' : m.role, m.note ? m.content.replace(/^\(|\)$/g, '') : m.content, null, true);
+    clearReply(true); hideMenu(true);
+    for (const m of history) if (m.replyTo && !m.note) userMsg(m.content, m.replyTo, true); else addMsg(m.note ? 'note' : m.role, m.note ? m.content.replace(/^\(|\)$/g, '') : m.content, null, true);
     hideHistory(); log.scrollTop = log.scrollHeight;
   }
   const whenLabel = iso => {
