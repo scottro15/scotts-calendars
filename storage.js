@@ -129,7 +129,7 @@
         delete E.map[u];
         const h = new Headers((init && init.headers) || (input && input.headers) || undefined);
         const m = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
-        if (m === 'GET' && h.get('authorization') === 'Bearer ' + E.token && Date.now() - E.t0 < 30000 && !/vnd\.pgrst/.test(h.get('accept') || '')) {
+        if (m === 'GET' && h.get('authorization') === 'Bearer ' + E.token && (!E.key || h.get('apikey') === E.key) && Date.now() - E.t0 < 30000 && !/vnd\.pgrst/.test(h.get('accept') || '')) {
           return p.then(r => { if (r && r.ok) { E.hits.push(u.split('/rest/v1/')[1].split('?')[0]); return r; } return fetch(input, init); });
         }
       }

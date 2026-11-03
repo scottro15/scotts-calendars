@@ -6,10 +6,21 @@
  * fetch hook, when the URL + token match exactly and they're < 30 s old; anything else (signed out, offline, token
  * refreshed, error, other user) falls back to the normal request. Reads only: nothing here writes or changes state.
  * The saved copy (snapshot), skeleton and update banner work as before: this only makes the network part start sooner.
+ *
+ * Inline step (t179u item 2, 2026-11-02): index.html has a copy of this in <head>, before the stylesheets, so the reads
+ * start ~2 s sooner on a cold open. That copy can't see config.js yet, so this file saves {url, key} from config.js to
+ * localStorage ('sandy.earlyCfg') for the next open, and removes it when config.js has no Supabase (local mode). If the
+ * inline copy already fired, this file only refreshes that saved config. config.js stays the only source of truth:
+ * storage.js uses an early read only when its URL, token AND apikey match what supabase-js sends.
  */
 (function () {
   try {
     var C = window.CALENDAR_CONFIG || {}, url = C.SUPABASE_URL, key = C.SUPABASE_ANON_KEY;
+    try {
+      var want = url && key ? JSON.stringify({ url: url, key: key }) : null;
+      if (!want) localStorage.removeItem('sandy.earlyCfg'); else if (localStorage.getItem('sandy.earlyCfg') !== want) localStorage.setItem('sandy.earlyCfg', want);
+    } catch (_) {}
+    if (window.__sandyEarly) return; // the inline copy in <head> already started them
     if (!url || !key || !window.fetch || navigator.onLine === false) return;
     var ref = (/^https:\/\/([^.]+)\./.exec(url) || [])[1]; if (!ref) return;
     var raw = localStorage.getItem('sb-' + ref + '-auth-token'); if (!raw) return;
@@ -27,6 +38,6 @@
     ];
     var map = {}, h = { apikey: key, authorization: 'Bearer ' + s.access_token, 'accept-profile': 'public' };
     for (var i = 0; i < Q.length; i++) map[base + Q[i]] = fetch(base + Q[i], { headers: h, credentials: 'omit' }).catch(function () { return null; });
-    window.__sandyEarly = { token: s.access_token, t0: Date.now(), map: map, hits: [] };
+    window.__sandyEarly = { token: s.access_token, key: key, t0: Date.now(), map: map, hits: [], via: 'early.js' };
   } catch (_) { /* never block start-up */ }
 })();

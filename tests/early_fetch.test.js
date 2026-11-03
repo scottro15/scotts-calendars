@@ -37,10 +37,11 @@ let n = 0;
     const br = eng === 'webkit' ? await webkit.launch() : await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox'] });
     for (const dark of [false, true]) {
       const tag = `${name}-${dark ? 'dark' : 'light'}`;
-      const run = async ({ session = sess(3600), fail401 = false, offline = false, snap = false, slowApp = 0, slowData = 0, shot, wait = 20000 } = {}) => {
+      const run = async ({ session = sess(3600), fail401 = false, offline = false, snap = false, slowApp = 0, slowData = 0, shot, wait = 20000, ecfg = null, slowCss = 0, local = false } = {}) => {
         const ctx = await br.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1, isMobile: eng === 'chromium', hasTouch: true, serviceWorkers: 'block', timezoneId: 'America/Chicago', colorScheme: dark ? 'dark' : 'light' });
-        const log = []; const t0 = Date.now(); let appDone = 0; let failed = false;
-        await ctx.route('**/config.js', r => r.fulfill({ contentType: 'application/javascript', body: cfg }));
+        const log = []; const t0 = Date.now(); let appDone = 0; let cssDone = 0; let failed = false;
+        await ctx.route('**/config.js', r => r.fulfill({ contentType: 'application/javascript', body: local ? "window.CALENDAR_CONFIG={APP_NAME:'SANDY',SUPABASE_URL:'',SUPABASE_ANON_KEY:''};" : cfg }));
+        if (slowCss) await ctx.route('**/styles.css*', async r => { await new Promise(z => setTimeout(z, slowCss)); const res = await r.fetch(); cssDone = Date.now() - t0; await r.fulfill({ response: res }); });
         if (slowApp) await ctx.route('**/app.js*', async r => { await new Promise(z => setTimeout(z, slowApp)); const res = await r.fetch(); appDone = Date.now() - t0; await r.fulfill({ response: res }); });
         await ctx.route(SB + '/**', async r => {
           const u = new URL(r.request().url()); const m = r.request().method();
@@ -48,33 +49,35 @@ let n = 0;
           if (u.pathname.startsWith('/storage/')) return r.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
           if (u.pathname.startsWith('/realtime/')) return r.abort();
           const t = u.pathname.replace('/rest/v1/', '');
-          if (m === 'GET') log.push({ t, at: Date.now() - t0, early: !(r.request().headers()['x-client-info'] || '').includes('supabase-js') });
+          if (m === 'GET') log.push({ t, at: Date.now() - t0, early: !(r.request().headers()['x-client-info'] || '').includes('supabase-js'), apikey: r.request().headers()['apikey'] });
           if (slowData && /^(events|calendars|profiles)$/.test(t)) await new Promise(z => setTimeout(z, slowData)); // the reads the saved copy covers
           if (m !== 'GET') return r.fulfill({ status: 200, contentType: 'application/json', body: t.startsWith('rpc/') ? 'false' : '[]' });
           if (fail401 && t === 'events' && !failed) { failed = true; return r.fulfill({ status: 401, contentType: 'application/json', body: '{"message":"JWT expired"}' }); }
           const body = t === 'events' ? EV : t === 'calendars' ? CALS : [];
           return r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'content-range': `0-${body.length - 1}/*` }, body: JSON.stringify(body) });
         });
-        await ctx.addInitScript(([k, s, d, off, snap, ev, uid]) => {
+        await ctx.addInitScript(([k, s, d, off, snap, ev, uid, ec]) => {
           if (sessionStorage.getItem('__i')) return; sessionStorage.setItem('__i', '1'); localStorage.clear();
           localStorage.setItem('sandy.welcome.off', '1'); localStorage.setItem('sandy.tour.off', '1'); if (d) localStorage.setItem('sandy.theme', 'dark');
           if (s) localStorage.setItem(k, s);
           if (snap) localStorage.setItem('sandy.snap.v1.profile.' + uid, JSON.stringify({ at: Date.now(), rows: [{ user_id: uid }] }));
           if (snap) localStorage.setItem('sandy.snap.v1.calendars.' + uid, JSON.stringify({ at: Date.now(), rows: snap }));
           if (snap) localStorage.setItem('sandy.snap.v1.events.' + uid, JSON.stringify({ at: Date.now(), rows: [{ id: ev[0].id, kind: 'event', calendar: 'msc', category: 'Other', title: 'QA early event', allDay: false, start: ev[0].start_at.slice(0, 16), end: ev[0].end_at.slice(0, 16), recurrence: { freq: 'none' }, exdates: [], notes: '', location: '', reminders: [] }] }));
+          if (ec) localStorage.setItem('sandy.earlyCfg', JSON.stringify(ec));
           if (off) Object.defineProperty(Navigator.prototype, 'onLine', { get: () => false, configurable: true });
-        }, [KEY, session, dark, offline, snap ? CALS : null, EV, UID]);
+        }, [KEY, session, dark, offline, snap ? CALS : null, EV, UID, ecfg]);
         const p = await ctx.newPage(); const perr = [];
         p.on('pageerror', e => { if (!/ResizeObserver loop/.test(e.message)) perr.push(e.message); });
         await p.goto(BASE + '?tab=home');
         let shown = false;
-        if (session && !offline) { try { await p.waitForSelector('#calendar .fc-event:has-text("QA early event")', { timeout: wait }); shown = true; } catch (_) {} }
+        if (session && !offline && !local) { try { await p.waitForSelector('#calendar .fc-event:has-text("QA early event")', { timeout: wait }); shown = true; } catch (_) {} }
         else await p.waitForTimeout(3500);
         await p.waitForTimeout(800);
-        const early = await p.evaluate(() => window.__sandyEarly ? { hits: window.__sandyEarly.hits, left: Object.keys(window.__sandyEarly.map).length } : null);
+        const early = await p.evaluate(() => window.__sandyEarly ? { hits: window.__sandyEarly.hits, left: Object.keys(window.__sandyEarly.map).length, via: window.__sandyEarly.via } : null);
+        const saved = await p.evaluate(() => localStorage.getItem('sandy.earlyCfg'));
         if (shot) await p.screenshot({ path: `${OUT}/${tag}-${shot}.png` });
         await ctx.close();
-        return { log, appDone, shown, early, perr };
+        return { log, appDone, cssDone, shown, early, perr, saved };
       };
       // A. signed in, app.js held back 1.5 s: data reads already done by then; each start-up read once
       const A = await run({ slowApp: 1500, shot: 'home-signed-in' });
@@ -84,6 +87,27 @@ let n = 0;
       const ev = A.log.find(x => x.t === 'events');
       ok(ev && ev.early && A.appDone && ev.at < A.appDone, `events read started before app.js arrived (${ev && ev.at} ms < ${A.appDone} ms)`, tag);
       ok(!A.perr.length, 'no page errors ' + A.perr.join('|'), tag);
+      ok(A.early && A.early.via === 'early.js', `first open (nothing saved yet): early.js starts them (${A.early && A.early.via})`, tag);
+      ok(A.saved === JSON.stringify({ url: SB, key: 'qa-anon' }), `config.js url/key saved for the inline copy (${A.saved})`, tag);
+      // A2. next open (url/key saved): the inline <head> copy starts the reads before the stylesheet has even arrived
+      const A2 = await run({ ecfg: { url: SB, key: 'qa-anon' }, slowCss: 1500, slowApp: 1500, shot: 'home-inline' });
+      ok(A2.shown, 'inline: Home shows the event', tag);
+      ok(A2.early && A2.early.via === 'inline', `inline copy started the reads (${A2.early && A2.early.via})`, tag);
+      ok(A2.early && START.every(t => A2.early.hits.includes(t)), `inline reads used for all start-up tables (${A2.early && A2.early.hits})`, tag);
+      for (const t of START) { const c = A2.log.filter(x => x.t === t).length; ok(c === 1, `inline: ${t} requested once (${c})`, tag); }
+      const ev2 = A2.log.find(x => x.t === 'events');
+      ok(ev2 && ev2.early && A2.cssDone && ev2.at < A2.cssDone, `inline: events read started before styles.css arrived (${ev2 && ev2.at} ms < ${A2.cssDone} ms)`, tag);
+      ok(!A2.perr.length, 'no page errors (A2) ' + A2.perr.join('|'), tag);
+      // A3. saved key no longer matches config.js: those early reads are not used, the normal reads run, app fine
+      const A3 = await run({ ecfg: { url: SB, key: 'old-key' } });
+      ok(A3.shown, 'stale saved key: app still shows the event', tag);
+      ok(A3.early && A3.early.hits.length === 0, `stale saved key: no early read handed over (${A3.early && A3.early.hits})`, tag);
+      ok(A3.log.filter(x => x.t === 'events' && x.apikey === 'qa-anon').length === 1, 'stale saved key: normal events read with the config.js key', tag);
+      ok(A3.saved === JSON.stringify({ url: SB, key: 'qa-anon' }), 'stale saved key replaced from config.js', tag);
+      // A4. local mode (config.js has no Supabase): saved url/key removed so later opens don't start any reads
+      const A4 = await run({ ecfg: { url: SB, key: 'qa-anon' }, local: true });
+      ok(A4.saved === null, `local mode: saved url/key removed (${A4.saved})`, tag);
+      ok(!A4.perr.length, 'no page errors (A4) ' + A4.perr.join('|'), tag);
       // B. early read fails -> normal read, app fine
       const B = await run({ fail401: true });
       ok(B.shown, 'failed early read: app still shows the event', tag);
@@ -96,6 +120,12 @@ let n = 0;
       ok(!C2.early, 'token about to expire: no early reads (supabase-js refreshes first)', tag);
       const C3 = await run({ offline: true });
       ok(!C3.early, 'offline: no early reads', tag);
+      const C4 = await run({ session: null, ecfg: { url: SB, key: 'qa-anon' } });
+      ok(!C4.early && !C4.log.length, 'inline, signed out: no reads', tag);
+      const C5 = await run({ session: sess(60), ecfg: { url: SB, key: 'qa-anon' } });
+      ok(!C5.early, 'inline, token about to expire: no early reads', tag);
+      const C6 = await run({ offline: true, ecfg: { url: SB, key: 'qa-anon' } });
+      ok(!C6.early, 'inline, offline: no early reads', tag);
       // D. saved copy shows straight away while the network is slow
       const Dd = await run({ snap: true, slowData: 8000, wait: 6500, shot: 'snapshot-instant' });
       ok(Dd.shown, 'saved copy: event shows within 6.5 s (2.5 s slow-read switch) while events / calendars / profile take 8 s', tag);

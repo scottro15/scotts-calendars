@@ -3,6 +3,26 @@
 <head>
   <meta charset="utf-8">
   <script>try { if (localStorage.getItem('sandy.theme') === 'dark') document.documentElement.classList.add('dark'); } catch (_) {}</script>
+  <!-- early-inline (t179u item 2): same reads + rules as early.js, started before the stylesheets download. Uses the
+       Supabase url/key early.js saved from config.js last time (never hard-coded here); signed out, near expiry, offline,
+       local mode or first open = does nothing, and early.js / the normal path take over. Reads only. -->
+  <script>(function () { try {
+    if (!window.fetch || navigator.onLine === false) return;
+    var c = JSON.parse(localStorage.getItem('sandy.earlyCfg') || 'null'); if (!c || !c.url || !c.key) return;
+    var url = c.url, key = c.key, ref = (/^https:\/\/([^.]+)\./.exec(url) || [])[1]; if (!ref) return;
+    var raw = localStorage.getItem('sb-' + ref + '-auth-token'); if (!raw) return;
+    var s = JSON.parse(raw); if (s && s.currentSession) s = s.currentSession;
+    if (!s || !s.access_token || !s.expires_at || s.expires_at * 1000 - Date.now() < 120000) return;
+    var base = url.replace(/\/+$/, '') + '/rest/v1/';
+    var Q = ['events?select=*&order=start_at.asc&offset=0&limit=1000',
+      'calendars?select=id%2Cslug%2Cname%2Cshort%2Ccolor%2Csort&order=sort.asc%2Ccreated_at.asc',
+      'profiles?select=*', 'categories?select=calendar%2Cname&order=name.asc',
+      'occurrence_notes?select=*&order=occurrence_date.asc&offset=0&limit=1000',
+      'occurrence_links?select=event_id%2Coccurrence_date%2Cnotion_url', 'inbox_items?select=*&order=created_at.asc'];
+    var map = {}, h = { apikey: key, authorization: 'Bearer ' + s.access_token, 'accept-profile': 'public' };
+    for (var i = 0; i < Q.length; i++) map[base + Q[i]] = fetch(base + Q[i], { headers: h, credentials: 'omit' }).catch(function () { return null; });
+    window.__sandyEarly = { token: s.access_token, key: key, t0: Date.now(), map: map, hits: [], via: 'inline' };
+  } catch (_) {} })();</script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <!-- Samsung Internet / Chrome "dark mode for websites" must not force-darken SANDY: it has its own dark theme (html.dark sets color-scheme: dark) -->
   <meta name="color-scheme" content="only light">
