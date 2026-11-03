@@ -634,6 +634,11 @@ html.dark .inv-actions a.btn-link { border-color: var(--line); }
 .rem-row .rem-del { margin-left: auto; font-size: 15px; padding: 2px 8px; background: transparent; }
 .rem-add { margin-top: 6px; background: none; border: 0; color: #2563eb; padding: 4px 0; cursor: pointer; font-weight: 600; }
 .rem-add[hidden] { display: none; }
+.rem-adds { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.rem-row input[type="time"] { width: auto; min-width: 7.2em; }
+.rem-row[data-mode="at"] select { min-width: 0; max-width: 11em; }
+.rem-row.rem-out { animation: remOut .18s ease-in both; pointer-events: none; }
+@keyframes remOut { to { opacity: 0; transform: translateX(14px); } }
 .push-box { margin-top: 10px; }
 .push-box .push-status { margin: 4px 0 8px; }
 .push-box .push-status.ok { color: #15803d; }
@@ -650,7 +655,7 @@ html.dark .push-nudge .onb-err .push-fix, html.dark .push-nudge .onb-err p { col
 .push-steps { margin: 8px 0 12px; padding-left: 1.3em; line-height: 1.6; }
 .push-steps li { animation: msgUp .3s cubic-bezier(.2,.9,.3,1.1) both; }
 .push-steps li:nth-child(2) { animation-delay: 60ms; } .push-steps li:nth-child(3) { animation-delay: 120ms; } .push-steps li:nth-child(4) { animation-delay: 180ms; }
-@media (prefers-reduced-motion: reduce) { .rem-row.msg-up, .push-steps li { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .rem-row.msg-up, .rem-row.rem-out, .push-steps li { animation: none; } }
 
 /* MSC client sessions / reach-outs / check-ins stand out in List + Day view (Scott 2026-10-24) */
 .fc-list .sandy-client-key .fc-list-event-title, .fc-list .sandy-client-key .fc-list-event-title a,

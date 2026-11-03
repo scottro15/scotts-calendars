@@ -1472,22 +1472,48 @@
 
   // ---------- Reminders: up to 6 per event/to-do, minutes .. 6 months before (like Google Calendar) ----------
   const REM_UNITS = [['minutes', 1], ['hours', 60], ['days', 1440], ['weeks', 10080], ['months', 44640]];
-  const REM_MAX = 267840, remList = document.getElementById('remList'), remAdd = document.getElementById('remAdd');
+  const REM_MAX = 267840, remList = document.getElementById('remList'), remAdd = document.getElementById('remAdd'), remAddAt = document.getElementById('remAddAt');
   const remSplit = m => { for (let i = REM_UNITS.length - 1; i > 0; i--) if (m && m % REM_UNITS[i][1] === 0) return [m / REM_UNITS[i][1], REM_UNITS[i][0]]; return [m, 'minutes']; };
+  // "at a set time" rows (2B): a clock time N days before (SandyRem codes), alongside the "X before" rows
+  const REM_DAYS = [0, 1, 2, 3, 4, 5, 6, 7, 14, 30];
+  const remDayText = d => d === 0 ? 'the same day' : d === 1 ? 'the day before' : `${d} days before`;
   function remRow(m, animate) {
-    const [n, u] = remSplit(m);
-    const li = document.createElement('li'); li.className = 'rem-row' + (animate ? ' msg-up' : '');
-    li.innerHTML = `<input type="number" name="remN" min="0" max="999" step="1" inputmode="numeric" aria-label="How long before" required>
+    const R = window.SandyRem, fx = R && R.decode(m);
+    const li = document.createElement('li'); li.className = 'rem-row' + (animate ? ' msg-up' : ''); li.dataset.mode = fx ? 'at' : 'before';
+    if (fx) {
+      const days = REM_DAYS.includes(fx.days) ? REM_DAYS : [...REM_DAYS, fx.days].sort((a, b) => a - b);
+      li.innerHTML = `<span class="muted">at</span><input type="time" name="remT" aria-label="Reminder time" required>
+        <select name="remD" aria-label="Which day">${days.map(d => `<option value="${d}">${remDayText(d)}</option>`).join('')}</select>
+        <button type="button" class="rem-del icon-btn" aria-label="Remove reminder">✕</button>`;
+      li.querySelector('input').value = R.hm(fx.minute); li.querySelector('select').value = String(fx.days);
+    } else {
+      const [n, u] = remSplit(m);
+      li.innerHTML = `<input type="number" name="remN" min="0" max="999" step="1" inputmode="numeric" aria-label="How long before" required>
       <select name="remU" aria-label="Unit">${REM_UNITS.map(([k]) => `<option value="${k}">${k}</option>`).join('')}</select>
       <span class="muted">before</span><button type="button" class="rem-del icon-btn" aria-label="Remove reminder">✕</button>`;
-    li.querySelector('input').value = n; li.querySelector('select').value = u;
-    li.querySelector('.rem-del').addEventListener('click', () => { li.remove(); syncRem(); remAdd.focus(); });
+      li.querySelector('input').value = n; li.querySelector('select').value = u;
+    }
+    li.querySelector('.rem-del').addEventListener('click', () => {
+      if (li.classList.contains('rem-out')) return;
+      const gone = () => { if (!li.isConnected) return; li.remove(); syncRem(); };
+      li.classList.remove('msg-up'); li.classList.add('rem-out'); syncRem(); remAdd.hidden ? remAddAt.focus() : remAdd.focus();
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) gone();
+      else { li.addEventListener('animationend', gone, { once: true }); setTimeout(gone, 220); }
+    });
     remList.append(li);
   }
-  function syncRem() { remAdd.hidden = remList.children.length >= 6; document.getElementById('remHint').hidden = !(f('allDay').checked && remList.children.length); }
+  const remRows = () => [...remList.children].filter(li => !li.classList.contains('rem-out'));
+  function syncRem() {
+    const rows = remRows(), full = rows.length >= 6; remAdd.hidden = full; remAddAt.hidden = full;
+    document.getElementById('remHint').hidden = !(f('allDay').checked && rows.some(li => li.dataset.mode !== 'at'));
+  }
   function renderReminders(list) { remList.innerHTML = ''; [...list].slice(0, 6).forEach(m => remRow(m)); syncRem(); }
   function readReminders() {
-    const out = [...remList.children].map(li => {
+    const out = remRows().map(li => {
+      if (li.dataset.mode === 'at') {
+        const [h, mi] = String(li.querySelector('input').value || '20:00').split(':').map(Number);
+        return window.SandyRem.fixed(+li.querySelector('select').value || 0, (h || 0) * 60 + (mi || 0));
+      }
       const n = Math.max(0, Math.round(+li.querySelector('input').value || 0));
       const u = (REM_UNITS.find(([k]) => k === li.querySelector('select').value) || REM_UNITS[0])[1];
       return Math.min(REM_MAX, n * u);
@@ -1501,6 +1527,11 @@
   }
   remAdd.addEventListener('click', () => {
     const used = new Set(readReminders()); const pick = (f('allDay').checked ? [1440, 0, 10080] : [30, 10, 60, 1440]).find(m => !used.has(m)) ?? 0;
+    remRow(pick, true); syncRem(); remList.lastElementChild.querySelector('input').focus();
+  });
+  remAddAt.addEventListener('click', () => {
+    const R = window.SandyRem, used = new Set(readReminders());
+    const pick = [R.fixed(1, 20 * 60), R.fixed(0, 8 * 60), R.fixed(2, 9 * 60), R.fixed(7, 9 * 60)].find(c => !used.has(c)) ?? R.fixed(1, 19 * 60);
     remRow(pick, true); syncRem(); remList.lastElementChild.querySelector('input').focus();
   });
   f('allDay').addEventListener('change', syncRem);
@@ -1844,7 +1875,7 @@
   function scheduleRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 250); }
   async function refresh() { renderToggles(await Store.list()); calendar.refetchEvents(); renderTasks(); renderBriefing(); renderReview(); window.dispatchEvent(new Event('sandy:refresh')); }
   refresh();
-  window.__app = { todoCompare, reviewState: () => ({ scope: rv.scope, ref: ymd(rv.ref), cals: [...rv.cals], event: rv.event, q: rv.q }), reviewRange, noteKeyFor, calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList, openEditor, moveEvent, detachOccurrence, refresh, isRecurring, isDone, toast, calendars: () => CALENDARS, useCalendars, timeZone: () => TZ, setTZ,
+  window.__app = { todoCompare, afterReminders, reviewState: () => ({ scope: rv.scope, ref: ymd(rv.ref), cals: [...rv.cals], event: rv.event, q: rv.q }), reviewRange, noteKeyFor, calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList, openEditor, moveEvent, detachOccurrence, refresh, isRecurring, isDone, toast, calendars: () => CALENDARS, useCalendars, timeZone: () => TZ, setTZ,
     setDone, overdueText, fmtDay, startOfDay, addDays, isClientKey, occurrenceStart, saveSettings, renderTasks, renderBriefing, firstVisibleCal,
     settings: () => settings, cal: id => CAL[id], VIEWS, user: () => signedInUser }; // handy for debugging / tests
 

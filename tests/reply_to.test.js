@@ -85,9 +85,9 @@ const LONG = 'Long note. ' + 'This sentence repeats to make the message long. '.
       let mu = await p.evaluate(() => { const m = document.querySelector('.ai-menu'); if (!m) return null; const r = m.getBoundingClientRect(); return { items: [...m.querySelectorAll('button')].map(b => b.textContent), anim: m.classList.contains('ai-menu-in') || matchMedia('(prefers-reduced-motion: reduce)').matches, inside: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, pressed: !!document.querySelector('.ai-msg.ai-pressed'), h: Math.min(...[...m.querySelectorAll('button')].map(b => b.getBoundingClientRect().height)) }; });
       ok(mu && mu.items.join('|') === '↩ Reply|Copy' && mu.anim && mu.inside && mu.pressed && mu.h >= 44, `${tag}: long-press → menu with Reply / Copy, on screen, 44px targets (${JSON.stringify(mu)})`);
       await p.evaluate(() => getSelection().removeAllRanges()); await p.screenshot({ path: `${SHOTS}/${tag}-3-menu.png` });
-      await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+      await p.keyboard.press('Escape'); await p.waitForFunction(() => !document.querySelector('.ai-menu'), null, { timeout: 1000 }).catch(() => {}); // the menu fades out (120 ms; 200 ms fallback)
       ok(!(await p.$('.ai-menu')) && await p.isVisible('#aiSheet .ai-panel'), `${tag}: Escape closes the menu, not the sheet`);
-      await press(await bubble('lunch with Sam')); await p.click('.ai-menu [data-act="reply"]'); await p.waitForTimeout(260);
+      await press(await bubble('lunch with Sam')); await p.click('.ai-menu [data-act="reply"]'); await p.waitForFunction(() => !document.querySelector('.ai-menu') && !document.getElementById('aiReply').hidden, null, { timeout: 1000 }).catch(() => {}); await p.waitForTimeout(60);
       c = await chip(); ok(c.shown && c.q === A2 && !(await p.$('.ai-menu')), `${tag}: Reply → chip quotes the second answer`);
 
       // 5. replying to another message swaps the quote

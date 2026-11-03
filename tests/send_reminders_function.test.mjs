@@ -22,6 +22,29 @@ if (ece) {
   assert(out.toString() === '{"title":"Hi"}', 'reference decoder (http_ece) decrypts our payload');
 } else console.log('skip - http_ece not installed: reference decrypt');
 
+
+// --- "at a set time" reminders (2B): clock time N days before, in the owner's zone, DST-safe, sent once per code
+{
+  const tz = () => 'America/Chicago'; const c1 = M.fixedCode(1, 20 * 60), c2 = M.fixedCode(2, 9 * 60), c0 = M.fixedCode(0, 8 * 60);
+  const x = M.fixedOf(c1); assert(x && x.days === 1 && x.minute === 1200 && M.fixedOf(1440) === null && M.fixedOf(59940) === null && M.fixedOf(30) === null, 'fixed codec decodes, "before" values are not fixed');
+  let bad = 0; for (let d = 0; d <= 30; d++) for (let m = 0; m < 1440; m += 7) { const y = M.fixedOf(M.fixedCode(d, m)); if (!y || y.days !== d || y.minute !== m) bad++; }
+  assert(bad === 0 && M.fixedCode(30, 1439) <= M.MAX_MINUTES, 'fixed codec round-trips within the DB range');
+  const ev = { id: 'fx1', owner_id: 'o', title: 'Dentist', start_at: '2026-11-10 15:00:00', all_day: false, recur_freq: 'none', reminders: [30, c1, c2] };
+  const d1 = M.dueReminders([ev], tz, T('2026-11-10T02:01:00Z'));
+  assert(d1.length === 1 && d1[0].minutes === c1 && d1[0].fireAt === T('2026-11-10T02:00:00Z') && d1[0].payload.body.startsWith('Tomorrow · Tue, Nov 10 · 3:00 PM') && d1[0].payload.tag === `fx1:2026-11-10:${c1}`, '8 PM the night before fires Mon 8:00 PM CST: ' + JSON.stringify(d1.map(d => d.payload.body)));
+  const d2 = M.dueReminders([ev], tz, T('2026-11-08T15:05:00Z'));
+  assert(d2.length === 1 && d2[0].minutes === c2 && d2[0].payload.body.startsWith('In 2 days'), '9 AM 2 days before fires Sun 9:00 AM CST');
+  assert(M.dueReminders([ev], tz, T('2026-11-10T01:58:00Z')).length === 0 && M.dueReminders([ev], tz, T('2026-11-10T02:16:00Z')).length === 0, 'not before its time, not after the 15-min window');
+  const dst = M.dueReminders([{ ...ev, id: 'fx2', start_at: '2027-03-15 10:00:00', reminders: [c1] }], tz, T('2027-03-15T01:02:00Z'));
+  assert(dst.length === 1 && dst[0].fireAt === T('2027-03-15T01:00:00Z'), 'after the spring DST change: 8 PM CDT');
+  const todo = { id: 'fx3', owner_id: 'o', title: 'Trash', start_at: '2026-10-26 00:00:00', all_day: true, is_task: true, recur_freq: 'weekly', recur_by_weekday: [1], reminders: [c0], completed_dates: ['2026-11-16'] };
+  const d3 = M.dueReminders([todo], tz, T('2026-11-09T14:03:00Z'));
+  assert(d3.length === 1 && d3[0].occ === '2026-11-09' && d3[0].payload.body.startsWith('Today · due Mon, Nov 9'), 'repeating all-day to-do: 8 AM the same day (not the 9 AM anchor)');
+  assert(M.dueReminders([todo], tz, T('2026-11-16T14:03:00Z')).length === 0, 'a done to-do date is skipped');
+  const tok = M.dueReminders([{ ...ev, id: 'fx4', reminders: [c1] }], () => 'Asia/Tokyo', T('2026-11-09T11:00:00Z'));
+  assert(tok.length === 1, 'uses the owner time zone (8 PM Tokyo)');
+}
+
 // --- VAPID JWT verifies with the public key
 const kp = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' }); const jwk = kp.privateKey.export({ format: 'jwk' });
 const vapid = { publicKey: Buffer.concat([Buffer.from([4]), Buffer.from(jwk.x, 'base64url'), Buffer.from(jwk.y, 'base64url')]).toString('base64url'), privateKey: jwk.d, subject: 'mailto:a@b.co' };

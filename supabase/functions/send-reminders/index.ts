@@ -114,6 +114,16 @@ export function leadText(min) {
   const u = [[43200, 'month'], [10080, 'week'], [1440, 'day'], [60, 'hour'], [1, 'minute']].find(([n]) => min % n === 0 && min >= n) || [1, 'minute'];
   const n = min / u[0]; return `In ${n} ${u[1]}${n === 1 ? '' : 's'}`;
 }
+// "At a set time" reminders (2026-11-02, e.g. 8 PM the night before) share the int[] column: a code >60480 that is
+// not a multiple of 1440 (the app's "X before" editor never makes one). Same codec as SandyRem in storage.js.
+export const FIX_BASE = 60480, FIX_DAYS = 30;
+export function fixedOf(c) {
+  if (!Number.isInteger(c) || c <= FIX_BASE || c > MAX_MINUTES || c % 1440 === 0) return null;
+  const k = c - FIX_BASE, i = Math.floor(k / 1440) * 1439 + (k % 1440) - 1;
+  const days = Math.floor(i / 1440); return days > FIX_DAYS ? null : { days, minute: i % 1440 };
+}
+export const fixedCode = (days, minute) => { const i = days * 1440 + minute; return FIX_BASE + Math.floor(i / 1439) * 1440 + (i % 1439) + 1; };
+const dayLead = (d) => d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : `In ${d} days`;
 /** rows: events with reminders; tzOf(owner) -> IANA zone; returns [{row, occ, minutes, fireAt, payload}] due in (now-WINDOW, now]. */
 export function dueReminders(rows, tzOf, now = Date.now()) {
   const out = [];
@@ -122,12 +132,19 @@ export function dueReminders(rows, tzOf, now = Date.now()) {
     if (!mins.length) continue;
     const tz = tzOf(row.owner_id) || 'America/Chicago';
     for (const m of mins) {
-      // occurrences whose (anchor) start falls in (now - window + m, now + m]
-      const lo = now - WINDOW_MIN * 60000 + m * 60000, hi = now + m * 60000;
-      const rs = addDays(startOfDay(utcToWall(lo, tz)), -1), re = addDays(startOfDay(utcToWall(hi, tz)), 2);
+      const fx = fixedOf(m);
+      let rs, re;
+      if (fx) { // fires at a clock time `days` before the occurrence's date: occurrences on (today + days) +-1
+        rs = addDays(startOfDay(utcToWall(now - WINDOW_MIN * 60000, tz)), fx.days - 1); re = addDays(startOfDay(utcToWall(now, tz)), fx.days + 2);
+      } else {
+        // occurrences whose (anchor) start falls in (now - window + m, now + m]
+        const lo = now - WINDOW_MIN * 60000 + m * 60000, hi = now + m * 60000;
+        rs = addDays(startOfDay(utcToWall(lo, tz)), -1); re = addDays(startOfDay(utcToWall(hi, tz)), 2);
+      }
       for (const s of occurrenceStarts(row, rs, re)) {
         const anchor = row.all_day ? W(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate(), ALLDAY_HOUR) : s;
-        const fireAt = wallToUtc(anchor, tz) - m * 60000;
+        const fireAt = fx ? wallToUtc(W(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate() - fx.days, Math.floor(fx.minute / 60), fx.minute % 60), tz)
+          : wallToUtc(anchor, tz) - m * 60000;
         if (!(fireAt > now - WINDOW_MIN * 60000 && fireAt <= now)) continue;
         const key = ymd(s);
         if (row.is_task && (row.recur_freq === 'none' ? row.done : (row.completed_dates || []).includes(key))) continue;
@@ -135,7 +152,7 @@ export function dueReminders(rows, tzOf, now = Date.now()) {
           : `${s.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })} · ${t12(s)}`;
         out.push({ row, occ: key, minutes: m, fireAt, payload: {
           title: `${row.is_task ? '☑️ ' : ''}${row.title}`.slice(0, 120),
-          body: `${leadText(m)} · ${when}${row.location ? ` · ${row.location}` : ''}`.slice(0, 200),
+          body: `${fx ? dayLead(fx.days) : leadText(m)} · ${when}${row.location ? ` · ${row.location}` : ''}`.slice(0, 200),
           tag: `${row.id}:${key}:${m}`, url: `./?date=${key}`, ts: fireAt } });
       }
     }

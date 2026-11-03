@@ -116,7 +116,13 @@
     const now = A.nowWall(); const today = startOfDay(now);
     const rs = new Date(today.getTime() - 14 * DAY), re = new Date(today.getTime() + 46 * DAY);
     const events = [];
+    // the edit-box fields too (item 5), so SI can keep or change them: day notes and Notion links by date
+    const [dayNotes, dayLinks] = await Promise.all([A.Store.notes.all().catch(() => []), A.Store.links.all().catch(() => []),
+      window.SandyNav && SandyNav.Cats && !SandyNav.Cats.cache ? SandyNav.Cats.list().catch(() => []) : null]);
+    const noteMap = new Map((dayNotes || []).map(n => [`${n.eventId}|${n.date}`, n.body])), linkMap = new Map((dayLinks || []).map(l => [`${l.eventId}|${l.date}`, l.url]));
+    const catName = id => { const c = tcats().find(x => x.id === id); return c ? c.name : null; };
     for (const ev of await A.Store.list()) {
+      const parsed = ev.notes ? SUBS().parse(ev.notes) : null;
       for (const o of A.occurrences(ev, rs, re)) {
         const r = { id: ev.id, occ: o.key, title: ev.title, calendar: ev.calendar, category: ev.category, kind: ev.kind || 'event',
           start: ev.allDay ? o.key : `${o.key}T${A.hm(o.start)}`, end: ev.allDay ? A.ymd(new Date(o.end.getTime() - DAY)) : `${A.ymd(o.end)}T${A.hm(o.end)}`, allDay: !!ev.allDay };
@@ -126,6 +132,11 @@
         if (isRef(ev)) r.referenceOnly = true;
         if (ev.allDay && r.end !== o.key) r.endDay = r.end;
         if (ev.seriesId) { r.changedOccurrenceOf = ev.seriesId; r.originalDate = ev.originalDate; }
+        if (ev.reminders && ev.reminders.length) r.reminders = remForModel(ev.reminders);
+        if (parsed && parsed.desc) r.notes = clipTxt(parsed.desc, 200);
+        if (parsed && parsed.subs.length) r.subtasks = parsed.subs.slice(0, 20).map(x => x.text);
+        if (ev.kind === 'task') { r.scope = ev.scope || 'day'; if (ev.priority >= 1 && ev.priority <= 3) r.priority = ev.priority; if (ev.todoCategoryId) r.todoCategory = catName(ev.todoCategoryId) || ev.todoCategoryId; }
+        { const nk = A.noteKeyFor(ev, o.key), k = `${nk.eventId}|${nk.date}`; if (noteMap.get(k)) r.dayNote = clipTxt(noteMap.get(k), 200); if (linkMap.get(k)) r.notionUrl = linkMap.get(k); }
         events.push(r);
       }
     }
@@ -150,7 +161,7 @@
       const cur = all.find(e => e.id === m.saved.id);
       saved.unshift(cur ? savedInfo(cur) : { ...m.saved, removed: true });
     }
-    return { timeZone: A.timeZone ? A.timeZone() : 'America/Chicago', today: tk, now: `${A.ymd(now)} ${t12fixed(now)}`, calendars: A.calendars().map(c => ({ id: c.id, name: c.name })), events, series, saved };
+    return { timeZone: A.timeZone ? A.timeZone() : 'America/Chicago', today: tk, now: `${A.ymd(now)} ${t12fixed(now)}`, calendars: A.calendars().map(c => ({ id: c.id, name: c.name })), todoCategories: tcats().slice(0, 40).map(c => ({ id: c.id, name: c.name })), events, eventsRange: { from: A.ymd(rs), to: A.ymd(new Date(re.getTime() - DAY)) }, series, saved };
   }
 
   const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], WDL = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
@@ -424,19 +435,123 @@
     panel.hidden = true; const b = document.getElementById('aiHist'); b.setAttribute('aria-expanded', 'false'); b.classList.remove('on');
   }
 
+  // ---------- edit-box fields (item 5, 2026-11-02): everything the editor can set ----------
+  const REM = () => window.SandyRem, SUBS = () => window.SandySubs;
+  const tcats = () => ((window.SandyNav && SandyNav.Cats && SandyNav.Cats.cache) || []).filter(c => c && c.id);
+  const SCOPES = { day: 'On the day', week: 'Any time that week', month: 'Any time that month', season: 'Any time that season' };
+  const NOTION = /^https:\/\/([a-z0-9-]+\.)*notion\.(so|com|site)\//i;
+  const clipTxt = (t, n) => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+  /** "20:00", "8 PM", "8:30pm" -> minute of day */
+  function minOfDay(v) {
+    const m = String(v == null ? '' : v).trim().toLowerCase().replace(/\./g, '').match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm|a|p)?$/); if (!m) return null;
+    let h = +m[1]; const mi = +(m[2] || 0); const ap = m[3] && m[3][0];
+    if (ap) { if (h < 1 || h > 12) return null; h = h % 12 + (ap === 'p' ? 12 : 0); }
+    return h > 23 || mi > 59 ? null : h * 60 + mi;
+  }
+  /** tool reminders [{before}|{at, daysBefore}] -> stored codes (SandyRem). Throws a readable error. */
+  function remCodes(list) {
+    if (!Array.isArray(list)) throw new Error('Reminders must be a list');
+    const out = [];
+    for (const x of list) {
+      const o = typeof x === 'number' ? { before: x } : (x || {});
+      if (o.at != null && o.at !== '') {
+        const mm = minOfDay(o.at); if (mm == null) throw new Error(`“${o.at}” isn’t a time of day`);
+        const d = Math.round(+o.daysBefore || 0); if (!(d >= 0 && d <= REM().FIX_DAYS)) throw new Error(`A set-time reminder can be up to ${REM().FIX_DAYS} days before`);
+        out.push(REM().fixed(d, mm));
+      } else if (o.before != null) {
+        let m = Math.round(+o.before); if (!(m >= 0 && m <= 267840)) throw new Error('A reminder can be at most 6 months before');
+        if (REM().isFixed(m)) m = Math.round(m / 1440) * 1440; // that long before: whole days (keeps it a "before" reminder)
+        out.push(m);
+      } else throw new Error('Each reminder needs “before” or “at”');
+    }
+    const u = [...new Set(out)].sort((a, b) => a - b); if (u.length > 6) throw new Error('At most 6 reminders per item'); return u;
+  }
+  const remText = codes => codes.length ? codes.map(c => REM().label(c)).join(', ') : 'None';
+  /** stored codes -> the tool's shape, so the model can keep or change them */
+  const remForModel = codes => (codes || []).map(c => { const f = REM() && REM().decode(c); return f ? { at: REM().hm(f.minute), daysBefore: f.days } : { before: c }; });
+  /** desc + sub-tasks -> notes. Notes without '- [ ]' lines keep the item's current sub-tasks. */
+  function notesWith(notes, subs, oldNotes) {
+    const P = SUBS().parse(notes == null ? oldNotes : notes);
+    const list = subs ? subs.map(text => ({ text })) : (P.subs.length || notes == null ? P.subs : SUBS().parse(oldNotes).subs);
+    return SUBS().compose(P.desc, list, false);
+  }
+  /** Check the edit-box fields of a proposal (ev = the item, null for a new one). Returns {set, day, rows}; throws a readable error. */
+  function boxPlan(src, ev) {
+    const set = {}, day = {}, rows = [];
+    const was = ev ? (ev.kind || 'event') : null;
+    const kind = src.kind === 'task' || src.kind === 'event' ? src.kind : (was || 'event');
+    if (ev && kind !== was) { set.kind = kind; rows.push(['Type', kind === 'task' ? 'Event → To-do' : 'To-do → Event']); }
+    const task = kind === 'task';
+    const taskOnly = what => { if (!task) throw new Error(`Only to-dos have ${what}`); };
+    if (src.reminders !== undefined) { set.reminders = remCodes(src.reminders); rows.push(['Reminders', remText(set.reminders)]); }
+    if (src.scope !== undefined && src.scope !== null) { taskOnly('a due scope'); if (!SCOPES[src.scope]) throw new Error('Due must be day, week, month or season'); set.scope = src.scope; rows.push(['Due', SCOPES[src.scope]]); }
+    if (src.priority !== undefined && src.priority !== null) {
+      taskOnly('a priority'); const pr = Math.round(+src.priority); if (!(pr >= 1 && pr <= 4)) throw new Error('Priority is 1 (highest) to 4 (none)');
+      set.priority = pr === 4 ? null : pr; rows.push(['Priority', pr === 4 ? 'None' : `P${pr}${pr === 1 ? ' (highest)' : ''}`]);
+    }
+    if (src.todoCategory !== undefined && src.todoCategory !== null) {
+      taskOnly('a to-do category'); const v = String(src.todoCategory).trim();
+      if (!v) { set.todoCategoryId = null; rows.push(['To-do category', 'None']); }
+      else { const c = tcats().find(x => x.id === v) || tcats().find(x => String(x.name).toLowerCase() === v.toLowerCase()); if (!c) throw new Error(`There’s no to-do category “${clipTxt(v, 40)}”`); set.todoCategoryId = c.id; rows.push(['To-do category', c.name]); }
+    }
+    if (src.subtasks !== undefined && src.subtasks !== null) {
+      set.subtasks = (Array.isArray(src.subtasks) ? src.subtasks : []).map(t => String(t == null ? '' : t).replace(/\s+/g, ' ').trim().slice(0, 200)).filter(Boolean).slice(0, 30);
+      rows.push(['Sub-tasks', set.subtasks.length ? set.subtasks.join(' · ') : 'None']);
+    }
+    if (src.dayNote !== undefined && src.dayNote !== null) { day.note = String(src.dayNote).trim().slice(0, 4000); rows.push(['That day’s note', day.note ? clipTxt(day.note, 160) : 'Delete it']); }
+    if (src.notionUrl !== undefined && src.notionUrl !== null) {
+      const u = String(src.notionUrl).trim(); if (u && !NOTION.test(u)) throw new Error('That isn’t a Notion link (https://…notion.so/…)');
+      day.notion = u; rows.push(['Notion link', u ? clipTxt(u.replace(/^https:\/\//, ''), 60) : 'Remove it']);
+    }
+    return { set, day, rows, task };
+  }
+  /** Save a date's own note / Notion link; returns an undo that puts the old ones back. */
+  async function applyDay(day, ev, occ) {
+    if (day.note === undefined && day.notion === undefined) return null;
+    const S = A.Store, nk = A.noteKeyFor(ev, occ); const undo = [];
+    if (day.note !== undefined) { const old = await S.notes.get(nk.eventId, nk.date); await S.notes.set(nk.eventId, nk.date, day.note); undo.push(() => S.notes.set(nk.eventId, nk.date, old ? old.body : '')); }
+    if (day.notion !== undefined) { const old = await S.links.get(nk.eventId, nk.date); await S.links.set(nk.eventId, nk.date, day.notion); undo.push(() => S.links.set(nk.eventId, nk.date, old || '')); }
+    return async () => { for (const u of undo.reverse()) await u(); };
+  }
+  /** repeat on an edit: merged over the current rule ("make it every other week" keeps the days) */
+  function repeatEdit(cur, rp) {
+    if (!rp || rp.freq === 'none') return { freq: 'none' };
+    const c = cur && cur.freq && cur.freq !== 'none' ? cur : {};
+    const m = { freq: rp.freq || c.freq, interval: rp.interval != null ? rp.interval : c.interval, byWeekday: rp.byWeekday != null ? rp.byWeekday : (rp.freq && rp.freq !== c.freq ? undefined : c.byWeekday), until: rp.until !== undefined ? rp.until : c.until };
+    if (/^(none|never|forever)$/i.test(String(m.until || ''))) m.until = null;
+    return repeatOf(m);
+  }
+
   // ---------- confirm cards ----------
   const VERB = { add: 'Add', edit: 'Change', delete: 'Delete', check: 'Check off' };
   async function describe(p) {
     const ev = p.id ? await A.Store.get(p.id) : null;
     const rows = [];
-    if (p.type === 'add') { rows.push(['What', p.title], ['Calendar', calName(p.calendar)], ['When', fmtWhen(p.start) + (p.end && !p.allDay && p.end.length > 10 ? ` – ${t12(A.parseLocal(p.end))}` : '')]); { const rp = repeatOf(p.repeat); if (rp.freq !== 'none') { rows.push(['Repeats', ruleText({ start: String(p.start), recurrence: rp })]); rows.push(['Until', rp.until ? dayY(rp.until) : 'No end date']); } } if (p.location) rows.push(['Where', p.location]); }
+    let err = null;
+    if (p.type === 'add') {
+      rows.push(['What', p.title], ['Type', p.kind === 'task' ? 'To-do' : 'Event'], ['Calendar', calName(p.calendar)], ['When', fmtWhen(p.start) + (p.end && !p.allDay && p.end.length > 10 ? ` – ${t12(A.parseLocal(p.end))}` : '')]);
+      { const rp = repeatOf(p.repeat); if (rp.freq !== 'none') { rows.push(['Repeats', ruleText({ start: String(p.start), recurrence: rp })]); rows.push(['Until', rp.until ? dayY(rp.until) : 'No end date']); } }
+      if (p.location) rows.push(['Where', p.location]);
+      if (p.notes) rows.push(['Notes', clipTxt(SUBS().parse(p.notes).desc, 160)]);
+      try { rows.push(...boxPlan(p, null).rows); } catch (e) { err = e.message; }
+    }
     else {
       rows.push(['Item', ev ? ev.title : '(not found)'], ['Date', p.occurrence ? fmtDay(p.occurrence) : '']);
-      if (p.type === 'edit') for (const [k, v] of Object.entries(p.changes || {})) rows.push([k === 'start' ? 'New start' : k === 'end' ? 'New end' : k, (k === 'start' || k === 'end') ? fmtWhen(v) : (k === 'calendar' ? calName(v) : String(v))]);
+      if (p.type === 'edit') {
+        const c = p.changes || {};
+        for (const [k, v] of Object.entries(c)) {
+          if (!FIELDS.includes(k) || v === undefined) continue;
+          const LBL = { start: 'New start', end: 'New end', calendar: 'Move to', notes: 'Notes', title: 'New title', category: 'Category', location: 'Where', allDay: 'All day' };
+          rows.push([LBL[k] || k, (k === 'start' || k === 'end') ? fmtWhen(v) : k === 'calendar' ? calName(v) : k === 'notes' ? clipTxt(SUBS().parse(v).desc, 160) || 'None' : k === 'allDay' ? (v ? 'Yes' : 'No') : String(v)]);
+        }
+        if (c.repeat) { const rp = repeatEdit(ev && ev.recurrence, c.repeat); rows.push(['Repeats', rp.freq === 'none' ? 'Doesn’t repeat' : ruleText({ start: ev ? ev.start : p.occurrence, recurrence: rp })]); if (rp.freq !== 'none') rows.push(['Until', rp.until ? dayY(rp.until) : 'No end date']); }
+        if (ev) { try { rows.push(...boxPlan(c, ev).rows); editRules(p, ev); } catch (e) { err = e.message; } }
+        if (ev && c.calendar && A.isRecurring(ev) && p.scope === 'all') { const n = (await A.Store.list()).filter(e => e.seriesId === ev.id).length; if (n) rows.push(['Changed dates', `move too (${n})`]); }
+      }
       if (p.type === 'check' && p.done === false) rows[0][0] = 'Un-check';
       if (ev && A.isRecurring(ev) && p.type !== 'check') rows.push(['Applies to', p.scope === 'all' ? 'All repeats' : 'Just this day']);
     }
-    return { ev, rows };
+    return { ev, rows, err };
   }
   /** Series changes (t166u): build the exact plan up front so the card shows what will change. */
   const keyDay = k => fmtDay(k);
@@ -538,18 +653,19 @@
   }
   async function renderProposal(p) {
     if (p.type === 'series') return renderSeries(p);
-    const { ev, rows } = await describe(p);
+    const { ev, rows, err } = await describe(p);
     const card = addMsg('assistant card', null, `<div class="ai-card-from">✨ Sandy Intelligence suggests</div><div class="ai-card-title">${esc(p.summary || VERB[p.type] || p.type)}</div>
       <dl>${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+      ${err ? `<p class="ai-card-warn" role="alert">${esc(err)}</p>` : ''}
       <div class="ai-card-btns"><button type="button" class="primary" data-ok>Confirm</button><button type="button" data-no>Cancel</button></div>`);
     card.classList.add('ai-card');
     const ok = card.querySelector('[data-ok]'), no = card.querySelector('[data-no]');
-    if (p.type !== 'add' && !ev) { ok.disabled = true; }
+    if ((p.type !== 'add' && !ev) || err) { ok.disabled = true; }
     const done = msg => { card.querySelector('.ai-card-btns').innerHTML = `<span class="ai-card-status">${esc(msg)}</span>`; };
     no.addEventListener('click', () => { done('Cancelled'); history.push({ role: 'user', content: `(I cancelled: ${p.summary || p.type})`, note: 1 }); persist(); });
     ok.addEventListener('click', async () => {
       ok.disabled = no.disabled = true;
-      try { const snap = window.SandySeries ? await SandySeries.snapshot() : null; const r = await applyProposal(p); if (snap) undoBtn(card, SandySeries.snapshotUndo(snap), '✓ Saved'); else done('✓ Saved'); await confirmNote(p.summary || p.type, p.type === 'delete' ? null : p.type === 'add' ? r && r.id : p.id); A.refresh(); }
+      try { const snap = window.SandySeries ? await SandySeries.snapshot() : null; const r = await applyProposal(p); const dayUndo = p._dayUndo; delete p._dayUndo; if (snap) { const u = SandySeries.snapshotUndo(snap); undoBtn(card, async () => { if (dayUndo) await dayUndo(); return u(); }, '✓ Saved'); } else done('✓ Saved'); await confirmNote(p.summary || p.type, p.type === 'delete' ? null : p.type === 'add' ? r && r.id : p.id); A.refresh(); }
       catch (e) { console.error(e); ok.disabled = no.disabled = false; A.toast('Could not save: ' + (e.message || e), 4000); }
     });
   }
@@ -567,10 +683,14 @@
       if (allDay) end = String(end).slice(0, 10);
       const cal = A.calendars().some(c => c.id === p.calendar) ? p.calendar : A.calendars()[0].id;
       const rp = repeatOf(p.repeat);
+      const bx = boxPlan(p, null);
       const ev = { kind: task ? 'task' : 'event', calendar: cal, category: p.category || (task ? 'Task / to-do' : 'Other'), title: p.title, allDay, start, end,
-        location: p.location || '', notes: p.notes || '', recurrence: rp };
-      if (task) Object.assign(ev, { scope: 'day', done: false, completedDates: [] });
-      return S.save(ev);
+        location: p.location || '', notes: bx.set.subtasks ? notesWith(p.notes || '', bx.set.subtasks, '') : (p.notes || ''), recurrence: rp, reminders: bx.set.reminders || [] };
+      if (task) Object.assign(ev, { scope: bx.set.scope || 'day', done: false, completedDates: [], todoCategoryId: bx.set.todoCategoryId || null, priority: bx.set.priority || null });
+      const saved = await S.save(ev);
+      p._dayUndo = await applyDay(bx.day, saved, String(saved.start).slice(0, 10));
+      if (saved.reminders && saved.reminders.length && A.afterReminders) A.afterReminders(saved.reminders);
+      return saved;
     }
     const ev = await S.get(p.id); if (!ev) throw new Error('That item no longer exists');
     const rec = A.isRecurring(ev); const occ = p.occurrence || String(ev.start).slice(0, 10);
@@ -584,14 +704,34 @@
       return S.remove(ev.id);
     }
     if (p.type === 'edit') {
-      const ch = pick(p.changes || {}, FIELDS);
-      if (rec && p.scope !== 'all') { const [parent, ex] = A.detachOccurrence(ev, occ, ch); return S.saveMany([parent, ex]); }
+      const c = p.changes || {}; const ch = pick(c, FIELDS);
+      const bx = boxPlan(c, ev); editRules(p, ev);
+      if (ch.calendar !== undefined && !A.calendars().some(x => x.id === ch.calendar)) throw new Error('There’s no calendar “' + ch.calendar + '”');
+      if (bx.set.subtasks || ch.notes !== undefined) ch.notes = notesWith(ch.notes, bx.set.subtasks, ev.notes || '');
+      for (const k of ['reminders', 'scope', 'priority', 'todoCategoryId']) if (k in bx.set) ch[k] = bx.set[k];
+      if (bx.set.kind === 'task') Object.assign(ch, { kind: 'task', scope: ch.scope || 'day', done: false, completedDates: [] });
+      if (bx.set.kind === 'event') ch.kind = 'event';
+      if (c.repeat) ch.recurrence = repeatEdit(ev.recurrence, c.repeat);
+      const done = async saved => { p._dayUndo = await applyDay(bx.day, ev, occ); if (ch.reminders && ch.reminders.length && A.afterReminders) A.afterReminders(ch.reminders); return saved; };
+      if (!Object.keys(ch).length) return done(ev); // only that date's note / link: the event itself is unchanged (never detach a date)
+      if (rec && p.scope !== 'all') { const [parent, ex] = A.detachOccurrence(ev, occ, ch); return done(await S.saveMany([parent, ex])); }
       if (rec) { // whole series: keep the series' start date, take the new times
         for (const k of ['start', 'end']) if (ch[k] && ch[k].length > 10 && ev[k]) ch[k] = String(ev[k]).slice(0, 10) + ch[k].slice(10);
       }
-      return S.save({ ...ev, ...ch });
+      const next = { ...ev, ...ch };
+      if (next.kind !== 'task') { delete next.scope; delete next.done; delete next.completedDates; next.priority = null; next.todoCategoryId = null; }
+      // a whole series moved to another calendar takes its changed dates with it
+      const extra = rec && ch.calendar && ch.calendar !== ev.calendar ? (await S.list()).filter(e => e.seriesId === ev.id).map(e => ({ ...e, calendar: ch.calendar })) : [];
+      if (extra.length) { await S.saveMany([next, ...extra]); return done(next); }
+      return done(await S.save(next));
     }
     throw new Error('Unknown change');
+  }
+  /** What the edit box allows on a repeating item: one date can't change the type or repeat rule (same rule as the editor). */
+  function editRules(p, ev) {
+    const c = p.changes || {}, rec = A.isRecurring(ev);
+    if (c.repeat && ev.seriesId) throw new Error('This is one changed date of a series; change the repeat on the whole series');
+    if (rec && p.scope !== 'all' && (c.repeat || (c.kind && c.kind !== (ev.kind || 'event')))) throw new Error('The type and repeat can only change for the whole series');
   }
   async function applySeries(p) { const { plan } = await seriesPlan(p); return window.SandySeries.apply(plan); }
 

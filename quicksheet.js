@@ -116,8 +116,15 @@
     $('qsCatLbl').textContent = cat ? cat.name : 'Category'; $('qsCatChip').classList.toggle('set', !!cat);
     $('qsCatChip').style.setProperty('--c', cat ? cat.color : 'transparent'); $('qsCat').value = e.catId || '';
     // Reminders (need a date)
-    const rem = REM.find(r => r[0] === st.rem);
-    $('qsRemLbl').textContent = st.rem !== '' ? (st.rem === '0' ? 'At time' : rem[1].replace(' before', '')) : 'Reminders';
+    // a reminder the chip's short list doesn't have (set in the full editor or by SI, e.g. "8 PM the night before") gets its own option
+    const sel = $('qsRem'); let xo = sel.querySelector('option[data-x]');
+    if (st.rem !== '' && !REM.some(r => r[0] === st.rem)) {
+      if (!xo) { xo = document.createElement('option'); xo.dataset.x = '1'; sel.append(xo); }
+      xo.value = st.rem; xo.textContent = window.SandyRem ? SandyRem.label(+st.rem) : `${st.rem} minutes before`;
+    } else if (xo) xo.remove();
+    const rem = REM.find(r => r[0] === st.rem) || [st.rem, xo ? xo.textContent : ''];
+    const more = st.remRest && st.remRest.length ? ` +${st.remRest.length}` : '';
+    $('qsRemLbl').textContent = st.rem !== '' ? (st.rem === '0' ? 'At time' : rem[1].replace(' before', '')) + more : 'Reminders';
     $('qsRemChip').classList.toggle('set', st.rem !== ''); $('qsRemChip').hidden = st.kind === 'note'; $('qsRem').value = st.rem;
     // where it goes
     const c = st.cal && a.cal(st.cal); $('qsCalLbl').textContent = c ? c.name : 'Inbox'; $('qsCalChip').style.setProperty('--c', c ? c.color : 'transparent'); $('qsCalChip').classList.toggle('set', !!c);
@@ -227,7 +234,7 @@
       st.cat = ev.todoCategoryId || '';
       st.cal = ev.calendar || '';
       const rems = Array.isArray(ev.reminders) ? ev.reminders : [];
-      st.rem = rems.length ? String(rems[0]) : '';
+      st.rem = rems.length ? String(rems[0]) : ''; st.remRest = rems.slice(1); // the chip edits the first; the rest are kept
       if (time) {
         // Keep natural-language time in the title chips by appending a readable time if not already present
         // Actual time is stored via st + parse; force via a hidden hint: put HH:MM into disabled-free parse by setting st and disabling auto time from title
@@ -245,7 +252,7 @@
       st.priority = (it.priority >= 1 && it.priority <= 3) ? it.priority : 4;
       st.cat = it.categoryId || '';
       st.cal = it.calendar || '';
-      st.rem = '';
+      st.rem = ''; st.remRest = [];
       st._editTime = null;
     }
     st.edit = edit; st.hideDone = !!(n.SubUI && n.SubUI.hideDone);
@@ -264,7 +271,7 @@
     if (!wasEdit) $('todoFab').focus({ preventScroll: true });
   }
   function reset() {
-    $('qsText').value = ''; $('qsDesc').value = ''; st.subs = []; st.subsOpen = false; st.origDate = null; st.disabled.clear(); st.date = undefined; st.priority = 4; st.cat = ''; st.rem = ''; st.kind = 'todo'; st._editTime = null; $('qsDate').value = '~';
+    $('qsText').value = ''; $('qsDesc').value = ''; st.subs = []; st.subsOpen = false; st.origDate = null; st.disabled.clear(); st.date = undefined; st.priority = 4; st.cat = ''; st.rem = ''; st.remRest = []; st.kind = 'todo'; st._editTime = null; $('qsDate').value = '~';
   }
 
   // ---------- submit (Enter or the send arrow); create keeps the sheet open, edit saves & closes
@@ -281,7 +288,7 @@
     const subs = st.kind === 'note' ? [] : st.subs.map(x => ({ ...x }));
     const ticksInChecks = !!(ef.date && st.kind !== 'note' && A().Store.checks && A().Store.checks.available);
     const opts = { raw, parsed: p, kind: st.kind, categoryId: ef.catId, calendar: st.cal || null, priority: ef.priority,
-      reminders: ef.date && st.rem !== '' ? [+st.rem] : [], description: SUBS().compose($('qsDesc').value, subs, !ticksInChecks), date: ef.date, time,
+      reminders: ef.date && st.rem !== '' ? [...new Set([+st.rem, ...(st.remRest || [])])].sort((x, y) => x - y).slice(0, 6) : [], description: SUBS().compose($('qsDesc').value, subs, !ticksInChecks), date: ef.date, time,
       subsDone: ticksInChecks ? subs.filter(x => x.done).map(x => x.key) : [] };
     if (st.edit) { // Enter in the task view: save now, put the keyboard away (Todoist). The Save pill also closes.
       const viaSave = !!(e && ((e.submitter && e.submitter.id === 'qsSend') || st.saveTap)); st.saveTap = false;
@@ -316,7 +323,7 @@
     const ticksInChecks = toTask && a.Store.checks && a.Store.checks.available;
     const subs = st.kind === 'note' ? [] : st.subs;
     return { raw, parsed: p, kind: st.kind, categoryId: ef.catId, calendar: st.cal || null, priority: ef.priority,
-      reminders: ef.date && st.rem !== '' ? [+st.rem] : [], description: S.compose($('qsDesc').value, subs, !ticksInChecks),
+      reminders: ef.date && st.rem !== '' ? [...new Set([+st.rem, ...(st.remRest || [])])].sort((x, y) => x - y).slice(0, 6) : [], description: S.compose($('qsDesc').value, subs, !ticksInChecks),
       date: ef.date, time, origDate: st.origDate || null, toTask, ticksInChecks, done: subs.filter(x => x.done).map(x => x.key) };
   }
   function sig() { const o = editOpts(); return o ? JSON.stringify([o.raw, o.kind, o.categoryId, o.calendar, o.priority, o.reminders, o.description, o.date, o.time, o.done]) : ''; }
@@ -615,7 +622,7 @@
     $('qsDatePick').addEventListener('change', e => { if (e.target.value) { st.date = e.target.value; paint(); if (st.edit) persist(); } });
     $('qsPri').addEventListener('change', e => { st.priority = +e.target.value; const p = st.p; if (p && p.priority) { const t = p.tokens.find(x => x.kind === 'priority'); if (t) st.disabled.add(t.key); } paint(); if (st.edit) persist(); });
     $('qsCat').addEventListener('change', e => { if (e.target.value === '__new__') { newCategory(); return; } st.cat = e.target.value; const p = st.p; if (p && p.category) { const t = p.tokens.find(x => x.kind === 'category'); if (t) st.disabled.add(t.key); } paint(); if (st.edit) persist(); });
-    $('qsRem').addEventListener('change', e => { st.rem = e.target.value; if (st.rem !== '' && !effective(st.p || parsed()).date) st.date = today(); paint(); if (st.edit) persist(); });
+    $('qsRem').addEventListener('change', e => { st.rem = e.target.value; if (st.rem === '') st.remRest = []; if (st.rem !== '' && !effective(st.p || parsed()).date) st.date = today(); paint(); if (st.edit) persist(); });
     $('qsCal').addEventListener('change', e => { st.cal = e.target.value; paint(); if (st.edit) persist(); });
     $('qsMore').addEventListener('change', async e => {
       const v = e.target.value; e.target.value = '';

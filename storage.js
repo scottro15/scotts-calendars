@@ -15,6 +15,37 @@
  */
 (function () {
   'use strict';
+
+  /* Reminders live in events.reminders int[] (DB check: at most 6, each 0..267840).
+   * - "X before": minutes before the start (all-day: before 9:00 AM). The editor only makes values up to
+   *   999 hours (59,940) or whole days/weeks/months (multiples of 1440).
+   * - "at a set time" (Scott 2026-11-02, 2B: "8 PM the night before"): days before (0..30) + a clock time.
+   *   Stored as a code in the gap the editor never uses (>60480, not a multiple of 1440), so no migration:
+   *   i = days*1440 + minuteOfDay; code = 60480 + floor(i/1439)*1440 + i%1439 + 1. send-reminders decodes it. */
+  const REM_FIX_BASE = 60480, REM_FIX_DAYS = 30;
+  const remIsFixed = c => Number.isInteger(c) && c > REM_FIX_BASE && c <= 267840 && c % 1440 !== 0;
+  const remFixed = (days, minute) => {
+    const d = Math.max(0, Math.min(REM_FIX_DAYS, Math.round(+days || 0))), m = Math.max(0, Math.min(1439, Math.round(+minute || 0)));
+    const i = d * 1440 + m; return REM_FIX_BASE + Math.floor(i / 1439) * 1440 + (i % 1439) + 1;
+  };
+  const remDecode = c => {
+    if (!remIsFixed(c)) return null;
+    const k = c - REM_FIX_BASE, i = Math.floor(k / 1440) * 1439 + (k % 1440) - 1;
+    const days = Math.floor(i / 1440); return days > REM_FIX_DAYS ? null : { days, minute: i % 1440 };
+  };
+  const remHM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const remClock = m => (window.SandyTime ? window.SandyTime.fmtHM(remHM(m)) : (() => { const h = Math.floor(m / 60), mm = m % 60; return `${h % 12 || 12}:${String(mm).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; })());
+  const remDayWord = (d, night) => d === 0 ? 'the same day' : d === 1 ? (night ? 'the night before' : 'the day before') : `${d} days before`;
+  /** "30 minutes before" / "At the start" / "8:00 PM the night before" / "9:00 AM 2 days before" */
+  function remLabel(c) {
+    const f = remDecode(c);
+    if (f) return `${remClock(f.minute)} ${remDayWord(f.days, f.minute >= 17 * 60)}`;
+    if (!c) return 'At the start';
+    const U = [[44640, 'month'], [10080, 'week'], [1440, 'day'], [60, 'hour'], [1, 'minute']];
+    for (const [n, w] of U) if (c % n === 0) { const k = c / n; return `${k} ${w}${k === 1 ? '' : 's'} before`; }
+    return `${c} minutes before`;
+  }
+  window.SandyRem = { FIX_BASE: REM_FIX_BASE, FIX_DAYS: REM_FIX_DAYS, isFixed: remIsFixed, fixed: remFixed, decode: remDecode, label: remLabel, hm: remHM };
   const KEY = 'scottcal.events.v1';
   const SETTINGS_KEY = 'scottcal.settings.v1';
   const CATS_KEY = 'scottcal.categories.v1';
@@ -63,6 +94,8 @@
     // Checklist ticks ('- [ ]' lines in notes), one row per (event_id, occurrence_date).
     async loadChecks() { return readJSON(CHECKS_KEY, []); },
     async loadLinks() { return readJSON(LINKS_KEY, []); },
+    async upsertLink(l) { const all = readJSON(LINKS_KEY, []).filter(x => !(x.eventId === l.eventId && x.date === l.date)); all.push(l); localStorage.setItem(LINKS_KEY, JSON.stringify(all)); return l; },
+    async deleteLink(eventId, date) { localStorage.setItem(LINKS_KEY, JSON.stringify(readJSON(LINKS_KEY, []).filter(x => !(x.eventId === eventId && x.date === date)))); },
     async upsertChecks(c) { const all = readJSON(CHECKS_KEY, []).filter(x => !(x.eventId === c.eventId && x.date === c.date)); all.push(c); localStorage.setItem(CHECKS_KEY, JSON.stringify(all)); return c; },
     async deleteNote(eventId, date) { localStorage.setItem(NOTES_KEY, JSON.stringify(readJSON(NOTES_KEY, []).filter(x => !(x.eventId === eventId && x.date === date)))); },
     ...deviceSettings,
@@ -247,6 +280,9 @@
         const rows = must(await sb.from('occurrence_links').select('event_id,occurrence_date,notion_url'));
         return rows.map(r => ({ eventId: r.event_id, date: r.occurrence_date, url: r.notion_url }));
       },
+      // SI can set a date's Notion link (2026-11-02, item 5); owner_id comes from the table's trigger
+      async upsertLink(l) { must(await sb.from('occurrence_links').upsert({ event_id: l.eventId, occurrence_date: l.date, notion_url: l.url }, { onConflict: 'event_id,occurrence_date' })); return l; },
+      async deleteLink(eventId, date) { must(await sb.from('occurrence_links').delete().eq('event_id', eventId).eq('occurrence_date', date)); },
       async upsertChecks(c) {
         must(await sb.from('occurrence_checks').upsert({ event_id: c.eventId, occurrence_date: c.date, checked: c.checked }, { onConflict: 'event_id,occurrence_date' }));
         return c;
@@ -282,7 +318,8 @@
     let cats = null;
     const NOTES = keeper('notes', () => adapter.loadNotes());
     const CHECKS = keeper('checks', () => adapter.loadChecks());
-    const LINKS = keeper('links', () => adapter.loadLinks ? adapter.loadLinks() : [], rows => rows.filter(l => /^https:\/\/([a-z0-9-]+\.)*notion\.(so|com|site)\//i.test(l.url || '')));
+    const NOTION_OK = u => /^https:\/\/([a-z0-9-]+\.)*notion\.(so|com|site)\//i.test(u || '');
+    const LINKS = keeper('links', () => adapter.loadLinks ? adapter.loadLinks() : [], rows => rows.filter(l => NOTION_OK(l.url)));
     const listeners = new Set();
     const remote = adapter.name !== 'local';
     const emit = (why) => listeners.forEach(fn => { try { fn(why); } catch (e) { console.error(e); } });
@@ -464,6 +501,17 @@
         available: true,
         async all() { const r = await LINKS.get(); this.available = LINKS.available; return r; },
         async get(eventId, date) { const l = (await this.all()).find(x => x.eventId === eventId && x.date === date); return l ? l.url : null; },
+        /** Set or ('' / null) remove a date's Notion link. Only notion.so / notion.com / notion.site https links. */
+        async set(eventId, date, url) {
+          const list = await this.all(); url = String(url || '').trim();
+          if (url && !NOTION_OK(url)) throw new Error('That isn’t a Notion link (https://…notion.so/…)');
+          const i = list.findIndex(x => x.eventId === eventId && x.date === date);
+          if (!url) { if (i >= 0) { await adapter.deleteLink(eventId, date); list.splice(i, 1); if (remote) snapSave('links', list); } return null; }
+          const l = await adapter.upsertLink({ eventId, date, url });
+          if (i >= 0) list[i] = l; else list.push(l);
+          if (remote) snapSave('links', list);
+          return l;
+        },
         invalidate() { LINKS.stale(); },
       },
       onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },

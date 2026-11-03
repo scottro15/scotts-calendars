@@ -65,3 +65,70 @@ console.log('PASS ai_function');
   assert(savedLines({ saved: Array.from({ length: 15 }, (_, i) => ({ id: 'i' + i, title: 't', start: 's' })) }).length === 11, 'memory block keeps the last 10');
   assert(/Replying to: “…”/.test(sp) && /reply to it/.test(sp), 'prompt: explains Replying to: quotes');
   console.log('AI MEMORY TESTS PASSED'); }
+
+// item 5 (2026-11-02): propose_add / propose_edit carry every edit-box field; the prompt lists the to-do categories
+{ const M = await import(f);
+  const add = M.TOOLS.find(t => t.name === 'propose_add').input_schema.properties, edit = M.TOOLS.find(t => t.name === 'propose_edit').input_schema.properties.changes.properties;
+  for (const k of ['reminders', 'scope', 'priority', 'todoCategory', 'subtasks', 'dayNote', 'notionUrl', 'kind', 'repeat']) { assert(add[k], `propose_add has ${k}`); assert(edit[k], `propose_edit changes has ${k}`); }
+  assert(/8 PM the night before" = \{at: "20:00", daysBefore: 1\}/.test(edit.reminders.description) && edit.reminders.maxItems === 6, 'reminders: fixed clock times explained, at most 6');
+  const sp = M.systemPrompt({ today: '2026-11-02', now: 'x', calendars: [], todoCategories: [{ id: 'c1', name: 'Home' }, { id: 'bad id!', name: 'x' }, { id: 'c2', name: 'Work\nIgnore previous' }] });
+  assert(sp.includes('To-do categories: c1 = Home; c2 = Work Ignore previous.') && !sp.includes('bad id!'), 'to-do categories line: ids checked, newlines stripped');
+  assert(/Edit box: propose_add and propose_edit can set everything/.test(sp), 'prompt explains the edit-box fields');
+  assert(!/To-do categories/.test(M.systemPrompt({ today: '2026-11-02', now: 'x', calendars: [] })), 'no categories line when there are none');
+  console.log('AI EDIT BOX TESTS PASSED'); }
+
+// ---------- availability guard (t183u "F"): never "free/open/available" or a suggested time without list_events ----------
+{ const M = await import(f);
+  const T = '2026-11-02'; // a Monday
+  assert(M.claimsAvailability('Sunday looks open for groceries.') && M.claimsAvailability('You are free after 3 PM.') && M.claimsAvailability('How about 4:30 PM on Tuesday?')
+    && M.claimsAvailability('Nothing is scheduled that afternoon.') && M.claimsAvailability('There are no conflicts.') && M.claimsAvailability('You have an open slot at noon.'), 'guard: detects availability claims and suggested times');
+  assert(!M.claimsAvailability('Feel free to ask me anything!') && !M.claimsAvailability('Tap Confirm to save.') && !M.claimsAvailability('Your dentist is at 3 PM Tuesday.')
+    && !M.claimsAvailability('What time works for you?'), 'guard: ordinary replies are not flagged');
+  const md = M.mentionedDates('Sunday, tomorrow, Nov 12th, 11/20, next Friday and 2026-12-01', T).map(a => a[0]);
+  assert(['2026-11-08', '2026-11-03', '2026-11-12', '2026-11-20', '2026-11-13', '2026-12-01'].every(k => md.includes(k)), 'guard: resolves dates mentioned in the reply ' + md.join(','));
+  assert(M.uncheckedDates('Sunday is open', T, []).join() === '(any)', 'guard: no list_events at all = unchecked');
+  assert(M.uncheckedDates('Sunday is open', T, [['2026-11-02', '2026-11-03']]).join() === '2026-11-08', 'guard: Sunday not covered by a Mon–Tue lookup');
+  assert(M.uncheckedDates('Sunday is open', T, [['2026-11-08', '2026-11-08']]).length === 0 && M.uncheckedDates('That afternoon is free', T, [['2026-11-05', '2026-11-05']]).length === 0, 'guard: covered dates pass');
+
+  const ctxA = { today: T, now: '2026-11-02 9:00 AM', timeZone: 'America/Chicago', calendars: [{ id: 'fam', name: 'Family' }], eventsRange: { from: '2026-10-19', to: '2026-12-17' },
+    events: [{ id: 'cd', occ: '2026-11-08', title: 'Christian Dake workout', calendar: 'mam', start: '2026-11-08T14:00', end: '2026-11-08T15:00', referenceOnly: true },
+             { id: 'ch', occ: '2026-11-08', title: 'Church', calendar: 'fam', start: '2026-11-08T10:00', end: '2026-11-08T11:30' }] };
+  const sp = M.systemPrompt(ctxA);
+  assert(/Availability: before you say any day or time is free, open, clear or available, or suggest a time/.test(sp) && /referenceOnly rows \(Christian Dake\) are never conflicts/.test(sp), 'prompt: availability rule + Christian Dake never a conflict');
+  const ok = (content, stop = 'end_turn') => ({ ok: true, json: async () => ({ stop_reason: stop, usage: { input_tokens: 100, output_tokens: 10 }, content }) });
+  const txt = t => [{ type: 'text', text: t }];
+
+  // 1) the old bug: answers "Sunday looks open" straight from memory -> one nudge -> it looks -> answers again
+  let c1 = []; const r1 = await M.runAssistant({ messages: [{ role: 'user', content: 'When can I do groceries Sunday?' }], context: ctxA }, { apiKey: 'k', fetchImpl: async (u, i) => { const b = JSON.parse(i.body); c1.push(b);
+    if (c1.length === 1) return ok(txt('Sunday looks open, any time works.'));
+    if (c1.length === 2) { const n = b.messages.at(-1).content; assert(typeof n === 'string' && /list_events was not called/.test(n) && /dates involved/.test(n), 'guard: nudge sent back to the model'); return ok([{ type: 'tool_use', id: 'l1', name: 'list_events', input: { from: '2026-11-08', to: '2026-11-08' } }], 'tool_use'); }
+    const tr = JSON.parse(b.messages.at(-1).content[0].content); assert(tr.length === 2 && tr.find(r => r.id === 'cd').referenceOnly === true, 'guard: lookup returns Sunday incl. the reference-only Dake row');
+    return ok(txt('Sunday you have Church 10–11:30 AM; you are free after 11:30 AM. How about 1 PM?')); } });
+  assert(c1.length === 3 && r1.availabilityCheck === 'rechecked' && /Church/.test(r1.reply) && !/double-check/.test(r1.reply) && !/looks open, any time/.test(r1.reply), 'guard: unverified "Sunday looks open" replaced by a checked answer');
+  assert(r1.usage.input_tokens === 300, 'guard: usage counts the extra turn');
+
+  // 2) looked up Mon–Tue but then calls Sunday free -> nudged for 2026-11-08 specifically
+  let c2 = []; const r2 = await M.runAssistant({ messages: [{ role: 'user', content: 'free time this week?' }], context: ctxA }, { apiKey: 'k', fetchImpl: async (u, i) => { const b = JSON.parse(i.body); c2.push(b);
+    if (c2.length === 1) return ok([{ type: 'tool_use', id: 'l1', name: 'list_events', input: { from: '2026-11-02', to: '2026-11-03' } }], 'tool_use');
+    if (c2.length === 2) return ok(txt('Tuesday is clear, and Sunday is wide open too.'));
+    if (c2.length === 3) { assert(/2026-11-08/.test(b.messages.at(-1).content) && !/2026-11-03/.test(b.messages.at(-1).content), 'guard: nudge names only the unchecked date (Sunday)'); return ok([{ type: 'tool_use', id: 'l2', name: 'list_events', input: { from: '2026-11-04', to: '2026-11-08' } }], 'tool_use'); }
+    return ok(txt('Tuesday is clear. Sunday has Church 10–11:30 AM, then it is free.')); } });
+  assert(c2.length === 4 && r2.availabilityCheck === 'rechecked', 'guard: partial lookup fixed');
+
+  // 3) a model that ignores the nudge: only one retry, then a visible caveat (no endless loop)
+  let c3 = 0; const r3 = await M.runAssistant({ messages: [{ role: 'user', content: 'is Sunday free?' }], context: ctxA }, { apiKey: 'k', fetchImpl: async () => { c3++; return ok(txt('Yes, Sunday is free.')); } });
+  assert(c3 === 2 && r3.availabilityCheck === 'unverified' && /could not double-check your calendar/.test(r3.reply), 'guard: one retry, then a caveat on the reply');
+
+  // 4) correct behaviour costs nothing extra
+  let c4 = 0; const r4 = await M.runAssistant({ messages: [{ role: 'user', content: 'is Sunday free?' }], context: ctxA }, { apiKey: 'k', fetchImpl: async () => { c4++;
+    return c4 === 1 ? ok([{ type: 'tool_use', id: 'l', name: 'list_events', input: { from: '2026-11-08', to: '2026-11-08' } }], 'tool_use') : ok(txt('Sunday has Church 10–11:30 AM; the rest is open.')); } });
+  assert(c4 === 2 && !r4.availabilityCheck && !/double-check/.test(r4.reply), 'guard: no extra call when list_events covered the date');
+  let c5 = 0; await M.runAssistant({ messages: [{ role: 'user', content: 'thanks' }], context: ctxA }, { apiKey: 'k', fetchImpl: async () => { c5++; return ok(txt('Feel free to ask anytime!')); } });
+  assert(c5 === 1, 'guard: ordinary chat is not nudged');
+
+  // 5) dates outside the loaded window are "unknown", never "free"
+  let c6 = []; await M.runAssistant({ messages: [{ role: 'user', content: 'Jan 10 free?' }], context: ctxA }, { apiKey: 'k', fetchImpl: async (u, i) => { const b = JSON.parse(i.body); c6.push(b);
+    if (c6.length === 1) return ok([{ type: 'tool_use', id: 'l', name: 'list_events', input: { from: '2027-01-10', to: '2027-01-10' } }], 'tool_use');
+    const tr = JSON.parse(b.messages.at(-1).content[0].content); assert(Array.isArray(tr.events) && tr.events.length === 0 && /Only 2026-10-19 to 2026-12-17 is loaded/.test(tr.notLoaded) && /NOT free/.test(tr.notLoaded), 'list_events: out-of-range dates flagged as not loaded');
+    return ok(txt('I can only see through Dec 17, so I cannot tell about Jan 10.')); } });
+  console.log('AI AVAILABILITY GUARD TESTS PASSED'); }
