@@ -1074,20 +1074,76 @@
   // Keep the editor's Save bar above the on-screen keyboard (t148u). iPad Safari (and Android Chrome 108+) only shrink
   // the *visual* viewport when the keyboard opens, so the centred sheet's bottom (Save) sat behind the keyboard.
   // While the keyboard is up, the sheet is top-aligned in the visible area and capped to its height (it scrolls).
-  (function fitEditorToKeyboard() {
+  // t184u: the same now applies to every open dialog with a focused field (inbox Note / To-do) and the SI sheet, and
+  // the focused field + its caret line are kept in the visible part (above the keyboard and the sticky Save bar):
+  // on focus, on typing, on caret moves and while the keyboard animates. A tall textarea (Today's Note is 7–14 lines)
+  // is capped to the room above the keyboard so it scrolls inside itself instead of running under the keyboard.
+  (function keyboardFit() {
     const vv = window.visualViewport; if (!vv) return;
-    const reset = () => { if (!dlg.classList.contains('kb-fit')) return; dlg.classList.remove('kb-fit'); dlg.style.maxHeight = dlg.style.marginTop = dlg.style.marginBottom = ''; };
-    const apply = () => {
-      if (!dlg.open) return reset();
-      const kb = window.innerHeight - vv.height;
-      if (kb < 120) return reset();
-      dlg.classList.add('kb-fit');
-      dlg.style.maxHeight = Math.max(240, Math.round(vv.height - 16)) + 'px';
-      dlg.style.marginTop = Math.round(vv.offsetTop + 8) + 'px'; dlg.style.marginBottom = 'auto';
-    };
-    vv.addEventListener('resize', apply); vv.addEventListener('scroll', apply);
-    dlg.addEventListener('close', reset);
-    window.__fitEditor = apply; // tests
+    const TEXT = 'textarea, input:not([type]), input[type=text], input[type=search], input[type=url], input[type=email], input[type=tel], input[type=number], [contenteditable=""], [contenteditable="true"]';
+    const isText = el => !!(el && el.nodeType === 1 && el.matches(TEXT) && !el.readOnly && !el.disabled);
+    const kbUp = () => window.innerHeight - vv.height >= 120;
+    const fitted = new Set();
+    const unfit = el => { el.classList.remove('kb-fit'); el.style.maxHeight = el.style.marginTop = el.style.marginBottom = el.style.top = el.style.height = el.style.bottom = ''; fitted.delete(el); };
+    const uncap = ta => { if (ta && ta.dataset.kbCap) { ta.style.maxHeight = ta.style.minHeight = ''; delete ta.dataset.kbCap; } };
+    let capped = null;
+    function fit() {
+      const act = document.activeElement; const want = new Set();
+      if (kbUp()) {
+        const d = (act && act.closest && act.closest('dialog[open]')) || (dlg.open ? dlg : null);
+        if (d) want.add(d);
+        const ai = document.getElementById('aiSheet'); if (ai && !ai.hidden) want.add(ai);
+      }
+      for (const el of [...fitted]) if (!want.has(el) || !el.isConnected) unfit(el);
+      for (const el of want) {
+        el.classList.add('kb-fit'); fitted.add(el);
+        if (el.tagName === 'DIALOG') { el.style.maxHeight = Math.max(240, Math.round(vv.height - 16)) + 'px'; el.style.marginTop = Math.round(vv.offsetTop + 8) + 'px'; el.style.marginBottom = 'auto'; }
+        else { el.style.top = Math.round(vv.offsetTop) + 'px'; el.style.height = Math.round(vv.height) + 'px'; el.style.bottom = 'auto'; } // SI sheet = the visible area
+      }
+    }
+    const scroller = el => { for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) { const o = getComputedStyle(p).overflowY; if ((o === 'auto' || o === 'scroll') && p.scrollHeight > p.clientHeight + 1) return p; } return null; };
+    // caret line of a textarea, relative to its border box top (mirror div; only used when the field can't fit whole)
+    function caretBox(ta) {
+      const cs = getComputedStyle(ta), m = caretBox.m || (caretBox.m = document.createElement('div'));
+      m.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;top:0;white-space:pre-wrap;overflow-wrap:break-word;box-sizing:border-box;';
+      for (const k of ['width', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'borderStyle', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight', 'textTransform', 'wordSpacing', 'tabSize']) m.style[k] = cs[k];
+      m.textContent = ta.value.slice(0, ta.selectionEnd == null ? ta.value.length : ta.selectionEnd); const s = document.createElement('span'); s.textContent = '\u200b'; m.appendChild(s);
+      document.body.appendChild(m); const top = s.offsetTop - ta.scrollTop, h = s.offsetHeight || parseFloat(cs.lineHeight) || 20; m.remove();
+      return { top, bottom: top + h };
+    }
+    function ensure(el) {
+      if (!isText(el) || !el.isConnected || !el.offsetParent) return;
+      const sc = scroller(el); const kb = kbUp();
+      let top = vv.offsetTop + 6, bot = vv.offsetTop + vv.height - 6;
+      if (sc) {
+        const r = sc.getBoundingClientRect(); top = Math.max(top, r.top + 6); bot = Math.min(bot, r.bottom - 6);
+        for (const f of sc.querySelectorAll('.dialog-actions')) { if (getComputedStyle(f).position !== 'sticky' || f.contains(el)) continue; const fr = f.getBoundingClientRect(); if (fr.height && fr.top < bot && fr.bottom > top) bot = Math.min(bot, fr.top - 6); }
+      }
+      if (el.tagName === 'TEXTAREA') {
+        if (kb && sc) {
+          if (capped && capped !== el) uncap(capped);
+          if (!el.dataset.kbCap) el.dataset.kbCap = '1';
+          const room = Math.max(72, Math.floor(bot - top - 8));
+          el.style.maxHeight = room + 'px'; el.style.minHeight = Math.min(room, parseFloat(getComputedStyle(el).minHeight) || 0) + 'px'; capped = el;
+        } else if (!kb) uncap(el);
+      }
+      const r = el.getBoundingClientRect();
+      let a = r.top, b = r.bottom;
+      if (r.height > bot - top && el.tagName === 'TEXTAREA') { const c = caretBox(el); a = r.top + Math.max(0, c.top) - 8; b = r.top + Math.min(r.height, c.bottom) + 8; }
+      const d = b > bot ? b - bot : (a < top ? a - top : 0);
+      if (!d) return;
+      if (sc) sc.scrollTop += d; else if (!el.closest('dialog, .ai-sheet, .qs-sheet')) window.scrollBy(0, d);
+    }
+    let raf = 0;
+    const later = () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; fit(); ensure(document.activeElement); }); };
+    const onVV = () => { fit(); ensure(document.activeElement); };
+    vv.addEventListener('resize', onVV); vv.addEventListener('scroll', onVV);
+    document.addEventListener('focusin', e => { if (isText(e.target)) { later(); setTimeout(later, 320); } });
+    document.addEventListener('focusout', e => { if (e.target === capped) { uncap(capped); capped = null; } setTimeout(() => { if (!isText(document.activeElement)) fit(); }, 0); });
+    document.addEventListener('input', e => { if (isText(e.target) && e.target === document.activeElement) later(); });
+    document.addEventListener('selectionchange', () => { if (isText(document.activeElement) && kbUp()) later(); });
+    dlg.addEventListener('close', () => { if (fitted.has(dlg)) unfit(dlg); if (capped && dlg.contains(capped)) { uncap(capped); capped = null; } });
+    window.__fitEditor = onVV; window.__kbEnsure = () => { fit(); ensure(document.activeElement); }; // tests
   })();
   const form = document.getElementById('eventForm');
   const f = name => form.elements[name];

@@ -469,6 +469,8 @@ html, body { overscroll-behavior-x: none; }
 .ai-panel { position: absolute; left: 0; right: 0; bottom: 0; max-width: 640px; margin: 0 auto; height: min(88vh, 760px); height: min(88dvh, 760px);
   background: #fff; color: #111827; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; box-shadow: 0 -8px 30px rgba(0,0,0,.25);
   padding-bottom: env(safe-area-inset-bottom); }
+/* t184u: keyboard up = the SI sheet is the visible area above it (app.js keyboardFit); the panel fills it so the input stays visible */
+.ai-sheet.kb-fit .ai-panel { top: 6px; height: auto; padding-bottom: 0; border-radius: 16px; }
 .ai-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #e5e7eb; font-size: 17px; }
 .ai-x { background: none; border: 0; font-size: 20px; color: #111827; padding: 4px 8px; }
 .ai-quick { padding: 8px 14px 0; display: flex; gap: 8px; }
@@ -1567,6 +1569,8 @@ html.dark .qs-sheet { background: var(--qs-bg); box-shadow: 0 -8px 30px rgba(0, 
 .qs-grab:active::before, .qs-sheet.dragging .qs-grab::before { width: 44px; background: var(--qs-ph, var(--muted)); }
 .qs-grab:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: -2px; }
 /* drag the handle up = full screen (phones; t179u). Height animates between half and full; reduced motion snaps. */
+/* t184u: a new to-do with a long description / many sub-tasks never grows past the top of the screen above the keyboard; it scrolls */
+.qs-sheet { max-height: calc(100% - var(--kb, 0px) - max(36px, env(safe-area-inset-top))); overflow-y: auto; overscroll-behavior: contain; }
 .qs-sheet.qs-full, .qs-sheet.qs-full.qs-editing { max-height: none; }
 .qs-sheet.qs-full { height: calc(100% - var(--kb, 0px) - max(12px, env(safe-area-inset-top))); max-height: none; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
 .qs-sheet.qs-full form { flex: 1 0 auto; }

@@ -125,6 +125,8 @@ html.lay-tablet #eventDialog.anim-in, html.lay-tablet dialog.anim-in { animation
 html.lay-tablet #eventDialog.closing, html.lay-tablet dialog.closing { animation: tt-pop-out 180ms cubic-bezier(.4, 0, 1, 1) forwards; transform-origin: 50% 50% !important; }
 html.lay-tablet .ai-panel { left: 50%; right: auto; bottom: auto; top: 50%; width: min(640px, calc(100vw - 64px)); transform: translate(-50%, -50%); border-radius: 20px; height: min(80vh, 760px); }
 html.lay-tablet .ai-sheet.ai-anim .ai-panel, html.lay-tablet .ai-sheet.ai-closing .ai-panel { animation: none; }
+/* t184u: keyboard up = the sheet is the visible area above it; the centred panel fills it (input + Send above the keyboard) */
+html.lay-tablet .ai-sheet.kb-fit .ai-panel { top: 8px; bottom: 8px; height: auto; transform: translateX(-50%); }
 html.lay-tablet body:not(.tab-todo) .qs-sheet { top: 50%; bottom: auto !important; left: 50%; right: auto; width: min(600px, calc(100vw - 64px)); border-radius: 20px;
   padding-bottom: 14px; transform: translate(-50%, -46%) scale(.96); opacity: 0; transition: transform .28s cubic-bezier(.2, .9, .25, 1), opacity .22s ease; }
 html.lay-tablet body:not(.tab-todo) .qs-sheet.open { transform: translate(-50%, -50%); opacity: 1; }
