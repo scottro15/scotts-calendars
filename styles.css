@@ -1523,7 +1523,20 @@ html.dark .qs-backdrop { background: rgba(0, 0, 0, .55); }
 .qs-sheet.open { transform: translateY(0); }
 .qs-sheet.dragging { transition: none; }
 html.dark .qs-sheet { background: var(--qs-bg); box-shadow: 0 -8px 30px rgba(0, 0, 0, .5); border-top: 1px solid var(--qs-line); }
-.qs-grab { width: 36px; height: 5px; border-radius: 3px; background: var(--qs-line); margin: 2px auto 6px; }
+.qs-grab { display: block; width: 72px; height: 24px; margin: -6px auto -5px; padding: 0; border: 0; border-radius: 12px; background: transparent; box-shadow: none; cursor: grab; touch-action: none; -webkit-tap-highlight-color: transparent; position: relative; z-index: 4; }
+.qs-sheet .qs-grab, html.dark .qs-sheet .qs-grab, .qs-sheet .qs-grab:hover, html.dark .qs-sheet .qs-grab:hover { background: transparent; border: 0; box-shadow: none; min-height: 0; }
+.qs-grab::before { content: ''; display: block; width: 36px; height: 5px; border-radius: 3px; background: var(--qs-line); margin: 8px auto 0; transition: width .2s ease, background-color .2s ease; }
+.qs-grab:active::before, .qs-sheet.dragging .qs-grab::before { width: 44px; background: var(--qs-ph, var(--muted)); }
+.qs-grab:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: -2px; }
+/* drag the handle up = full screen (phones; t179u). Height animates between half and full; reduced motion snaps. */
+.qs-sheet.qs-full, .qs-sheet.qs-full.qs-editing { max-height: none; }
+.qs-sheet.qs-full { height: calc(100% - var(--kb, 0px) - max(12px, env(safe-area-inset-top))); max-height: none; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
+.qs-sheet.qs-full form { flex: 1 0 auto; }
+.qs-sheet.qs-full:not(.qs-editing) .qs-foot { margin-top: auto; }
+.qs-sheet.qs-full textarea.qs-desc { min-height: 96px; }
+.qs-sheet.qs-resizing { transition: height .28s cubic-bezier(.2, .9, .25, 1), transform .3s cubic-bezier(.2, .9, .25, 1), bottom .12s ease; overflow: hidden; }
+.qs-sheet.dragging, .qs-sheet.qs-resizing, .qs-sheet.qs-editing.dragging, .qs-sheet.qs-editing.qs-resizing { max-height: none; }
+@media (prefers-reduced-motion: reduce) { .qs-sheet.qs-resizing, .qs-grab::before { transition: none !important; } }
 .qs-sheet form { display: flex; flex-direction: column; gap: 2px; margin: 0; }
 .qs-field { display: flex; }
 .qs-sheet .qs-field #qsText, .qs-hl { font: inherit; font-size: 20px; font-weight: 700; line-height: 1.3; padding: 6px 0 4px; letter-spacing: -.015em; }

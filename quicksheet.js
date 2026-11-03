@@ -40,7 +40,7 @@
     const bd = document.createElement('div'); bd.id = 'qsBackdrop'; bd.className = 'qs-backdrop'; bd.hidden = true;
     const sh = document.createElement('div'); sh.id = 'qsSheet'; sh.className = 'qs-sheet'; sh.hidden = true;
     sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-modal', 'true'); sh.tabIndex = -1; sh.setAttribute('aria-label', 'Quick add');
-    sh.innerHTML = `<div class="qs-grab" aria-hidden="true"></div>
+    sh.innerHTML = `<button type="button" class="qs-grab" id="qsGrab" aria-label="Expand to full screen" aria-expanded="false"></button>
       <form id="qsForm" autocomplete="off" novalidate>
         <div class="qs-title-row"><button type="button" id="qsCheck" class="qs-check" role="checkbox" aria-checked="false" aria-label="Complete" hidden><span></span></button>
         <div class="qa-field qs-field"><div id="qsHl" class="qa-hl qs-hl" aria-hidden="true"></div><textarea id="qsText" name="task-title" class="qs-title" rows="1" maxlength="2000" placeholder="Task name" aria-label="Task name" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" enterkeyhint="send"></textarea></div></div>
@@ -181,6 +181,7 @@
   function showSheet(focus) {
     st.open = true; const sh = $('qsSheet'), bd = $('qsBackdrop');
     fillSelects(); syncEditChrome();
+    clearTimeout(st.fullT); sh.classList.remove('qs-full', 'qs-resizing'); sh.style.height = ''; syncGrab(); // every open starts at half
     sh.hidden = false; bd.hidden = false; sh.style.transform = '';
     document.body.classList.add('qs-open');
     if (focus) $('qsText').focus({ preventScroll: true }); else if (st.edit) sh.focus({ preventScroll: true });
@@ -258,7 +259,7 @@
     const ae = document.activeElement; if (ae && sh.contains(ae)) ae.blur();
     sh.classList.remove('open'); bd.classList.remove('open'); document.body.classList.remove('qs-open');
     const wasEdit = !!st.edit;
-    const done = () => { if (!st.open) { sh.hidden = true; bd.hidden = true; sh.style.transform = ''; if (wasEdit) { st.edit = null; reset(); syncEditChrome(); } } };
+    const done = () => { if (!st.open) { sh.hidden = true; bd.hidden = true; sh.style.transform = ''; sh.style.height = ''; sh.classList.remove('qs-full', 'qs-resizing'); syncGrab(); if (wasEdit) { st.edit = null; reset(); syncEditChrome(); } } };
     clearTimeout(st.hideT); if (reduce()) done(); else st.hideT = setTimeout(done, 280);
     if (!wasEdit) $('todoFab').focus({ preventScroll: true });
   }
@@ -497,23 +498,67 @@
     } catch (err) { A().toast(err.message || String(err)); $('qsCat').value = st.cat || ''; }
   }
 
-  // ---------- swipe the sheet down to dismiss
+  // ---------- drag the sheet: up = full screen, down = back to half / dismiss (Scott 2026-11-02, t179u)
+  // Phones only: on tablets the To-Do sheet is already a full-height side pane (and a centred card elsewhere).
+  const phoneSheet = () => !document.documentElement.classList.contains('lay-tablet');
+  const isFull = () => $('qsSheet').classList.contains('qs-full');
+  function fullH() { const sh = $('qsSheet'); const k = parseFloat(sh.style.getPropertyValue('--kb')) || 0; const top = Math.max(12, safeTop()); return Math.round(window.innerHeight - k - top); }
+  function safeTop() { const t = document.createElement('div'); t.style.cssText = 'position:fixed;top:0;height:env(safe-area-inset-top);visibility:hidden'; document.body.appendChild(t); const h = t.offsetHeight; t.remove(); return h; }
+  function halfH() { const sh = $('qsSheet'); const was = isFull(), ih = sh.style.height; sh.classList.remove('qs-full'); sh.style.height = ''; const h = sh.offsetHeight; if (was) sh.classList.add('qs-full'); sh.style.height = ih; return h; }
+  function syncGrab() { const g = $('qsGrab'); if (!g) return; const f = isFull(); g.setAttribute('aria-expanded', String(f)); g.setAttribute('aria-label', f ? 'Back to half screen' : 'Expand to full screen'); }
+  // animate the height from the current px to the target state; reduced motion just snaps
+  function setFull(on, fromH) {
+    const sh = $('qsSheet'); if (!phoneSheet()) on = false;
+    const h0 = fromH != null ? fromH : sh.offsetHeight;
+    const target = on ? fullH() : halfH();
+    const finish = () => { sh.classList.remove('qs-resizing'); sh.style.height = ''; sh.classList.toggle('qs-full', on); syncGrab(); kb(); };
+    clearTimeout(st.fullT);
+    if (reduce() || Math.abs(target - h0) < 2) { sh.style.transform = ''; finish(); return; }
+    sh.classList.add('qs-resizing'); sh.classList.toggle('qs-full', on); sh.style.height = h0 + 'px'; sh.style.transform = '';
+    void sh.offsetHeight; sh.style.height = target + 'px';
+    st.fullT = setTimeout(finish, 300);
+    syncGrab();
+  }
   function swipe() {
-    const sh = $('qsSheet'); let y0 = null, dy = 0, t0 = 0;
+    const sh = $('qsSheet'); let y0 = null, dy = 0, t0 = 0, h0 = 0, hHalf = 0, hMax = 0, mode = null, full = false;
     sh.addEventListener('touchstart', e => {
       if (e.touches.length !== 1 || e.target.closest('input, select, textarea, .qs-send, .qs-subs, .qs-chips') || sh.scrollTop > 0) { y0 = null; return; }
-      y0 = e.touches[0].clientY; dy = 0; t0 = performance.now(); sh.classList.add('dragging');
+      y0 = e.touches[0].clientY; dy = 0; t0 = performance.now(); mode = null; full = isFull(); h0 = sh.offsetHeight;
+      if (phoneSheet()) { hMax = fullH(); hHalf = full ? halfH() : h0; }
     }, { passive: true });
     sh.addEventListener('touchmove', e => {
-      if (y0 == null) return; dy = Math.max(0, e.touches[0].clientY - y0);
-      sh.style.transform = `translateY(${dy}px)`; $('qsBackdrop').style.opacity = String(Math.max(0, 1 - dy / 300));
-    }, { passive: true });
+      if (y0 == null) return; const d = e.touches[0].clientY - y0;
+      if (!mode) {
+        if (Math.abs(d) < 6) return;
+        // up: grow (phones, not already full; if the half sheet scrolls, only from the handle / header)
+        const fromTop = e.target.closest('.qs-grab, .qs-foot') || sh.scrollHeight <= sh.clientHeight + 1;
+        if (d < 0) { if (!phoneSheet() || full || !fromTop) { y0 = null; return; } mode = 'grow'; }
+        else mode = 'down';
+        sh.classList.add('dragging'); t0 = performance.now();
+      }
+      if (e.cancelable) e.preventDefault(); // we own this gesture: no page / sheet scroll underneath
+      dy = d;
+      if (mode === 'grow') { sh.style.height = Math.min(hMax, h0 - d) + 'px'; return; }
+      // down: a full sheet shrinks back to half first, then slides away
+      const shrink = full ? Math.max(0, Math.min(d, h0 - hHalf)) : 0;
+      if (full) sh.style.height = (h0 - shrink) + 'px';
+      const slide = Math.max(0, d - shrink);
+      sh.style.transform = slide ? `translateY(${slide}px)` : '';
+      $('qsBackdrop').style.opacity = String(Math.max(0, 1 - slide / 300));
+    }, { passive: false });
     const end = () => {
-      if (y0 == null) return; y0 = null; sh.classList.remove('dragging'); $('qsBackdrop').style.opacity = '';
-      const v = dy / Math.max(1, performance.now() - t0);
-      if (dy > 80 || (dy > 24 && v > 0.5)) { sh.style.transform = ''; close(); } else sh.style.transform = '';
+      if (y0 == null) return; y0 = null; const m = mode; mode = null; sh.classList.remove('dragging'); $('qsBackdrop').style.opacity = '';
+      if (!m) return;
+      const v = dy / Math.max(1, performance.now() - t0), cur = sh.offsetHeight;
+      if (m === 'grow') { const go = -dy > 60 || (-dy > 20 && v < -0.4); setFull(go, cur); return; }
+      const slide = Math.max(0, dy - (full ? Math.max(0, h0 - hHalf) : 0));
+      if (slide > 80 || (slide > 24 && v > 0.5) || (!full && (dy > 80 || (dy > 24 && v > 0.5)))) { sh.style.transform = ''; close(); return; } // stays full while it slides away; close() resets it
+      sh.style.transform = '';
+      if (full) { const toHalf = dy > 60 || (dy > 20 && v > 0.4); setFull(!toHalf, cur); }
     };
     sh.addEventListener('touchend', end, { passive: true }); sh.addEventListener('touchcancel', end, { passive: true });
+    // tap / Enter on the handle toggles full screen (also the keyboard + screen reader path)
+    $('qsGrab').addEventListener('click', () => { if (phoneSheet()) setFull(!isFull()); });
   }
 
   function init() {
