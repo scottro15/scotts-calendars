@@ -10,7 +10,8 @@
   const DAY = 86400000;
   let A, history = [], busy = false;
 
-  function whenReady(fn) { if (window.__app) fn(); else setTimeout(() => whenReady(fn), 50); }
+  // app.js runs the queue the moment __app exists, so SI sets up at the same point whether the app files are separate or bundled (dist/app.js) (2026-11-03)
+  function whenReady(fn) { if (window.__app) fn(); else (window.__appWait = window.__appWait || []).push(fn); }
 
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const t12fixed = d => { let h = d.getUTCHours(); const m = d.getUTCMinutes(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return m ? `${h}:${String(m).padStart(2, '0')} ${ap}` : `${h} ${ap}`; };

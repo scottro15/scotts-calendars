@@ -1878,6 +1878,7 @@
   window.__app = { todoCompare, afterReminders, reviewState: () => ({ scope: rv.scope, ref: ymd(rv.ref), cals: [...rv.cals], event: rv.event, q: rv.q }), reviewRange, noteKeyFor, calendar, Store, occurrences, nowWall, parseLocal, ymd, hm, seasonOf, seasonPeriod, seasonTitle, briefPeriod, briefingItems, viewRef, decorateList, openEditor, moveEvent, detachOccurrence, refresh, isRecurring, isDone, toast, calendars: () => CALENDARS, useCalendars, timeZone: () => TZ, setTZ,
     setDone, overdueText, fmtDay, startOfDay, addDays, isClientKey, occurrenceStart, saveSettings, renderTasks, renderBriefing, firstVisibleCal,
     settings: () => settings, cal: id => CAL[id], VIEWS, user: () => signedInUser }; // handy for debugging / tests
+  (window.__appWait || []).splice(0).forEach(fn => { try { fn(); } catch (e) { console.error(e); } }); // run ai.js whenReady() right away (same timing bundled or not)
 
   // ---------- Example seed data (relative to the current week) ----------
   function seedExamples() {

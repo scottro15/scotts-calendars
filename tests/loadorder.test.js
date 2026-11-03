@@ -24,8 +24,8 @@ let n = 0; const errs = []; const ok = (c, m) => { if (c) n++; else errs.push(m)
     await p.waitForSelector('#todayBody .tc-summary', { timeout: 20000 }).catch(() => {});
     const st = await p.evaluate(() => {
       const head = [...document.head.querySelectorAll('script[src]')].map(s => s.getAttribute('src'));
-      const body = [...document.body.querySelectorAll('script[src]')].map(s => s.getAttribute('src').split('?')[0]);
-      return { head, i: [body.indexOf('config.js'), body.indexOf('early.js'), body.indexOf('vendor/fullcalendar.min.js'), body.indexOf('vendor/supabase.min.js'), body.indexOf('storage.js'), body.indexOf('app.js')], fc: !!window.FullCalendar, sb: !!(window.supabase && supabase.createClient), today: !!document.querySelector('#todayBody .tc-summary') };
+      const body = [...document.body.querySelectorAll('script[src]')].map(s => s.getAttribute('src').split('?')[0].replace(/^dist\//, '')); // dist/ = minified build (storage.js is inside dist/app.js)
+      return { head, i: [body.indexOf('config.js'), body.indexOf('early.js'), body.indexOf('vendor/fullcalendar.min.js'), body.indexOf('vendor/supabase.min.js'), body.indexOf('storage.js') >= 0 ? body.indexOf('storage.js') : body.indexOf('app.js') - 0.5, body.indexOf('app.js')], fc: !!window.FullCalendar, sb: !!(window.supabase && supabase.createClient), today: !!document.querySelector('#todayBody .tc-summary') };
     });
     ok(st.head.length === 0, `${name}: no external scripts left in <head> (${st.head})`);
     ok(st.i[0] >= 0 && st.i[0] < st.i[1] && st.i[1] < st.i[2] && st.i[2] < st.i[3] && st.i[3] < st.i[4] && st.i[4] < st.i[5], `${name}: config, early (data reads start), FullCalendar, supabase, storage, app in that order ${st.i}`);
