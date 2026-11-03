@@ -15,6 +15,7 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const t12fixed = d => { let h = d.getUTCHours(); const m = d.getUTCMinutes(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return m ? `${h}:${String(m).padStart(2, '0')} ${ap}` : `${h} ${ap}`; };
   const t12 = d => (window.SandyTime ? SandyTime.fmt(d, { compact: true }) : t12fixed(d)); // follows Profile → Time format
+  const dayY = k => A.parseLocal(k).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
   const fmtDay = k => A.parseLocal(k).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
   const fmtWhen = s => { if (!s) return ''; const d = A.parseLocal(s); return s.length > 10 ? `${fmtDay(s.slice(0, 10))}, ${t12(d)}` : fmtDay(s); };
   const calName = id => { const c = A.calendars().find(x => x.id === id); return c ? (c.short || c.name) : id; };
@@ -140,7 +141,15 @@
       const nx = A.occurrences(ev, today, new Date(today.getTime() + 120 * DAY)).slice(0, 6).map(x => x.key); if (nx.length) o.nextDates = nx;
       return o;
     });
-    return { timeZone: A.timeZone ? A.timeZone() : 'America/Chicago', today: tk, now: `${A.ymd(now)} ${t12fixed(now)}`, calendars: A.calendars().map(c => ({ id: c.id, name: c.name })), events, series };
+    // SI memory (t179u item 3): what was confirmed earlier in this chat, refreshed from the current data so a later edit
+    // (or a delete) shows up. Survives the 12-message window because it rides in the context, not the message list.
+    const saved = []; const seen = new Set();
+    for (const m of history.slice().reverse()) {
+      if (!m.saved || seen.has(m.saved.id) || saved.length >= 10) continue; seen.add(m.saved.id);
+      const cur = all.find(e => e.id === m.saved.id);
+      saved.unshift(cur ? savedInfo(cur) : { ...m.saved, removed: true });
+    }
+    return { timeZone: A.timeZone ? A.timeZone() : 'America/Chicago', today: tk, now: `${A.ymd(now)} ${t12fixed(now)}`, calendars: A.calendars().map(c => ({ id: c.id, name: c.name })), events, series, saved };
   }
 
   const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], WDL = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
@@ -152,6 +161,28 @@
     if (r.freq === 'monthly') return `${n > 1 ? `Every ${n} months` : 'Monthly'} on day ${b.getUTCDate()}`;
     if (r.freq === 'yearly') return 'Every year';
     return 'One time';
+  }
+  /** A short, stable record of a saved item for SI memory: id, rule, time, first date and end date. */
+  function savedInfo(ev) {
+    const o = { id: ev.id, title: ev.title, kind: ev.kind || 'event', rule: ruleText(ev), start: String(ev.start).slice(0, 10) };
+    if (!ev.allDay) { const b = A.parseLocal(ev.start); o.time = `${t12fixed(b)}–${t12fixed(new Date(b.getTime() + seriesLen(ev)))}`; }
+    if (A.isRecurring(ev)) o.until = (ev.recurrence && ev.recurrence.until) || 'none';
+    return o;
+  }
+  // the chat shows the short note; the copy sent to the model also carries the id, rule and end date
+  const savedDetail = s => ` Saved as “${s.title}” [id ${s.id}]: ${s.rule}${s.time ? ', ' + s.time : ''}, from ${s.start}${s.until ? (s.until === 'none' ? ', no end date' : `, until ${s.until}`) : ''}.`;
+  const forModel = m => m.saved && /\)$/.test(m.content) ? m.content.slice(0, -1) + '.' + savedDetail(m.saved) + ')' : m.content;
+  async function confirmNote(summary, id) {
+    const ev = id ? await A.Store.get(id) : null; const s = ev ? savedInfo(ev) : null;
+    history.push({ role: 'user', content: `(I confirmed: ${summary})`, note: 1, ...(s ? { saved: s } : {}) }); persist();
+  }
+  /** propose_add.repeat -> a recurrence rule. "every other week" = weekly, interval 2 (t179u item 3: was always 1). */
+  function repeatOf(rp) {
+    if (!rp || !rp.freq || rp.freq === 'none' || !['daily', 'weekly', 'monthly', 'yearly'].includes(rp.freq)) return { freq: 'none' };
+    const n = Math.min(99, Math.max(1, Math.round(+rp.interval || 1)));
+    const wd = Array.isArray(rp.byWeekday) ? rp.byWeekday.map(Number).filter(d => d >= 0 && d <= 6) : null;
+    const until = /^\d{4}-\d{2}-\d{2}$/.test(String(rp.until || '').slice(0, 10)) ? String(rp.until).slice(0, 10) : null;
+    return { freq: rp.freq, interval: n, ...(wd && wd.length ? { byWeekday: wd } : {}), ...(until ? { until } : {}) };
   }
   const whenText = ev => { const b = A.parseLocal(ev.start); if (ev.allDay) return ruleText(ev) + ', all day'; return `${ruleText(ev)}, ${t12(b)}–${t12(new Date(b.getTime() + seriesLen(ev)))}`; };
 
@@ -169,7 +200,7 @@
     try {
       const tok = await token();
       const res = await fetch(ENDPOINT, { method: 'POST', headers: { 'content-type': 'application/json', ...(tok ? { authorization: 'Bearer ' + tok } : {}), ...(cfg.SUPABASE_ANON_KEY ? { apikey: cfg.SUPABASE_ANON_KEY } : {}) },
-        body: JSON.stringify({ messages: history.map(m => ({ role: m.role, content: m.content })), context: await buildContext() }) });
+        body: JSON.stringify({ messages: history.map(m => ({ role: m.role, content: forModel(m) })), context: await buildContext() }) });
       const data = await res.json().catch(() => ({}));
       wait.remove();
       if (!res.ok) { addMsg('assistant error', data.error || (res.status === 404 ? 'The assistant isn’t switched on yet. “Brief me” works now.' : `Something went wrong (${res.status}).`)); history.pop(); persist(); return; }
@@ -189,7 +220,8 @@
   const missingTable = e => e && (e.code === 'PGRST205' || e.code === '42P01' || /could not find the table|does not exist|schema cache/i.test(e.message || ''));
   const titleOf = msgs => { const m = msgs.find(x => x.role === 'user' && !x.note && x.content.trim()); if (!m) return 'New chat'; const t = m.content.replace(/\s+/g, ' ').trim(); return t.length > 60 ? t.slice(0, 59).trimEnd() + '…' : t; };
   const clean = msgs => (Array.isArray(msgs) ? msgs : []).filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-    .slice(-MAX_MSGS).map(m => ({ role: m.role, content: m.content.slice(0, 8000), ...(m.note ? { note: 1 } : {}) }));
+    .slice(-MAX_MSGS).map(m => ({ role: m.role, content: m.content.slice(0, 8000), ...(m.note ? { note: 1 } : {}), ...(m.saved && typeof m.saved === 'object' && typeof m.saved.id === 'string' ? { saved: savedClean(m.saved) } : {}) }));
+  const savedClean = o => Object.fromEntries(['id', 'title', 'kind', 'rule', 'time', 'start', 'until', 'removed'].filter(k => o[k] != null).map(k => [k, typeof o[k] === 'string' ? o[k].slice(0, 200) : !!o[k]]));
   const Chats = {
     remote: true, // false once we learn the ai_chats table isn't there yet
     sb() { const S = A.Store; return S.mode !== 'local' && S.adapter && S.adapter.client || null; },
@@ -304,7 +336,7 @@
   async function describe(p) {
     const ev = p.id ? await A.Store.get(p.id) : null;
     const rows = [];
-    if (p.type === 'add') { rows.push(['What', p.title], ['Calendar', calName(p.calendar)], ['When', fmtWhen(p.start) + (p.end && !p.allDay && p.end.length > 10 ? ` – ${t12(A.parseLocal(p.end))}` : '')]); if (p.repeat && p.repeat.freq && p.repeat.freq !== 'none') rows.push(['Repeats', p.repeat.freq]); if (p.location) rows.push(['Where', p.location]); }
+    if (p.type === 'add') { rows.push(['What', p.title], ['Calendar', calName(p.calendar)], ['When', fmtWhen(p.start) + (p.end && !p.allDay && p.end.length > 10 ? ` – ${t12(A.parseLocal(p.end))}` : '')]); { const rp = repeatOf(p.repeat); if (rp.freq !== 'none') { rows.push(['Repeats', ruleText({ start: String(p.start), recurrence: rp })]); rows.push(['Until', rp.until ? dayY(rp.until) : 'No end date']); } } if (p.location) rows.push(['Where', p.location]); }
     else {
       rows.push(['Item', ev ? ev.title : '(not found)'], ['Date', p.occurrence ? fmtDay(p.occurrence) : '']);
       if (p.type === 'edit') for (const [k, v] of Object.entries(p.changes || {})) rows.push([k === 'start' ? 'New start' : k === 'end' ? 'New end' : k, (k === 'start' || k === 'end') ? fmtWhen(v) : (k === 'calendar' ? calName(v) : String(v))]);
@@ -335,7 +367,7 @@
       const nx = A.occurrences(plan.next, A.parseLocal(from), A.parseLocal(S.addDays(from, 120))).slice(0, 3).map(o => o.key);
       rows.push([plan.inPlace ? 'Changes to' : `From ${keyDay(nx[0] || from)}`, whenText(plan.next) + (plan.next.title !== ev.title ? ` · “${plan.next.title}”` : '') + (plan.next.location !== ev.location && plan.next.location ? ` · ${plan.next.location}` : '')]);
       if (nx.length) rows.push(['Next dates', listDays(nx)]);
-      if (plan.next.recurrence.until) rows.push(['Until', keyDay(plan.next.recurrence.until)]);
+      if (plan.next.recurrence.until) rows.push(['Until', dayY(plan.next.recurrence.until)]);
       rows.push(['Kept', 'calendar, category, location, notes and reminders']);
     } else if (p.action === 'exceptions') {
       const items = (p.items || []).filter(x => x && x.date).map(x => ({ ...x, date: String(x.date).slice(0, 10) }));
@@ -357,6 +389,25 @@
       rows.push(['Add instead', `${n.title} · ${keyDay(n.start.slice(0, 10))}${n.allDay ? '' : `, ${t12(A.parseLocal(n.start))}–${t12(A.parseLocal(n.end))}`}`]);
       if (n.location) rows.push(['Where', n.location]);
       rows.push(['Rest of the series', 'unchanged']);
+    } else if (p.action === 'until') {
+      // set, extend, shorten or remove the series' end date (t179u item 3: "actually continue until July 2027")
+      const raw = p.until == null ? '' : String(p.until).trim().slice(0, 10);
+      const none = raw === '' || /^(none|never|forever)$/i.test(raw);
+      if (!none && !/^\d{4}-\d{2}-\d{2}$/.test(raw)) throw new Error('What date should the series end on?');
+      const first = String(ev.start).slice(0, 10);
+      if (!none && raw < first) throw new Error(`“${ev.title}” starts ${dayY(first)}, so it can’t end before that.`);
+      const r0 = ev.recurrence || {}; const was = r0.until || null; const until = none ? null : raw;
+      if ((was || null) === until) throw new Error(until ? `“${ev.title}” already ends ${dayY(until)}.` : `“${ev.title}” already has no end date.`);
+      const next = { ...ev, recurrence: { ...r0, until } };
+      const gone = until ? S.exceptionsOf(all, ev.id).filter(e => (e.originalDate || '') > until).map(e => e.id) : []; // changed dates past the new end go too
+      if (until) next.exdates = (ev.exdates || []).filter(d => d <= until);
+      plan = { save: [next], remove: gone, created: [], next };
+      rows.push(['Ends now', was ? dayY(was) : 'No end date']);
+      rows.push([until ? (was && until < was ? 'Ends sooner' : 'New end') : 'New end', until ? dayY(until) : 'Repeats with no end date']);
+      if (until) { const last = S.occKeys(next, S.addDays(until, -400), until); if (last.length) rows.push(['Last date', dayY(last[last.length - 1])]); }
+      if (was && (!until || until > was)) { const add = S.occKeys(next, S.addDays(was, 1), until || S.addDays(was, 120)); if (add.length) rows.push(['Adds', until ? `${add.length} more date${add.length > 1 ? 's' : ''}` : `dates from ${keyDay(add[0])} on`]); }
+      if (until && was && until < was || until && !was) { const cut = S.occKeys(ev, S.addDays(until, 1), was || S.addDays(until, 400)); if (cut.length) rows.push(['Removes', `${cut.length}${was ? '' : '+'} later date${cut.length > 1 ? 's' : ''}`]); }
+      rows.push(['Kept', 'days, time, calendar, notes and reminders']);
     } else throw new Error('Unknown series change');
     return { ev, rows, plan };
   }
@@ -387,7 +438,7 @@
       try {
         const fresh = await seriesPlan(p); // rebuilt from the latest data
         const undo = await window.SandySeries.apply(fresh.plan);
-        undoBtn(card, undo, '✓ Saved'); history.push({ role: 'user', content: `(I confirmed: ${p.summary || 'series change'})`, note: 1 }); persist(); A.refresh();
+        undoBtn(card, undo, '✓ Saved'); await confirmNote(p.summary || 'series change', (fresh.plan.next && fresh.plan.next.id) || (fresh.plan.save[0] && fresh.plan.save[0].id) || p.id); A.refresh();
       } catch (e) { console.error(e); ok.disabled = no.disabled = false; A.toast('Could not save: ' + (e.message || e), 4000); }
     });
     return card;
@@ -405,7 +456,7 @@
     no.addEventListener('click', () => { done('Cancelled'); history.push({ role: 'user', content: `(I cancelled: ${p.summary || p.type})`, note: 1 }); persist(); });
     ok.addEventListener('click', async () => {
       ok.disabled = no.disabled = true;
-      try { const snap = window.SandySeries ? await SandySeries.snapshot() : null; await applyProposal(p); if (snap) undoBtn(card, SandySeries.snapshotUndo(snap), '✓ Saved'); else done('✓ Saved'); history.push({ role: 'user', content: `(I confirmed: ${p.summary || p.type})`, note: 1 }); persist(); A.refresh(); }
+      try { const snap = window.SandySeries ? await SandySeries.snapshot() : null; const r = await applyProposal(p); if (snap) undoBtn(card, SandySeries.snapshotUndo(snap), '✓ Saved'); else done('✓ Saved'); await confirmNote(p.summary || p.type, p.type === 'delete' ? null : p.type === 'add' ? r && r.id : p.id); A.refresh(); }
       catch (e) { console.error(e); ok.disabled = no.disabled = false; A.toast('Could not save: ' + (e.message || e), 4000); }
     });
   }
@@ -422,7 +473,7 @@
       if (!allDay && !end) { const d = new Date(A.parseLocal(start).getTime() + 3600000); end = `${A.ymd(d)}T${A.hm(d)}`; }
       if (allDay) end = String(end).slice(0, 10);
       const cal = A.calendars().some(c => c.id === p.calendar) ? p.calendar : A.calendars()[0].id;
-      const rp = p.repeat && p.repeat.freq && p.repeat.freq !== 'none' ? { freq: p.repeat.freq, interval: 1, ...(p.repeat.byWeekday ? { byWeekday: p.repeat.byWeekday } : {}), ...(p.repeat.until ? { until: p.repeat.until } : {}) } : { freq: 'none' };
+      const rp = repeatOf(p.repeat);
       const ev = { kind: task ? 'task' : 'event', calendar: cal, category: p.category || (task ? 'Task / to-do' : 'Other'), title: p.title, allDay, start, end,
         location: p.location || '', notes: p.notes || '', recurrence: rp };
       if (task) Object.assign(ev, { scope: 'day', done: false, completedDates: [] });

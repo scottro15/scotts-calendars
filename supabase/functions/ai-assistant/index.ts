@@ -27,7 +27,7 @@ export const TOOLS = [
     input_schema: { type: 'object', properties: { from: { type: 'string', description: 'YYYY-MM-DD' }, to: { type: 'string', description: 'YYYY-MM-DD' }, query: { type: 'string' } }, required: ['from', 'to'] } },
   { name: 'propose_add', description: 'Propose a NEW event or to-do. Not saved until the user confirms. For a to-do set kind="task" and allDay=true unless a time is given.',
     input_schema: { type: 'object', properties: { ...evProps, kind: { type: 'string', enum: ['event', 'task'] },
-      repeat: { type: 'object', properties: { freq: { type: 'string', enum: ['none', 'daily', 'weekly', 'monthly', 'yearly'] }, byWeekday: { type: 'array', items: { type: 'integer' }, description: '0=Sun..6=Sat' }, until: { type: 'string' } } },
+      repeat: { type: 'object', properties: { freq: { type: 'string', enum: ['none', 'daily', 'weekly', 'monthly', 'yearly'] }, byWeekday: { type: 'array', items: { type: 'integer' }, description: '0=Sun..6=Sat' }, interval: { type: 'integer', description: 'repeat every N days/weeks/months/years: 1 = every week, 2 = every other week (“every other Tuesday” = weekly, byWeekday [2], interval 2), 3 = every 3rd week' }, until: { type: 'string', description: 'YYYY-MM-DD, last day the series may fall on (inclusive)' } } },
       summary: { type: 'string', description: 'one short human sentence describing the change' } }, required: ['title', 'calendar', 'start', 'summary'] } },
   { name: 'propose_edit', description: 'Propose changing an existing event. Use id and occurrence (the date key) from list_events. scope "one" changes only that occurrence of a repeating event, "all" changes the series. Only include fields that change.',
     input_schema: { type: 'object', properties: { id: { type: 'string' }, occurrence: { type: 'string' }, scope: { type: 'string', enum: ['one', 'all'] }, changes: { type: 'object', properties: evProps }, summary: { type: 'string' } }, required: ['id', 'occurrence', 'changes', 'summary'] } },
@@ -40,9 +40,11 @@ export const TOOLS = [
     'action "split": from date `from` on, the series follows `changes`; earlier dates stay exactly as they are. Use for "starting in 2 weeks / from Dec 1 on / going forward, move X to Thursday 7 PM". `from` is the date the change starts (e.g. today + 14 days for "in 2 weeks"); give only what changes: start/end as HH:MM (24h), weekdays (0=Sun..6=Sat) to change the day, freq/interval, until, title, location.',
     'action "exceptions": change only specific dates, rest of the series unchanged. items: [{date, skip: true}] cancels that date; [{date, start, end?, title?, location?}] moves/retimes it (start/end HH:MM on the same day, or YYYY-MM-DDTHH:MM to move it to another day). Several dates go in ONE call.',
     'action "replace": cancel the occurrence on `date` and add a one-off event `replacement` {title, start, end?, minutes?, location?, category?, calendar?, notes?} (start/end HH:MM on that day). It keeps the series\' calendar, category, location and reminders unless given. Use for "remove/cancel X on <date> and replace it with Y at 2pm".',
-    'Every date must be one of the series\' dates. If the date is not one, or more than one series could match, ask the user instead of guessing.'].join(' '),
+    'action "until": set, extend, shorten or remove the series\' end date; `until` = YYYY-MM-DD (inclusive) or "none" to repeat with no end. Use for "continue until July 2027" (until = the last day of that month, 2027-07-31), "end it after Dec 15", "keep it going forever". Days, time and everything else stay the same.',
+    'Every date must be one of the series\' dates (not needed for "until"). If the date is not one, or more than one series could match, ask the user instead of guessing.'].join(' '),
     input_schema: { type: 'object', properties: {
-      id: { type: 'string' }, action: { type: 'string', enum: ['split', 'exceptions', 'replace'] },
+      id: { type: 'string' }, action: { type: 'string', enum: ['split', 'exceptions', 'replace', 'until'] },
+      until: { type: 'string', description: 'until: YYYY-MM-DD or "none"' },
       from: { type: 'string', description: 'split: YYYY-MM-DD' },
       changes: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' }, minutes: { type: 'integer' }, weekdays: { type: 'array', items: { type: 'integer' } }, freq: { type: 'string', enum: ['daily', 'weekly', 'monthly', 'yearly'] }, interval: { type: 'integer' }, until: { type: 'string' }, title: { type: 'string' }, location: { type: 'string' }, category: { type: 'string' }, notes: { type: 'string' } } },
       items: { type: 'array', items: { type: 'object', properties: { date: { type: 'string' }, skip: { type: 'boolean' }, start: { type: 'string' }, end: { type: 'string' }, title: { type: 'string' }, location: { type: 'string' } }, required: ['date'] } },
@@ -68,9 +70,20 @@ export function systemPrompt(ctx) {
     'Use list_events to look things up before answering or editing. To change anything, call the propose_* tools — they do NOT save; the user sees a confirm card for each and taps Confirm. Never claim something is saved; say "tap Confirm to save".',
     'Ask one short question if the request is ambiguous (e.g. which calendar). Pick the most likely calendar from context when reasonable.',
     'Repeating events: use list_series to find the series. For changes to a series from a date on, to several specific dates, or replacing one date with a different event, use propose_series_change (one card per request). Resolve relative dates yourself from today (e.g. "in 2 weeks" = today + 14 days; "Nov. 2nd" = the next Nov 2). If two or more series could match (e.g. two "practice" series), or the date is not one of the series\' dates, ask one short question (list the options with day and time) before proposing.',
+    'Repeat intervals: "every other week/Tuesday" = weekly with interval 2; "every 3 weeks" = interval 3; "every other month" = monthly interval 2. Always set interval when it is not 1.',
+    ...savedLines(ctx),
     'Events whose title mentions Christian Dake are reference only (another person\'s schedule): never call them conflicts.',
     'Be brief and warm. Plain text, no markdown tables. Use 12-hour times like 3:30 PM.',
   ].join('\n');
+}
+
+/** SI memory (t179u item 3): items the user confirmed earlier in this chat (sent by the app, refreshed from their data). */
+export function savedLines(ctx) {
+  const clip = (v, n = 80) => String(v == null ? '' : v).replace(/[\r\n\u2028\u2029]+/g, ' ').slice(0, n);
+  const rows = (Array.isArray(ctx.saved) ? ctx.saved : []).filter(x => x && typeof x.id === 'string' && /^[\w-]{1,64}$/.test(x.id)).slice(-10);
+  if (!rows.length) return [];
+  return ['Saved earlier in this chat (oldest first; the LAST one is what "it", "that" or "the series" most likely means in a follow-up such as "actually continue until July 2027" or "make it 7 PM"). Use these ids directly; for a series use propose_series_change with this id:',
+    ...rows.map(x => `- [id ${clip(x.id, 64)}] "${clip(x.title)}" (${clip(x.kind || 'event', 10)}): ${clip(x.rule)}${x.time ? ', ' + clip(x.time, 30) : ''}, from ${clip(x.start, 10)}${x.until ? (x.until === 'none' ? ', no end date' : ', until ' + clip(x.until, 10)) : ''}${x.removed ? ' (since deleted or undone)' : ''}`)];
 }
 
 function listEvents(ctx, { from, to, query }) {
