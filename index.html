@@ -37,8 +37,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
   <title>SANDY — the scheduling app</title>
-  <link rel="stylesheet" href="dist/styles.css?v=20261103-speed-c">
-  <link rel="stylesheet" href="dist/tablet.css?v=20261103-speed-c" media="(min-width: 768px)">
+  <link rel="stylesheet" href="dist/styles.css?v=20261103-speed-c-off">
+  <link rel="stylesheet" href="dist/tablet.css?v=20261103-speed-c-off" media="(min-width: 768px)">
   <!-- Skeleton loading screen (Scott 2026-11-01, t174u): shimmering blocks shaped like Today / Home / To-Do, painted from
        this inline CSS + the inline script after the top bar, before any app JS runs. Only on a first open (no saved copy on
        this device); with saved data the app paints it straight away as before. Cross-fades out as the real page fills in. -->
@@ -520,7 +520,7 @@
   // Saved picture (speed step C, snapview.js): on a reopen, draw Today/Home as they were at once, before the app code
   // and data arrive; the app takes over underneath and the picture fades out once the live page is drawn. Only for the
   // same signed-in user, build, day, window width, theme and tab; otherwise nothing happens here.
-  window.__snapViewOn = true; // ROLLBACK switch: scripts/snapview-switch.sh off (no picture drawn or saved), then bump the cache tag
+  window.__snapViewOn = false; // ROLLBACK switch: scripts/snapview-switch.sh off (no picture drawn or saved), then bump the cache tag
   (function () {
     try {
       if (!window.__snapViewOn) return;
@@ -565,11 +565,11 @@
        paint while these ~500 KB download instead of after (t174u load-time checkup). Order is unchanged for the app. -->
   <script src="config.js"></script>
   <!-- app-scripts:start (scripts/build-dist.mjs) -->
-  <script src="dist/early.js?v=20261103-speed-c"></script>
+  <script src="dist/early.js?v=20261103-speed-c-off"></script>
   <script src="vendor/fullcalendar.min.js"></script>
   <script src="vendor/supabase.min.js"></script>
-  <script>window.__lazyFiles = {"ai":["dist/ai.js?v=20261103-speed-c"],"extras":["dist/extras.js?v=20261103-speed-c"]};</script>
-  <script src="dist/app.js?v=20261103-speed-c"></script>
+  <script>window.__lazyFiles = {"ai":["dist/ai.js?v=20261103-speed-c-off"],"extras":["dist/extras.js?v=20261103-speed-c-off"]};</script>
+  <script src="dist/app.js?v=20261103-speed-c-off"></script>
   <!-- app-scripts:end -->
 </body>
 </html>
