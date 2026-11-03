@@ -24,9 +24,16 @@ let n = 0; const errs = []; const ok = (c, m) => { if (c) n++; else errs.push(m)
     await p.waitForSelector('#todayBody .tc-summary', { timeout: 20000 }).catch(() => {});
     const st = await p.evaluate(() => {
       const head = [...document.head.querySelectorAll('script[src]')].map(s => s.getAttribute('src'));
-      const body = [...document.body.querySelectorAll('script[src]')].map(s => s.getAttribute('src').split('?')[0].replace(/^dist\//, '')); // dist/ = minified build (storage.js is inside dist/app.js)
+      const body = [...document.body.querySelectorAll('script[src]')].map(s => s.getAttribute('src').split('?')[0].replace(/^dist\//, '').replace(/^app-all\.js$/, 'app.js')); // app-all.js = --eager rollback bundle; dist/ = minified build (storage.js is inside dist/app.js)
       return { head, i: [body.indexOf('config.js'), body.indexOf('early.js'), body.indexOf('vendor/fullcalendar.min.js'), body.indexOf('vendor/supabase.min.js'), body.indexOf('storage.js') >= 0 ? body.indexOf('storage.js') : body.indexOf('app.js') - 0.5, body.indexOf('app.js')], fc: !!window.FullCalendar, sb: !!(window.supabase && supabase.createClient), today: !!document.querySelector('#todayBody .tc-summary') };
     });
+    // speed step B: SI + extras (invites/admin, welcome, tour) arrive after the startup bundle, in their own files
+    const lazy = await p.evaluate(() => { const L = window.__lazyFiles || {}; const body = [...document.body.querySelectorAll('script[src]')].map(s => s.getAttribute('src').split('?')[0]);
+      const app = Math.max(body.indexOf('dist/app.js'), body.indexOf('app.js'));
+      return { chunks: Object.values(L).flat().map(u => u.split('?')[0]), after: Object.values(L).flat().every(u => body.indexOf(u.split('?')[0]) > app), ai: !!window.SandyAI, tour: !!window.SandyTour };
+    });
+    await p.waitForFunction(() => window.SandyAI && window.SandyTour && window.SandyWelcome && window.SandyLaunch, null, { timeout: 15000 }).catch(() => {});
+    ok(await p.evaluate(() => !!(window.SandyAI && window.SandyTour && window.SandyWelcome && window.SandyLaunch)) && lazy.after, `${name}: lazy chunks load after startup ${JSON.stringify(lazy)}`);
     ok(st.head.length === 0, `${name}: no external scripts left in <head> (${st.head})`);
     ok(st.i[0] >= 0 && st.i[0] < st.i[1] && st.i[1] < st.i[2] && st.i[2] < st.i[3] && st.i[3] < st.i[4] && st.i[4] < st.i[5], `${name}: config, early (data reads start), FullCalendar, supabase, storage, app in that order ${st.i}`);
     ok(st.fc && st.sb && st.today, `${name}: libraries loaded and Today shows`);

@@ -1,3 +1,4 @@
+lazy.js
 storage.js
 places.js
 titleac.js

@@ -1,0 +1,4 @@
+{
+  "ai": ["ai.js"],
+  "extras": ["launch.js", "welcome.js", "tour.js"]
+}

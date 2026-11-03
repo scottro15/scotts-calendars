@@ -1698,9 +1698,16 @@
     document.getElementById('signOutBtn').addEventListener('click', async () => { await Store.auth.signOut(); location.reload(); });
     if (window.SandyAccount) window.SandyAccount.mountAccount({ store: Store, user, mount: document.getElementById('dataSection') });
     if (window.SandyPush) window.SandyPush.mount({ store: Store, user });
-    if (window.SandyLaunch) window.SandyLaunch.mount({ store: Store, user, timeZone: () => TZ, setTZ: z => { if (setTZ(z)) { calendar.render(); refresh(); } } });
-    if (window.SandyWelcome) { window.SandyWelcome.mountRow({ user }); window.SandyWelcome.maybeShow({ user, onClose: () => window.SandyTour && SandyTour.maybeOffer({ user }) }); }
-    if (window.SandyTour) { window.SandyTour.mountRow({ user }); window.SandyTour.cleanupIfStale(); if (!window.SandyWelcome || !SandyWelcome.shouldShow(user)) window.SandyTour.maybeOffer({ user }); }
+    // invites/admin + feedback, welcome guide, tour: the 'extras' chunk, loaded after startup (lazy.js, speed step B)
+    const mountExtras = () => {
+      if (window.SandyLaunch) window.SandyLaunch.mount({ store: Store, user, timeZone: () => TZ, setTZ: z => { if (setTZ(z)) { calendar.render(); refresh(); } } });
+      if (window.SandyWelcome) { window.SandyWelcome.mountRow({ user }); window.SandyWelcome.maybeShow({ user, onClose: () => window.SandyTour && SandyTour.maybeOffer({ user }) }); }
+      if (window.SandyTour) { window.SandyTour.mountRow({ user }); window.SandyTour.cleanupIfStale(); if (!window.SandyWelcome || !SandyWelcome.shouldShow(user)) window.SandyTour.maybeOffer({ user }); }
+    };
+    const extrasLoad = () => (window.SandyLazy ? SandyLazy.load('extras') : Promise.resolve()).then(mountExtras, e => {
+      console.warn(e.message); window.addEventListener('online', extrasLoad, { once: true }); // try again when back online
+    });
+    extrasLoad();
     document.getElementById('syncNowBtn').addEventListener('click', () => reloadFromServer(true));
     const local = await Store.localDataForMigration();
     if (local) {

@@ -9,7 +9,7 @@ const CACHE = 'sandy-shell-v1';
 const SHELL = ['./', 'index.html', 'offline.html', 'styles.css', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'vendor/fullcalendar.min.js', 'vendor/supabase.min.js',
-  /* shell-files:start */ 'dist/styles.css', 'dist/tablet.css', 'dist/early.js', 'dist/app.js' /* shell-files:end */];
+  /* shell-files:start */ 'dist/styles.css', 'dist/tablet.css', 'dist/early.js', 'dist/app.js', 'dist/ai.js', 'dist/extras.js' /* shell-files:end */];
 
 self.addEventListener('install', e => {
   /* stay in waiting until SKIP_WAITING — do not call skipWaiting() here.
