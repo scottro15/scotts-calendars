@@ -231,11 +231,26 @@
         </div>
       </li>`;
     }
+    // A redraw (list loaded, or reloaded after Invite / Revoke / Restore) must not wipe a first name the
+    // user is still typing: carry unsaved names, focus and caret over to the new rows. Only the newest
+    // load may draw, so a slow earlier response can't land on top of a newer one.
+    let loadSeq = 0;
+    function draw(html) {
+      const typed = {}, act = document.activeElement;
+      list.querySelectorAll('.inv-name').forEach(i => { if (i.value !== i.defaultValue) typed[i.dataset.email] = i.value; });
+      const foc = act && act.classList && act.classList.contains('inv-name') && list.contains(act) ? { em: act.dataset.email, a: act.selectionStart, b: act.selectionEnd } : null;
+      list.innerHTML = html;
+      list.querySelectorAll('.inv-name').forEach(i => { if (Object.prototype.hasOwnProperty.call(typed, i.dataset.email)) { i.value = typed[i.dataset.email]; refreshNote(i.closest('.inv-row')); } });
+      if (foc) { const i = [...list.querySelectorAll('.inv-name')].find(x => x.dataset.email === foc.em); if (i) { i.focus({ preventScroll: true }); try { i.setSelectionRange(foc.a, foc.b); } catch (_) {} } }
+    }
     async function load() {
+      const my = ++loadSeq;
+      let html;
       try {
         const { invites } = await callInvites(sb, { action: 'list' });
-        list.innerHTML = invites.length ? invites.map(rowHtml).join('') : '<li class="muted small">No invites yet.</li>';
-      } catch (e) { list.innerHTML = `<li class="onb-err">${esc(e.message)}</li>`; }
+        html = invites.length ? invites.map(rowHtml).join('') : '<li class="muted small">No invites yet.</li>';
+      } catch (e) { html = `<li class="onb-err">${esc(e.message)}</li>`; }
+      if (my === loadSeq) draw(html);
     }
     function refreshNote(row) {
       const inp = row.querySelector('.inv-name');
@@ -266,6 +281,7 @@
           if (/Unknown action|HTTP 400/i.test(ex.message || '')) toast && toast(nm ? `Saved ${nm} on this device` : 'Cleared on this device');
           else { err.textContent = ex.message; b.disabled = false; return; }
         }
+        const ni = row.querySelector('.inv-name'); if (ni.value.trim().slice(0, 80) === nm) ni.defaultValue = ni.value;
         refreshNote(row); b.disabled = false; return;
       }
       const text = row ? row.querySelector('.inv-note').value : inviteNoteText('');
@@ -294,7 +310,9 @@
       } catch (ex) { err.textContent = ex.message; }
       go.disabled = false; go.textContent = 'Invite';
     };
-    load(); setTimeout(() => email.focus(), 50);
+    // Start in the email box, but never pull focus away from a field the user has already tapped (on a slow
+    // phone this ran after they had started typing a first name, and the letters went into the email box).
+    load(); setTimeout(() => { const a = document.activeElement; if (!a || a === d || a === document.body || !d.contains(a)) email.focus(); }, 50);
   }
 
   // ---------- mount ----------

@@ -36,7 +36,7 @@ const EXACT = name => `Hey ${name}! I've been building a calendar app called SAN
       { email: 'alex@example.com', status: 'invited', note: 'Alex', firstName: 'Alex', created_at: '2026-10-20T12:00:00Z', last_sign_in_at: null },
       { email: 'noname@example.com', status: 'invited', note: null, firstName: '', created_at: '2026-10-21T12:00:00Z', last_sign_in_at: null },
     ];
-    const calls = [];
+    const calls = []; const gate = { p: null };
     const ctx = await b.newContext({
       viewport: { width: 390, height: 844 }, timezoneId: 'America/Chicago', locale: 'en-US',
       isMobile: true, hasTouch: true, deviceScaleFactor: 2, reducedMotion: 'reduce',
@@ -47,6 +47,7 @@ const EXACT = name => `Hey ${name}! I've been building a calendar app called SAN
     await ctx.route('**/functions/v1/admin-invites', async r => {
       const body = JSON.parse(r.request().postData() || '{}');
       calls.push(body);
+      if (body.action === 'list' && gate.p) await gate.p;
       if (body.action === 'list') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ invites: invites.slice() }) });
       if (body.action === 'invite') {
         const nm = String(body.firstName || body.note || '').trim();
@@ -80,15 +81,18 @@ const EXACT = name => `Hey ${name}! I've been building a calendar app called SAN
       };
       const toast = m => { const t = document.getElementById('toast'); if (t) { t.textContent = m; t.hidden = false; } };
       window.SandyLaunch.openInvites({ sb, toast });
+      document.querySelector('.inv-dlg #invName').focus(); // the user taps First name at once
     });
     await p.waitForSelector('.inv-dlg .inv-row');
-    return { ctx, p, errs, calls, invites };
+    return { ctx, p, errs, calls, invites, gate };
   }
 
   for (const dark of [false, true]) {
     const tag = dark ? 'dark' : 'light';
-    const { ctx, p, errs, calls } = await openUi(dark);
+    const { ctx, p, errs, calls, gate } = await openUi(dark);
     assert(await p.$('#invName'), `${tag}: First name field next to email`);
+    await p.waitForTimeout(150);
+    assert(await p.evaluate(() => document.activeElement && document.activeElement.id) === 'invName', `${tag}: opening Invites doesn't pull focus away from a field the user already tapped`);
     const alex = p.locator('.inv-row', { hasText: 'alex@example.com' });
     assert(await alex.locator('.inv-note').inputValue() === EXACT('Alex'), `${tag}: Alex row note matches template exactly`);
     const noname = p.locator('.inv-row', { hasText: 'noname@example.com' });
@@ -98,7 +102,24 @@ const EXACT = name => `Hey ${name}! I've been building a calendar app called SAN
     assert(await alex.locator('button[data-act=copy]').count() === 1, `${tag}: Copy button present`);
 
     await noname.locator('.inv-name').fill('Sam');
-    assert(await noname.locator('.inv-note').inputValue() === EXACT('Sam'), `${tag}: typing a name live-updates the note`);
+    { const st = await p.evaluate(() => ({ dlg: document.querySelectorAll('.inv-dlg').length, v: (document.querySelector('.inv-row[data-email="noname@example.com"] .inv-name') || {}).value, note: ((document.querySelector('.inv-row[data-email="noname@example.com"] .inv-note') || {}).value || '').slice(0, 12), email: document.querySelector('#invEmail').value, act: (document.activeElement || {}).id || (document.activeElement || {}).className }));
+      assert(await noname.locator('.inv-note').inputValue() === EXACT('Sam'), `${tag}: typing a name live-updates the note ${JSON.stringify({ ...st, lists: calls.filter(c => c.action === 'list').length })}`); }
+    // The list redraws when a reload lands (after Invite / Revoke / Restore). If the user starts typing a name while
+    // that reload is still on its way, the redraw must keep the typed name, its note, focus and caret.
+    for (const act of ['revoke', 'restore']) {
+      let open; gate.p = new Promise(r => { open = r; });
+      p.once('dialog', dl => dl.accept());
+      await p.locator(`.inv-row[data-email="alex@example.com"] [data-act=${act}]`).click();
+      await p.waitForFunction(() => document.querySelector('.inv-row[data-email="alex@example.com"] [data-act]:disabled'), null, { timeout: 10000 }).catch(() => {});
+      const typed = act === 'revoke' ? 'Samantha' : 'Sammy';
+      await noname.locator('.inv-name').fill(typed);
+      await p.evaluate(() => document.querySelector('.inv-row[data-email="noname@example.com"] .inv-name').setSelectionRange(2, 2));
+      gate.p = null; open();
+      await p.waitForSelector(`.inv-row[data-email="alex@example.com"] [data-act=${act === 'revoke' ? 'restore' : 'revoke'}]`, { timeout: 10000 });
+      const st = await p.evaluate(() => { const i = document.querySelector('.inv-row[data-email="noname@example.com"] .inv-name'); return { v: i.value, note: i.closest('.inv-row').querySelector('.inv-note').value, foc: document.activeElement === i, caret: i.selectionStart }; });
+      assert(st.v === typed && st.note === EXACT(typed) && st.foc && st.caret === 2, `${tag}: list reload landing while typing (after ${act}) keeps the name, its note, focus and caret (${JSON.stringify({ v: st.v, foc: st.foc, caret: st.caret })})`);
+    }
+    await noname.locator('.inv-name').fill('Sam');
     await noname.locator('button[data-act=save-name]').click();
     await p.waitForTimeout(250);
     assert(calls.some(c => c.action === 'set_name' && c.email === 'noname@example.com' && c.firstName === 'Sam'), `${tag}: Save sends set_name`);
