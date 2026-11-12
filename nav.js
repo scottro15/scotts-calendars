@@ -571,6 +571,7 @@
       <p class="onb-err" role="alert"></p>
       <div class="dialog-actions"><button type="button" id="ibDel" class="danger">Delete</button><button type="button" id="ibSched">📅 Schedule…</button><span class="spacer"></span><button value="cancel" formnovalidate>Cancel</button><button id="ibSave" class="primary">Save</button></div></form>`);
     d.querySelector('#ibKind').value = it.kind || 'todo'; d.querySelector('#ibCal').value = it.calendar || ''; d.querySelector('#ibCat').value = it.categoryId || '';
+    requestAnimationFrame(() => window.__growNote && window.__growNote(d.querySelector('#ibBody'), { instant: true }));
     const val = () => ({ ...it, body: d.querySelector('#ibBody').value.trim(), kind: d.querySelector('#ibKind').value, calendar: d.querySelector('#ibCal').value || null, categoryId: d.querySelector('#ibCat').value || null });
     d.querySelector('#ibSave').onclick = async e => { e.preventDefault(); const v = val(); if (!v.body) return; try { await Inbox.save(v); d.close(); renderTodo(); } catch (err) { d.querySelector('.onb-err').textContent = err.message; } };
     d.querySelector('#ibDel').onclick = async () => { try { await Inbox.remove(it.id); d.close(); toast('Deleted'); renderTodo(); } catch (err) { d.querySelector('.onb-err').textContent = err.message; } };

@@ -1071,23 +1071,161 @@
 
   // ---------- Editor dialog ----------
   const dlg = document.getElementById('eventDialog');
-  // Keep the editor's Save bar above the on-screen keyboard (t148u). iPad Safari (and Android Chrome 108+) only shrink
-  // the *visual* viewport when the keyboard opens, so the centred sheet's bottom (Save) sat behind the keyboard.
-  // While the keyboard is up, the sheet is top-aligned in the visible area and capped to its height (it scrolls).
-  // t184u: the same now applies to every open dialog with a focused field (inbox Note / To-do) and the SI sheet, and
-  // the focused field + its caret line are kept in the visible part (above the keyboard and the sticky Save bar):
-  // on focus, on typing, on caret moves and while the keyboard animates. A tall textarea (Today's Note is 7–14 lines)
-  // is capped to the room above the keyboard so it scrolls inside itself instead of running under the keyboard.
+  // Keep the editor's Save bar above the on-screen keyboard (t148u / t184u / t199u).
+  // iPad Safari and Android Chrome 108+ shrink the *visual* viewport, so the sheet is fitted to that
+  // area while the keyboard is up (it scrolls; Save stays sticky). t199u: Event Notes, Today's Note
+  // and Inbox Note grow with the text and the sheet scrolls to keep the caret line visible. They are
+  // not shrunk to the leftover room; an inner scrollbar is only a last resort if one field would be
+  // taller than the visible band above the keyboard and Save. Other fields (SI, to-do) keep their own
+  // size caps and still get the same-frame caret follow.
   (function keyboardFit() {
     const vv = window.visualViewport; if (!vv) return;
     const TEXT = 'textarea, input:not([type]), input[type=text], input[type=search], input[type=url], input[type=email], input[type=tel], input[type=number], [contenteditable=""], [contenteditable="true"]';
+    const NOTE = '#event-notes, #dayNote, #ibBody';
     const isText = el => !!(el && el.nodeType === 1 && el.matches(TEXT) && !el.readOnly && !el.disabled);
+    const isNote = el => !!(el && el.matches && el.matches(NOTE));
     const kbUp = () => window.innerHeight - vv.height >= 120;
+    const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
     const fitted = new Set();
-    const unfit = el => { el.classList.remove('kb-fit'); el.style.maxHeight = el.style.marginTop = el.style.marginBottom = el.style.top = el.style.height = el.style.bottom = ''; fitted.delete(el); };
+    const unfit = el => {
+      el.classList.remove('kb-fit');
+      el.style.maxHeight = el.style.marginTop = el.style.marginBottom = el.style.top = el.style.height = el.style.bottom = el.style.scrollPaddingBottom = '';
+      el.style.removeProperty('--kb-save-pad');
+      fitted.delete(el);
+    };
     const uncap = ta => { if (ta && ta.dataset.kbCap) { ta.style.maxHeight = ta.style.minHeight = ''; delete ta.dataset.kbCap; } };
     let capped = null;
+    // Prefer the dialog/sheet even before it overflows, so we can scroll as the note grows and keep the caret above a sticky Save bar.
+    const scroller = el => {
+      for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+        const o = getComputedStyle(p).overflowY;
+        if (o === 'auto' || o === 'scroll') return p;
+      }
+      return el.closest('dialog, .ai-sheet, .qs-sheet');
+    };
+    function band(el) {
+      let top = vv.offsetTop + 6, bot = vv.offsetTop + vv.height - 6;
+      const sc = el ? scroller(el) : null;
+      if (sc) {
+        const r = sc.getBoundingClientRect();
+        top = Math.max(top, r.top + 6); bot = Math.min(bot, r.bottom - 6);
+        for (const f of sc.querySelectorAll('.dialog-actions')) {
+          if (getComputedStyle(f).position !== 'sticky' || (el && f.contains(el))) continue;
+          const fr = f.getBoundingClientRect();
+          if (fr.height && fr.top < bot && fr.bottom > top) bot = Math.min(bot, fr.top - 6);
+        }
+      }
+      return { top, bot, room: Math.max(72, Math.floor(bot - top - 8)), sc };
+    }
+    function caretBox(ta) {
+      const cs = getComputedStyle(ta), m = caretBox.m || (caretBox.m = document.createElement('div'));
+      m.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;top:0;white-space:pre-wrap;overflow-wrap:break-word;box-sizing:border-box;';
+      for (const k of ['width', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'borderStyle', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight', 'textTransform', 'wordSpacing', 'tabSize']) m.style[k] = cs[k];
+      m.textContent = ta.value.slice(0, ta.selectionEnd == null ? ta.value.length : ta.selectionEnd); const s = document.createElement('span'); s.textContent = '\u200b'; m.appendChild(s);
+      document.body.appendChild(m); const top = s.offsetTop - ta.scrollTop, h = s.offsetHeight || parseFloat(cs.lineHeight) || 20; m.remove();
+      return { top, bottom: top + h };
+    }
+    function lastResortCap(ta) { return kbUp() ? band(ta).room : Infinity; }
+    // Shared auto-grow for Event Notes, Today's Note, and Inbox Note.
+    function growNote(ta, opt) {
+      if (!ta || !ta.isConnected || !isNote(ta)) return;
+      if (!ta.offsetParent && !ta.getClientRects().length) return;
+      const instant = (opt && opt.instant) || reduceMotion();
+      const from = ta.offsetHeight;
+      const minCss = parseFloat(getComputedStyle(ta).minHeight) || 0;
+      const border = (ta.offsetHeight && ta.clientHeight) ? (ta.offsetHeight - ta.clientHeight) : 0;
+      ta.style.transition = 'none';
+      ta.style.height = 'auto';
+      const cap = lastResortCap(ta);
+      const minH = (Number.isFinite(cap) && cap < minCss) ? cap : minCss;
+      const want = Math.max(ta.scrollHeight + border, minH);
+      const to = Math.min(want, cap);
+      const over = want > cap + 1;
+      // Instant on ordinary typing / Enter so the new line is never clipped mid-animation.
+      // Animate only larger jumps (paste, a big undo) with overflow visible so the caret stays on screen.
+      const line = parseFloat(getComputedStyle(ta).lineHeight) || 22;
+      const animate = !instant && from > 0 && Math.abs(from - to) > line * 2 + 4;
+      ta.style.overflowY = over ? 'auto' : (animate ? 'visible' : 'hidden');
+      if (ta._growDone) { ta.removeEventListener('transitionend', ta._growDone); clearTimeout(ta._growTo); ta._growDone = null; }
+      if (animate) {
+        ta.style.height = from + 'px';
+        void ta.offsetHeight;
+        ta.style.transition = 'height 140ms ease';
+        ta.style.height = to + 'px';
+        const done = () => {
+          if (ta._growDone !== done) return;
+          ta._growDone = null; clearTimeout(ta._growTo);
+          ta.style.overflowY = ta.scrollHeight > ta.clientHeight + 1 ? 'auto' : 'hidden';
+          ta.removeEventListener('transitionend', done);
+        };
+        ta._growDone = done;
+        ta.addEventListener('transitionend', done);
+        ta._growTo = setTimeout(done, 200);
+      } else {
+        ta.style.height = to + 'px';
+      }
+    }
+    function scrollTaToCaret(ta) {
+      if (ta.tagName !== 'TEXTAREA') return caretBox(ta);
+      const rH = ta.clientHeight;
+      let c = caretBox(ta);
+      if (c.bottom > rH) ta.scrollTop += c.bottom - rH + 8;
+      else if (c.top < 0) ta.scrollTop += c.top - 8;
+      else return c;
+      return caretBox(ta);
+    }
+    function caretHidden(el) {
+      if (!isText(el) || !el.isConnected || !el.offsetParent) return false;
+      const { top, bot } = band(el);
+      const r = el.getBoundingClientRect();
+      let a = r.top, b = r.bottom;
+      if (el.tagName === 'TEXTAREA') {
+        const c = caretBox(el);
+        if (c.top < -1 || c.bottom > r.height + 1) return true;
+        a = r.top + Math.max(0, c.top) - 2;
+        b = r.top + Math.min(r.height, c.bottom) + 2;
+      }
+      return b > bot + 1 || a < top - 1;
+    }
+    function ensure(el) {
+      if (!isText(el) || !el.isConnected || !el.offsetParent) return;
+      const { top, bot, sc } = band(el);
+      const kb = kbUp();
+      // Non-note textareas keep the t184u cap (SI / to-do size caps stay as they are). Note fields are grown, not shrunk.
+      if (el.tagName === 'TEXTAREA' && !isNote(el)) {
+        if (kb && sc) {
+          if (capped && capped !== el) uncap(capped);
+          if (!el.dataset.kbCap) el.dataset.kbCap = '1';
+          const room = band(el).room;
+          el.style.maxHeight = room + 'px'; el.style.minHeight = Math.min(room, parseFloat(getComputedStyle(el).minHeight) || 0) + 'px'; capped = el;
+        } else if (!kb) uncap(el);
+      } else if (el === capped) { uncap(el); capped = null; }
+      const r = el.getBoundingClientRect();
+      let a = r.top, b = r.bottom;
+      if (el.tagName === 'TEXTAREA') {
+        const c = scrollTaToCaret(el);
+        a = r.top + Math.max(0, c.top) - 8;
+        b = r.top + Math.min(r.height, c.bottom) + 8;
+      }
+      const d = b > bot ? b - bot : (a < top ? a - top : 0);
+      if (!d) return;
+      if (sc) sc.scrollTop += d; else if (!el.closest('dialog, .ai-sheet, .qs-sheet')) window.scrollBy(0, d);
+    }
+    // If iOS panned the visual viewport, undo that pan so the dialog's top stays stable instead of chasing offsetTop.
+    function settleViewport() {
+      if (!kbUp() || !(vv.offsetTop > 1 || vv.offsetLeft > 1)) return;
+      const se = document.scrollingElement || document.documentElement;
+      try { se.scrollTop += vv.offsetTop; se.scrollLeft += vv.offsetLeft; } catch (_) {}
+    }
+    function savePad(el) {
+      let pad = 8;
+      const actions = el.querySelector && el.querySelector('.dialog-actions');
+      if (actions && getComputedStyle(actions).position === 'sticky') pad = Math.ceil(actions.getBoundingClientRect().height) + 8;
+      el.style.scrollPaddingBottom = pad + 'px';
+      el.style.setProperty('--kb-save-pad', pad + 'px');
+    }
     function fit() {
+      settleViewport();
       const act = document.activeElement; const want = new Set();
       if (kbUp()) {
         const d = (act && act.closest && act.closest('dialog[open]')) || (dlg.open ? dlg : null);
@@ -1097,53 +1235,51 @@
       for (const el of [...fitted]) if (!want.has(el) || !el.isConnected) unfit(el);
       for (const el of want) {
         el.classList.add('kb-fit'); fitted.add(el);
+        savePad(el);
         if (el.tagName === 'DIALOG') { el.style.maxHeight = Math.max(240, Math.round(vv.height - 16)) + 'px'; el.style.marginTop = Math.round(vv.offsetTop + 8) + 'px'; el.style.marginBottom = 'auto'; }
         else { el.style.top = Math.round(vv.offsetTop) + 'px'; el.style.height = Math.round(vv.height) + 'px'; el.style.bottom = 'auto'; } // SI sheet = the visible area
       }
     }
-    const scroller = el => { for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) { const o = getComputedStyle(p).overflowY; if ((o === 'auto' || o === 'scroll') && p.scrollHeight > p.clientHeight + 1) return p; } return null; };
-    // caret line of a textarea, relative to its border box top (mirror div; only used when the field can't fit whole)
-    function caretBox(ta) {
-      const cs = getComputedStyle(ta), m = caretBox.m || (caretBox.m = document.createElement('div'));
-      m.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;top:0;white-space:pre-wrap;overflow-wrap:break-word;box-sizing:border-box;';
-      for (const k of ['width', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'borderStyle', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight', 'textTransform', 'wordSpacing', 'tabSize']) m.style[k] = cs[k];
-      m.textContent = ta.value.slice(0, ta.selectionEnd == null ? ta.value.length : ta.selectionEnd); const s = document.createElement('span'); s.textContent = '\u200b'; m.appendChild(s);
-      document.body.appendChild(m); const top = s.offsetTop - ta.scrollTop, h = s.offsetHeight || parseFloat(cs.lineHeight) || 20; m.remove();
-      return { top, bottom: top + h };
-    }
-    function ensure(el) {
-      if (!isText(el) || !el.isConnected || !el.offsetParent) return;
-      const sc = scroller(el); const kb = kbUp();
-      let top = vv.offsetTop + 6, bot = vv.offsetTop + vv.height - 6;
-      if (sc) {
-        const r = sc.getBoundingClientRect(); top = Math.max(top, r.top + 6); bot = Math.min(bot, r.bottom - 6);
-        for (const f of sc.querySelectorAll('.dialog-actions')) { if (getComputedStyle(f).position !== 'sticky' || f.contains(el)) continue; const fr = f.getBoundingClientRect(); if (fr.height && fr.top < bot && fr.bottom > top) bot = Math.min(bot, fr.top - 6); }
-      }
-      if (el.tagName === 'TEXTAREA') {
-        if (kb && sc) {
-          if (capped && capped !== el) uncap(capped);
-          if (!el.dataset.kbCap) el.dataset.kbCap = '1';
-          const room = Math.max(72, Math.floor(bot - top - 8));
-          el.style.maxHeight = room + 'px'; el.style.minHeight = Math.min(room, parseFloat(getComputedStyle(el).minHeight) || 0) + 'px'; capped = el;
-        } else if (!kb) uncap(el);
-      }
-      const r = el.getBoundingClientRect();
-      let a = r.top, b = r.bottom;
-      if (r.height > bot - top && el.tagName === 'TEXTAREA') { const c = caretBox(el); a = r.top + Math.max(0, c.top) - 8; b = r.top + Math.min(r.height, c.bottom) + 8; }
-      const d = b > bot ? b - bot : (a < top ? a - top : 0);
-      if (!d) return;
-      if (sc) sc.scrollTop += d; else if (!el.closest('dialog, .ai-sheet, .qs-sheet')) window.scrollBy(0, d);
+    function tick(opt) {
+      fit();
+      const act = document.activeElement;
+      if (isNote(act)) growNote(act, opt);
+      ensure(act);
     }
     let raf = 0;
-    const later = () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; fit(); ensure(document.activeElement); }); };
-    const onVV = () => { fit(); ensure(document.activeElement); };
+    const later = (opt) => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; tick(opt); }); };
+    const onVV = () => tick({ instant: true });
     vv.addEventListener('resize', onVV); vv.addEventListener('scroll', onVV);
-    document.addEventListener('focusin', e => { if (isText(e.target)) { later(); setTimeout(later, 320); } });
-    document.addEventListener('focusout', e => { if (e.target === capped) { uncap(capped); capped = null; } setTimeout(() => { if (!isText(document.activeElement)) fit(); }, 0); });
-    document.addEventListener('input', e => { if (isText(e.target) && e.target === document.activeElement) later(); });
-    document.addEventListener('selectionchange', () => { if (isText(document.activeElement) && kbUp()) later(); });
-    dlg.addEventListener('close', () => { if (fitted.has(dlg)) unfit(dlg); if (capped && dlg.contains(capped)) { uncap(capped); capped = null; } });
-    window.__fitEditor = onVV; window.__kbEnsure = () => { fit(); ensure(document.activeElement); }; // tests
+    document.addEventListener('focusin', e => {
+      if (!isText(e.target)) return;
+      if (isNote(e.target)) growNote(e.target, { instant: true });
+      ensure(e.target);
+      later({ instant: true });
+      setTimeout(() => { const a = document.activeElement; if (isText(a) && caretHidden(a)) later({ instant: true }); }, 320);
+    });
+    document.addEventListener('focusout', e => {
+      if (e.target === capped) { uncap(capped); capped = null; }
+      if (isNote(e.target)) growNote(e.target, { instant: true });
+      setTimeout(() => { if (!isText(document.activeElement)) fit(); }, 0);
+    });
+    document.addEventListener('input', e => {
+      if (!isText(e.target) || e.target !== document.activeElement) return;
+      if (isNote(e.target)) growNote(e.target);
+      ensure(e.target); // same frame as typing / Enter
+      later();
+    });
+    document.addEventListener('selectionchange', () => {
+      if (!isText(document.activeElement) || !kbUp()) return;
+      ensure(document.activeElement);
+      later();
+    });
+    dlg.addEventListener('close', () => {
+      if (fitted.has(dlg)) unfit(dlg);
+      if (capped && dlg.contains(capped)) { uncap(capped); capped = null; }
+      for (const ta of dlg.querySelectorAll(NOTE)) { ta.style.height = ta.style.transition = ta.style.overflowY = ''; }
+    });
+    window.__growNote = (ta, opt) => growNote(ta, opt);
+    window.__fitEditor = onVV; window.__kbEnsure = () => tick({ instant: true }); // tests
   })();
   const form = document.getElementById('eventForm');
   const f = name => form.elements[name];
@@ -1192,6 +1328,7 @@
       if (it.allDay) { const e = parseLocal(day); e.setUTCDate(e.getUTCDate() + (it.days || 0)); f('endDate').value = ymd(e); }
       else if (it.time) { f('startTime').value = it.time; const s = parseLocal(`${day}T${it.time}`); writeEnd(new Date(s.getTime() + (it.dur || 60) * 60000), false); }
       f('location').value = it.location || ''; f('event-notes').value = it.notes || '';
+      window.__growNote(f('event-notes'), { instant: true });
       if (it.kind === 'task' && it.scope) f('scope').value = it.scope;
       renderReminders(it.reminders || []);
       syncFormUI(); clampEnd(); syncEndMin(); rememberSE();
@@ -1325,7 +1462,8 @@
     if (locAC) { locAC.reset(); Places.warm(); } // lazy-load Google Places only once the form opens
     if (titleAC) { titleAC.reset(); if (!ev) titleAC.refresh(); }
     dlg.showModal(); fitCalSelect();
-    if (!ev) f('event-title').focus();
+    window.__growNote(f('event-notes'), { instant: true }); window.__growNote(dayTa, { instant: true });
+    if (!ev) f('event-title').focus({ preventScroll: true });
   }
 
   // ---------- Checklist: '- [ ] item' lines in Notes become checkboxes, ticked per occurrence date ----------
@@ -1420,7 +1558,7 @@
     const nl = document.getElementById('dayNoteNotion'); const url = await Store.links.get(nk.eventId, nk.date);
     if (nl) { nl.replaceChildren(); nl.hidden = !url; if (url) { const a = notionLinkEl(url); a.append(' Open in Notion'); nl.append(a); } }
     dayCtx = { ...nk, saved: dayTa.value };
-    requestAnimationFrame(growDayNote);
+    requestAnimationFrame(() => { window.__growNote(dayTa, { instant: true }); window.__growNote(f('event-notes'), { instant: true }); });
   }
   async function flushDayNote() {
     clearTimeout(dayTimer);
@@ -1430,17 +1568,7 @@
     try { await Store.notes.set(c.eventId, c.date, body); c.saved = body; dayStatus.textContent = body ? 'Saved' : 'Deleted'; scheduleRefresh(); }
     catch (err) { dayStatus.textContent = 'Not saved'; fail(err); }
   }
-  // Auto-grow Today's Note up to its CSS max-height (~14 lines), then scroll. Never shrinks below a manual resize.
-  function growDayNote() {
-    if (dayBox.hidden) return;
-    const manual = dayTa.dataset.userH ? +dayTa.dataset.userH : 0;
-    dayTa.style.height = 'auto';
-    const max = parseFloat(getComputedStyle(dayTa).maxHeight) || Infinity;
-    dayTa.style.height = Math.min(Math.max(dayTa.scrollHeight + 2, manual), max) + 'px';
-  }
-  dayTa.addEventListener('pointerup', () => { if (dayTa.style.height && dayTa.offsetHeight !== parseFloat(dayTa.style.height)) dayTa.dataset.userH = dayTa.offsetHeight; });
-  dayTa.addEventListener('input', growDayNote);
-  dlg.addEventListener('close', () => { delete dayTa.dataset.userH; dayTa.style.height = ''; });
+  // Auto-grow is the shared helper (keyboardFit / __growNote). These only save the note.
   dayTa.addEventListener('input', () => { clearTimeout(dayTimer); dayStatus.textContent = ''; dayTimer = setTimeout(flushDayNote, 700); });
   dayTa.addEventListener('blur', flushDayNote);
   dlg.addEventListener('close', flushDayNote);

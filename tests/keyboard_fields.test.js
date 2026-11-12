@@ -1,15 +1,16 @@
-// t184u: note and text fields stay visible above the on-screen keyboard while typing.
+// t184u / t199u: note and text fields stay visible above the on-screen keyboard while typing.
 //   node tests/keyboard_fields.test.js BASE [SHOTS] [device]
-// Bug: in the full editor, Today's Note (7–14 lines tall) dropped below the keyboard on focus, and its caret went
-// out of view while typing a long note, every time. iPad / Android Chrome only shrink the *visual* viewport, so a stand-in
-// visualViewport raises a keyboard here (as tablet_event_save does). Checks, on iPhone / iPad / Android phone / tablet,
-// light + dark: the caret line is above the keyboard and not under the sticky Save bar (elementFromPoint), on focus, after
-// a long note, and on coming back to it; plus event Notes, the to-do sheet's Description and sub-tasks, the inbox Note
-// dialog and the SI input.
+// t199u: Event Notes, Today's Note and Inbox Note grow with the text (no 14-line cap); the sheet scrolls.
+// The caret line stays visible on every Enter through 30+ lines. iPad / Android Chrome only shrink the *visual*
+// viewport, so a stand-in visualViewport raises a keyboard here (as tablet_event_save does). Checks, on iPhone /
+// iPad / Android phone / tablet, light + dark: the caret line is above the keyboard and not under the sticky Save
+// bar (elementFromPoint), on focus, after a long note, coming back to it, and after 30+ Enters; plus event Notes,
+// the to-do sheet's Description and sub-tasks, the inbox Note dialog and the SI input.
 const PW = require(process.env.PW || '/usr/local/lib/pnpm/5/.pnpm/playwright-core@1.59.1/node_modules/playwright-core');
 const fs = require('fs');
 const BASE = process.argv[2] || 'http://127.0.0.1:8871/';
 const SHOTS = process.argv[3] || '/workspace/shots-oct29/kb-fields'; fs.mkdirSync(SHOTS, { recursive: true });
+const FLUID = '/workspace/shots-oct29/notes-fluid'; fs.mkdirSync(FLUID, { recursive: true });
 const only = process.argv[4] || '';
 let n = 0, fails = 0; const ok = (c, m) => { if (!c) { fails++; console.log('FAIL -', m); } else { n++; console.log('ok -', m); } };
 // keyboard heights roughly as on the devices (incl. the suggestion bar)
@@ -67,6 +68,39 @@ const caretVisible = (p, sel) => p.evaluate(sel => {
         k.style.cssText = `position:fixed;left:0;right:0;bottom:0;height:${h}px;z-index:2147483647;pointer-events:none;background:${dk ? '#2b2b2e' : '#d1d3d9'};display:flex;align-items:center;justify-content:center;font:600 15px system-ui;color:${dk ? '#9ca3af' : '#4b5563'};border-top:1px solid ${dk ? '#3f3f46' : '#b8bac0'}`;
         k.textContent = `simulated keyboard (${h}px)`; if (h) document.body.appendChild(k); }, dark);
       await p.screenshot({ path: `${SHOTS}/${tag}-${s}.png` }); await p.evaluate(() => { const k = document.getElementById('__kbOverlay'); if (k) k.remove(); }); };
+    const fluidShot = async s => {
+      await p.evaluate(dk => { const k = document.createElement('div'); k.id = '__kbOverlay'; const h = innerHeight - visualViewport.height;
+        k.style.cssText = `position:fixed;left:0;right:0;bottom:0;height:${h}px;z-index:2147483647;pointer-events:none;background:${dk ? '#2b2b2e' : '#d1d3d9'};display:flex;align-items:center;justify-content:center;font:600 15px system-ui;color:${dk ? '#9ca3af' : '#4b5563'};border-top:1px solid ${dk ? '#3f3f46' : '#b8bac0'}`;
+        k.textContent = `simulated keyboard (${h}px)`; if (h) document.body.appendChild(k); }, dark);
+      await p.screenshot({ path: `${FLUID}/${tag}-${s}.png` }); await p.evaluate(() => { const k = document.getElementById('__kbOverlay'); if (k) k.remove(); });
+    };
+    // Type 32 lines with a real Enter after each; the caret must stay visible on every step.
+    const typeLines = async (sel, label) => {
+      await p.evaluate(sel => {
+        const t = document.querySelector(sel);
+        t.style.transition = 'none';
+        if (window.__growNote) window.__growNote(t, { instant: true });
+      }, sel);
+      const h0 = await p.$eval(sel, t => ({ h: t.offsetHeight, min: parseFloat(getComputedStyle(t).minHeight) || 0 }));
+      let failed = 0;
+      for (let i = 1; i <= 32; i++) {
+        await p.evaluate(i => {
+          const t = document.activeElement;
+          t.value += (t.value && !t.value.endsWith('\n') ? '\n' : '') + 'Fluid line ' + i;
+          t.setSelectionRange(t.value.length, t.value.length);
+          t.dispatchEvent(new Event('input', { bubbles: true }));
+        }, i);
+        await p.keyboard.press('Enter');
+        const v = await caretVisible(p, sel);
+        if (!v.ok) { failed++; ok(false, `${tag}: ${label}: caret visible after Enter on line ${i} (${v.why})`); if (failed >= 3) break; }
+        else { n++; /* count a pass without logging 32x8 lines */ }
+      }
+      if (!failed) ok(true, `${tag}: ${label}: caret visible on all 32 Enters`);
+      const meas = await p.$eval(sel, t => ({ h: t.offsetHeight, sh: t.scrollHeight, ch: t.clientHeight, ov: getComputedStyle(t).overflowY, max: getComputedStyle(t).maxHeight }));
+      ok(meas.h > h0.min + 24 || meas.sh <= meas.ch + 2, `${tag}: ${label}: field grew with the text (min ${h0.min}px, start ${h0.h} → ${meas.h}px, scroll ${meas.sh}/${meas.ch}, overflow ${meas.ov})`);
+      ok(meas.max === 'none' || meas.max === '0px' || parseFloat(meas.max) > 2000, `${tag}: ${label}: no 14-line cap (max-height ${meas.max})`);
+      return meas;
+    };
     try {
       // ---------- full editor: Today's Note on a weekly practice ----------
       const id = await p.evaluate(async () => (await Store.save({ calendar: __app.calendars()[0].id, kind: 'event', category: 'Other', title: 'KB practice', allDay: false, start: '2026-11-03T15:00', end: '2026-11-03T17:00', recurrence: { freq: 'weekly', interval: 1, byWeekday: [2] } })).id);
@@ -88,14 +122,23 @@ const caretVisible = (p, sel) => p.evaluate(sel => {
       await p.keyboard.type('\nBack again: still visible');
       await check('#dayNote', "Today's Note: visible again when coming back to it");
       await shot('3-daynote-again');
+      // t199u: grow + caret on every Enter (32 lines)
+      await p.evaluate(() => { const t = document.getElementById('dayNote'); t.value = ''; t.style.transition = 'none'; t.dispatchEvent(new Event('input', { bubbles: true })); });
+      await p.locator('#dayNote').tap({ position: { x: 30, y: 16 } });
+      await typeLines('#dayNote', "Today's Note");
+      await fluidShot('daynote-long');
       // the editor's own Notes field
       await p.locator('textarea[name=event-notes]').scrollIntoViewIfNeeded(); await p.locator('textarea[name=event-notes]').tap();
       await p.keyboard.type(LONG.split('\n').slice(0, 12).join('\n'));
       await check('textarea[name=event-notes]', 'event Notes: caret visible after 12 lines');
+      await p.evaluate(() => { const t = document.querySelector('textarea[name=event-notes]'); t.value = ''; t.style.transition = 'none'; t.dispatchEvent(new Event('input', { bubbles: true })); });
+      await p.locator('textarea[name=event-notes]').tap();
+      await typeLines('textarea[name=event-notes]', 'event Notes');
+      await fluidShot('event-notes-long');
       ok(await p.evaluate(() => { const b = document.querySelector('#eventForm button[type=submit]'); const r = b.getBoundingClientRect(); const e = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return (e === b || b.contains(e)) && r.bottom <= visualViewport.height + 1; }), `${tag}: Save still visible above the keyboard`);
       await p.locator('#event-title').tap(); await p.waitForTimeout(200); await p.evaluate(() => document.activeElement.blur()); await p.waitForTimeout(300);
-      const back = await p.waitForFunction(() => !document.getElementById('eventDialog').classList.contains('kb-fit') && !document.getElementById('dayNote').style.maxHeight && !document.querySelector('textarea[name=event-notes]').style.maxHeight, null, { timeout: 1500 }).then(() => 'ok', async () => p.evaluate(() => `fit=${document.getElementById('eventDialog').classList.contains('kb-fit')} note=${document.getElementById('dayNote').style.maxHeight} notes=${document.querySelector('textarea[name=event-notes]').style.maxHeight} vvh=${visualViewport.height} ih=${innerHeight} act=${document.activeElement && (document.activeElement.id || document.activeElement.tagName)}`));
-      ok(back === 'ok', `${tag}: keyboard down: editor and note back to normal size (${back})`);
+      const back = await p.waitForFunction(() => !document.getElementById('eventDialog').classList.contains('kb-fit'), null, { timeout: 1500 }).then(() => 'ok', async () => p.evaluate(() => `fit=${document.getElementById('eventDialog').classList.contains('kb-fit')} vvh=${visualViewport.height} ih=${innerHeight} act=${document.activeElement && (document.activeElement.id || document.activeElement.tagName)}`));
+      ok(back === 'ok', `${tag}: keyboard down: editor back to normal size (${back})`);
       await p.evaluate(() => document.querySelector('#eventDialog').close()); await p.waitForTimeout(400);
 
       // ---------- to-do sheet: Description + sub-tasks ----------
@@ -142,8 +185,12 @@ const caretVisible = (p, sel) => p.evaluate(sel => {
         await p.locator('#ibBody').tap(); await p.evaluate(() => { const t = document.getElementById('ibBody'); t.setSelectionRange(t.value.length, t.value.length); });
         await p.keyboard.type('\n' + LONG.split('\n').slice(0, 14).join('\n'));
         await check('#ibBody', 'inbox Note dialog: caret visible after 14 lines');
+        await p.evaluate(() => { const t = document.getElementById('ibBody'); t.value = ''; t.style.transition = 'none'; t.dispatchEvent(new Event('input', { bubbles: true })); });
+        await p.locator('#ibBody').tap();
+        await typeLines('#ibBody', 'inbox Note');
         ok(await p.evaluate(() => { const d = document.querySelector('dialog.inbox-dlg'), r = d.getBoundingClientRect(); return r.bottom <= visualViewport.height + 1 && r.top >= -1; }), `${tag}: inbox dialog fits above the keyboard`);
         await shot('5-inbox-note');
+        await fluidShot('inbox-note-long');
         await p.evaluate(() => document.activeElement.blur()); await p.waitForTimeout(250);
         await p.evaluate(() => document.querySelector('dialog.inbox-dlg').close()); await p.waitForTimeout(300);
       }
